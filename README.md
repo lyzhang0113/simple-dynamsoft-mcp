@@ -67,7 +67,7 @@ Add to your VS Code settings:
 ### Use via npx (after publishing)
 
 ```bash
-npx dynamsoft-barcode-reader-mcp
+npx simple-dynamsoft-mcp
 ```
 
 ## Code Samples Included
