@@ -1,10 +1,10 @@
 {
-  "name": "dynamsoft-barcode-reader-mcp",
-  "version": "11.2.5000",
+  "name": "simple-dynamsoft-mcp",
+  "version": "1.0.0",
   "description": "MCP server for Dynamsoft Barcode Reader Mobile SDK - provides documentation, code snippets, and API guidance for Android (Java/Kotlin) and iOS (Swift) barcode scanning apps.",
   "type": "module",
   "bin": {
-    "dynamsoft-mcp": "./src/index.js"
+    "simple-dynamsoft-mcp": "./src/index.js"
   },
   "files": [
     "src",
