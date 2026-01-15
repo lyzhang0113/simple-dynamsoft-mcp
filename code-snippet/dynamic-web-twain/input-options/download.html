@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Downloading from HTTP Server</title>
+    <link rel="stylesheet" href="../css/global.css" />
+    <link rel="stylesheet" href="../css/scan.css" />
+</head>
+
+<body>
+    <div class="ds-div-scanPageHeader">
+        <div class="ds-div-title">Downloading from HTTP Server</div>
+    </div>
+    <div class="ds-div-scanPageDemo">
+        <div class="ds-div-scanPage-column ds-div-scanPage-column0">
+            <div>URL: <input type="text" id="txtURL" style="width: 100%;"
+                    value="https://demo.dynamsoft.com/Samples/DWT/Download-from-HTTP-Server/DynamsoftSample.pdf" />
+            </div>
+            <div><input type="button" value="Download" class="ds-button-bg-black" onclick="DownloadImage();" /></div>
+        </div>
+        <div class="ds-div-scanPage-column ds-div-scanPage-column1">
+            <div id="dwtcontrolContainer" style="width: 100%; height: 100%;"></div>
+        </div>
+    </div>
+    <style>
+        .ds-div-download {
+            bottom: 2px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/dwt@latest/dist/dynamsoft.webtwain.min.js"></script>
+    <script type="text/javascript">
+        Dynamsoft.DWT.Containers = [{ ContainerId: 'dwtcontrolContainer', Width: '100%', Height: '100%' }];
+        Dynamsoft.DWT.ProductKey = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk4Mjk3OTI2MzUiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6IndTcGR6Vm05WDJrcEQ5YUoifQ==";
+        Dynamsoft.DWT.ResourcesPath = 'https://cdn.jsdelivr.net/npm/dwt@latest/dist';
+        Dynamsoft.DWT.ServiceInstallerLocation = 'https://download2.dynamsoft.com/Demo/DWT/Resources/dist/';
+        Dynamsoft.DWT.AutoLoad = true;
+
+        var DWTObject;
+        Dynamsoft.DWT.RegisterEvent("OnWebTwainReady", function () {
+            DWTObject = Dynamsoft.DWT.GetWebTwain('dwtcontrolContainer'); // Get the Dynamic Web TWAIN object that is embeded in the div with id 'dwtcontrolContainer'
+        });
+
+        //Callback functions for async APIs
+        function OnSuccess() {
+            console.log('successful');
+        }
+
+        function OnFailure(errorCode, errorString) {
+            alert(errorString);
+        }
+
+        function DownloadImage() {
+            if (DWTObject) {
+                var txtURL = document.getElementById('txtURL').value.trim();
+                try {
+                    var url = new URL(txtURL);
+                    DWTObject.IfSSL = (url.protocol === 'https:');
+                    DWTObject.HTTPPort = url.port ? parseInt(url.port) : (DWTObject.IfSSL ? 443 : 80);
+                    var strHTTPServer = url.hostname;
+                    var downloadfilename = url.pathname + (url.search || '') + (url.hash || '');
+
+                    DWTObject.HTTPDownload(strHTTPServer, downloadfilename, OnSuccess, OnFailure);
+
+                } catch (e) {
+                    console.error('Invalid URL:', e);
+                }
+            }
+        }
+    </script>
+
+</body>
+
+</html>

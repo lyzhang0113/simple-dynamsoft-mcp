@@ -5,16 +5,18 @@
   "sdks": {
     "dbr-mobile": {
       "name": "Dynamsoft Barcode Reader Mobile SDK",
-      "description": "Barcode scanning for mobile platforms using Dynamsoft Barcode Reader.",
+      "description": "Barcode scanning for mobile platforms (Android/iOS) using Dynamsoft Barcode Reader.",
       "version": "11.2.5000",
       "default_platform": "android",
       "default_api_level": "high-level",
+      "snippet_path": "dynamsoft-barcode-reader",
       "platforms": {
         "android": {
           "languages": [
             "Kotlin",
             "Java"
           ],
+          "snippet_folder": "android",
           "docs": {
             "high-level": {
               "user-guide": "https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/android/user-guide.html",
@@ -37,6 +39,7 @@
             "Swift",
             "Objective-C"
           ],
+          "snippet_folder": "ios",
           "docs": {
             "high-level": {
               "user-guide": "https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/objectivec-swift/user-guide.html",
@@ -110,6 +113,95 @@
           "samples": {
             "high-level": "https://github.com/Dynamsoft/barcode-reader-maui-samples/tree/main/ScanBarcodes_ReadyToUseComponent",
             "low-level": "https://github.com/Dynamsoft/barcode-reader-maui-samples/tree/main/ScanBarcodes_FoundationalAPI"
+          }
+        }
+      }
+    },
+    "dbr-python": {
+      "name": "Dynamsoft Barcode Reader Python SDK",
+      "description": "Barcode scanning for Python desktop/server applications.",
+      "version": "11.2.5000",
+      "default_platform": "python",
+      "snippet_path": "dynamsoft-barcode-reader/python",
+      "platforms": {
+        "python": {
+          "languages": [
+            "Python"
+          ],
+          "snippet_folder": "Samples",
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/barcode-reader/docs/server/programming/python/user-guide.html",
+            "api-reference": "https://www.dynamsoft.com/barcode-reader/docs/server/programming/python/api-reference/",
+            "samples": "https://www.dynamsoft.com/barcode-reader/docs/server/programming/python/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/barcode-reader-python-samples"
+          },
+          "installation": {
+            "pip": "pip install dynamsoft-barcode-reader-bundle"
+          }
+        }
+      }
+    },
+    "dbr-web": {
+      "name": "Dynamsoft Barcode Reader JavaScript SDK",
+      "description": "Barcode scanning for web applications using JavaScript/TypeScript.",
+      "version": "11.2.4000",
+      "default_platform": "web",
+      "snippet_path": "dynamsoft-barcode-reader/web",
+      "platforms": {
+        "web": {
+          "languages": [
+            "JavaScript",
+            "TypeScript"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/user-guide/index.html",
+            "api-reference": "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/api-reference/",
+            "samples": "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/barcode-reader-javascript-samples"
+          },
+          "installation": {
+            "npm": "npm install dynamsoft-barcode-reader-bundle",
+            "cdn": "https://cdn.jsdelivr.net/npm/dynamsoft-barcode-reader-bundle@11.2.4000/dist/dbr.bundle.min.js"
+          }
+        }
+      }
+    },
+    "dwt": {
+      "name": "Dynamic Web TWAIN",
+      "description": "Document scanning SDK for web applications. Supports TWAIN, WIA, ICA, SANE scanners.",
+      "version": "18.5",
+      "default_platform": "web",
+      "snippet_path": "dynamic-web-twain",
+      "platforms": {
+        "web": {
+          "languages": [
+            "JavaScript",
+            "TypeScript",
+            "HTML"
+          ],
+          "docs": {
+            "introduction": "https://www.dynamsoft.com/web-twain/docs/introduction/index.html",
+            "user-guide": "https://www.dynamsoft.com/web-twain/docs/hello-world/index.html",
+            "api-reference": "https://www.dynamsoft.com/web-twain/docs/info/api/",
+            "features": "https://www.dynamsoft.com/web-twain/docs/extended-usage/index.html"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/web-twain-codelab/"
+          },
+          "installation": {
+            "npm": "npm install dwt",
+            "cdn": "https://cdn.jsdelivr.net/npm/dwt@latest/dist/dynamsoft.webtwain.min.js"
+          },
+          "categories": {
+            "scan": "Basic document scanning from TWAIN/WIA/ICA/SANE scanners",
+            "input-options": "Load images from files, URLs, local drive",
+            "output-options": "Save, upload, convert to PDF/Base64/Blob",
+            "classification": "Document classification and tagging",
+            "UI-customization": "Customize viewer and scan UI"
           }
         }
       }

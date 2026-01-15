@@ -1,24 +1,31 @@
-# Dynamsoft Barcode Reader MCP Server
+# Dynamsoft MCP Server
 
-MCP (Model Context Protocol) server that enables AI assistants to write correct code with Dynamsoft Barcode Reader Mobile SDK. It provides actual working code snippets, documentation links, and API guidance for Android (Java/Kotlin) and iOS (Swift) barcode scanning apps.
+MCP (Model Context Protocol) server that enables AI assistants to write correct code with Dynamsoft SDKs. It provides actual working code snippets, documentation links, and API guidance for:
+
+- **Dynamsoft Barcode Reader Mobile** - Android (Java/Kotlin) and iOS (Swift)
+- **Dynamsoft Barcode Reader Python** - Desktop/server barcode scanning
+- **Dynamsoft Barcode Reader Web** - JavaScript/TypeScript barcode scanning
+- **Dynamic Web TWAIN** - Document scanning from TWAIN/WIA/ICA/SANE scanners
 
 ## Features
 
 - **Code Snippets**: Real, working source code from official Dynamsoft samples
-- **Version 11.2.5000**: Latest SDK version with trial license included
-- **Two API Levels**: 
-  - **High-Level (BarcodeScanner)**: Simple ready-to-use barcode scanning UI
-  - **Low-Level (CaptureVisionRouter)**: Full control over the scanning pipeline
-- **Multiple Platforms**: Android and iOS with Java, Kotlin, and Swift examples
+- **Trial License Included**: Ready-to-use trial license for quick testing
+- **Multiple SDKs**: Barcode Reader (Mobile/Python/Web) + Dynamic Web TWAIN
+- **Multiple API Levels**: High-level (simple) and low-level (advanced) options
 
 ## Available Tools
 
 | Tool | Description |
 |------|-------------|
-| `list_sdks` | List SDK info with version and trial license |
-| `get_sdk_info` | Get detailed SDK info for a platform |
-| `list_samples` | List available code samples |
-| `get_code_snippet` | Get actual source code from samples |
+| `list_sdks` | List all SDKs with versions and platforms |
+| `get_sdk_info` | Get detailed SDK info for a specific platform |
+| `list_samples` | List mobile code samples |
+| `list_python_samples` | List Python SDK samples |
+| `list_dwt_categories` | List Dynamic Web TWAIN sample categories |
+| `get_code_snippet` | Get mobile sample source code |
+| `get_python_sample` | Get Python sample code |
+| `get_dwt_sample` | Get Dynamic Web TWAIN sample |
 | `get_quick_start` | Complete quick start guide with dependencies |
 | `get_gradle_config` | Android Gradle configuration |
 | `get_license_info` | License initialization code |
@@ -70,36 +77,51 @@ Add to your VS Code settings:
 npx simple-dynamsoft-mcp
 ```
 
-## Code Samples Included
+## Supported SDKs
 
-### Android High-Level API (BarcodeScanner)
-- `ScanSingleBarcode` - Scan one barcode (Java)
-- `ScanSingleBarcodeKt` - Scan one barcode (Kotlin)
-- `ScanMultipleBarcodes` - Batch scanning
-- `ScenarioOrientedSamples` - Various use cases
+### Dynamsoft Barcode Reader Mobile (v11.2.5000)
 
-### Android Low-Level API (CaptureVisionRouter)
-- `DecodeWithCameraEnhancer` - Camera with DCE
-- `DecodeWithCameraX` - Camera with CameraX
-- `DecodeFromAnImage` - Decode from image file
-- `GeneralSettings` - Template customization
-- `DriversLicenseScanner` - Parse driver licenses
-- `TinyBarcodeDecoding` - Small barcode optimization
-- `ReadGS1AI` - GS1 barcode parsing
-- `LocateAnItemWithBarcode` - Barcode location
+**Platforms:** Android, iOS, Flutter, React Native, .NET MAUI
 
-### iOS High-Level API (BarcodeScanner)
-- `ScanSingleBarcode` - Scan one barcode (Swift)
-- `ScanSingleBarcodeSwiftUI` - SwiftUI version
-- `ScanSingleBarcodeObjc` - Objective-C version
-- `ScanMultipleBarcodes` - Batch scanning
+**API Levels:**
+- **High-Level (BarcodeScanner)**: Simple ready-to-use barcode scanning UI
+- **Low-Level (CaptureVisionRouter)**: Full control over the scanning pipeline
 
-### iOS Low-Level API (CaptureVisionRouter)
-- `DecodeWithCameraEnhancer` - Camera with DCE
-- `DecodeWithAVCaptureSession` - Camera with AVFoundation
-- `DecodeFromAnImage` - Decode from image file
-- `GeneralSettings` - Template customization
-- And more...
+**Android Samples:**
+- ScanSingleBarcode, ScanMultipleBarcodes, ScenarioOrientedSamples
+- DecodeWithCameraEnhancer, DecodeWithCameraX, DecodeFromAnImage
+- GeneralSettings, DriversLicenseScanner, TinyBarcodeDecoding, ReadGS1AI
+
+**iOS Samples:**
+- ScanSingleBarcode, ScanMultipleBarcodes, ScanSingleBarcodeSwiftUI
+- DecodeWithCameraEnhancer, DecodeWithAVCaptureSession, DecodeFromAnImage
+
+### Dynamsoft Barcode Reader Python (v11.2.5000)
+
+**Installation:** `pip install dynamsoft-barcode-reader-bundle`
+
+**Samples:**
+- `read_an_image` - Decode barcodes from image files
+- `video_decoding` - Real-time video decoding
+
+### Dynamsoft Barcode Reader Web (v11.2.4000)
+
+**Installation:** `npm install dynamsoft-barcode-reader-bundle`
+
+**CDN:** `https://cdn.jsdelivr.net/npm/dynamsoft-barcode-reader-bundle@11.2.4000/dist/dbr.bundle.min.js`
+
+### Dynamic Web TWAIN (v18.5)
+
+**Installation:** `npm install dwt`
+
+**CDN:** `https://cdn.jsdelivr.net/npm/dwt@latest/dist/dynamsoft.webtwain.min.js`
+
+**Sample Categories:**
+- **scan** - Basic document scanning (basic-scan, read-barcode, etc.)
+- **input-options** - Load from files, URLs, local drive
+- **output-options** - Save, upload, convert to PDF/Base64/Blob
+- **classification** - Document classification and tagging
+- **UI-customization** - Customize viewer and scan UI
 
 ## Trial License
 https://www.dynamsoft.com/customer/license/trialLicense/?product=dcv&package=cross-platform
@@ -108,30 +130,60 @@ https://www.dynamsoft.com/customer/license/trialLicense/?product=dcv&package=cro
 
 After connecting the MCP server, you can ask your AI assistant:
 
+### Mobile Barcode Scanner
 - "Create an Android app that scans a single barcode"
 - "Show me how to use CaptureVisionRouter in iOS Swift"
 - "Get the Gradle configuration for Dynamsoft Barcode Reader"
 - "How do I initialize the Dynamsoft license in Kotlin?"
-- "Create a barcode scanner that decodes from an image file"
+
+### Python Barcode Reader
+- "Show me how to read barcodes from an image in Python"
+- "Get the Python sample for video decoding"
+
+### Dynamic Web TWAIN
+- "Create a web page that scans documents from a TWAIN scanner"
+- "Show me how to save scanned documents as PDF"
+- "Get the DWT sample for reading barcodes from scanned documents"
 
 ## SDK Documentation
 
-- **Android User Guide**: https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/android/user-guide.html
-- **iOS User Guide**: https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/objectivec-swift/user-guide.html
+- **Mobile Android**: https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/android/user-guide.html
+- **Mobile iOS**: https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/objectivec-swift/user-guide.html
+- **Python**: https://www.dynamsoft.com/barcode-reader/docs/server/programming/python/user-guide.html
+- **Web JavaScript**: https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/user-guide/index.html
+- **Dynamic Web TWAIN**: https://www.dynamsoft.com/web-twain/docs/introduction/index.html
+
+## Code Snippet Structure
+
+```
+code-snippet/
+├── dynamsoft-barcode-reader/
+│   ├── android/
+│   │   ├── BarcodeScannerAPISamples/   # High-level API
+│   │   └── FoundationalAPISamples/      # Low-level API
+│   ├── ios/
+│   │   ├── BarcodeScannerAPISamples/
+│   │   └── FoundationalAPISamples/
+│   ├── python/
+│   │   └── Samples/
+│   └── web/
+└── dynamic-web-twain/
+    ├── scan/
+    ├── input-options/
+    ├── output-options/
+    ├── classification/
+    └── UI-customization/
+```
 
 ## Extending the Server
 
 ### Add New Samples
 
-Place new sample projects in:
-- `code-snippet/android/BarcodeScannerAPISamples/` (high-level)
-- `code-snippet/android/FoundationalAPISamples/` (low-level)
-- `code-snippet/ios/BarcodeScannerAPISamples/` (high-level)
-- `code-snippet/ios/FoundationalAPISamples/` (low-level)
+Place new sample projects in the appropriate folder under `code-snippet/`.
 
 ### Update SDK Info
 
-Edit `data/dynamsoft_sdks.json` to update version, docs URLs, or add new platforms.
+Edit `data/dynamsoft_sdks.json` to update versions, docs URLs, or add new platforms.
 
 ## License
 
