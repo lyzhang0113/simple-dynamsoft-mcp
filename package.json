@@ -1,6 +1,6 @@
 {
   "name": "simple-dynamsoft-mcp",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "MCP server for Dynamsoft SDKs - Barcode Reader (Mobile/Python/Web) and Dynamic Web TWAIN. Provides documentation, code snippets, and API guidance.",
   "type": "module",
   "bin": {
@@ -31,6 +31,6 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
-    "zod": "^3.22.4"
+    "zod": "~3.24.0"
   }
 }
