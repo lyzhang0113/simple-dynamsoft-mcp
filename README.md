@@ -32,14 +32,6 @@ MCP (Model Context Protocol) server that enables AI assistants to write correct 
 | `get_api_usage` | Usage examples for specific APIs |
 | `search_samples` | Search samples by keyword |
 
-## Quick Start
-
-### Install and Run Locally
-
-```bash
-npm install
-npm start
-```
 
 ## MCP Client Configuration
 
