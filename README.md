@@ -64,17 +64,11 @@ Add to your VS Code settings:
 {
   "mcp.servers": {
     "dynamsoft": {
-      "command": "node",
-      "args": ["${workspaceFolder}/src/index.js"]
+      "command": "npx",
+      "args": ["-y", "simple-dynamsoft-mcp"]
     }
   }
 }
-```
-
-### Use via npx
-
-```bash
-npx simple-dynamsoft-mcp
 ```
 
 ## Supported SDKs
