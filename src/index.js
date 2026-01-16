@@ -12,6 +12,9 @@ const projectRoot = join(__dirname, "..");
 const registryUrl = new URL("../data/dynamsoft_sdks.json", import.meta.url);
 const registry = JSON.parse(readFileSync(registryUrl, "utf8"));
 
+const dwtDocsUrl = new URL("../data/web-twain-api-docs.json", import.meta.url);
+const dwtDocs = JSON.parse(readFileSync(dwtDocsUrl, "utf8"));
+
 const codeSnippetRoot = join(projectRoot, "code-snippet");
 
 // ============================================================================
@@ -391,6 +394,8 @@ server.registerTool(
     lines.push("- `get_python_sample` - Get Python SDK sample code");
     lines.push("- `get_dwt_sample` - Get Dynamic Web TWAIN sample");
     lines.push("- `list_dwt_categories` - List DWT sample categories");
+    lines.push("- `search_dwt_docs` - Search DWT API documentation");
+    lines.push("- `get_dwt_api_doc` - Get specific DWT documentation article");
 
     return { content: [{ type: "text", text: lines.join("\n") }] };
   }
@@ -609,6 +614,161 @@ server.registerTool(
     }
 
     lines.push("Use `get_dwt_sample` with category and sample_name to get code.");
+    lines.push("");
+    lines.push("**API Documentation Tools:**");
+    lines.push("- `search_dwt_docs` - Search DWT API documentation by keyword");
+    lines.push("- `get_dwt_api_doc` - Get specific DWT documentation article");
+
+    return { content: [{ type: "text", text: lines.join("\n") }] };
+  }
+);
+
+// ============================================================================
+// TOOL: search_dwt_docs
+// ============================================================================
+
+server.registerTool(
+  "search_dwt_docs",
+  {
+    title: "Search DWT Documentation",
+    description: "Search Dynamic Web TWAIN API documentation by keyword. Returns matching articles with titles, URLs, and content excerpts.",
+    inputSchema: {
+      query: z.string().describe("Search keyword or phrase (e.g., 'LoadImage', 'PDF', 'scanner', 'OCR')"),
+      max_results: z.number().optional().describe("Maximum number of results to return (default: 5)")
+    }
+  },
+  async ({ query, max_results = 5 }) => {
+    const searchTerms = query.toLowerCase().split(/\s+/);
+    const results = [];
+
+    for (const article of dwtDocs.articles) {
+      const titleLower = article.title.toLowerCase();
+      const contentLower = article.content.toLowerCase();
+      const breadcrumbLower = (article.breadcrumb || "").toLowerCase();
+
+      // Score based on matches in title (higher weight), breadcrumb, and content
+      let score = 0;
+      for (const term of searchTerms) {
+        if (titleLower.includes(term)) score += 10;
+        if (breadcrumbLower.includes(term)) score += 5;
+        if (contentLower.includes(term)) score += 1;
+      }
+
+      if (score > 0) {
+        // Extract a relevant excerpt (first 300 chars that contain a search term)
+        let excerpt = article.content.substring(0, 300);
+        for (const term of searchTerms) {
+          const idx = contentLower.indexOf(term);
+          if (idx > 50) {
+            const start = Math.max(0, idx - 50);
+            excerpt = "..." + article.content.substring(start, start + 300) + "...";
+            break;
+          }
+        }
+
+        results.push({
+          title: article.title,
+          url: article.url,
+          breadcrumb: article.breadcrumb,
+          score,
+          excerpt: excerpt.replace(/\n+/g, " ").trim()
+        });
+      }
+    }
+
+    // Sort by score descending
+    results.sort((a, b) => b.score - a.score);
+    const topResults = results.slice(0, max_results);
+
+    if (topResults.length === 0) {
+      return {
+        content: [{
+          type: "text",
+          text: `No documentation found for "${query}".\n\nTry different keywords like:\n- API names: LoadImage, SaveAsPDF, AcquireImage\n- Features: scanner, PDF, OCR, barcode\n- Topics: initialization, upload, viewer`
+        }]
+      };
+    }
+
+    const lines = [
+      `# DWT Documentation Search: "${query}"`,
+      "",
+      `Found ${results.length} matches. Showing top ${topResults.length}:`,
+      ""
+    ];
+
+    for (let i = 0; i < topResults.length; i++) {
+      const r = topResults[i];
+      lines.push(`## ${i + 1}. ${r.title}`);
+      lines.push(`**Category:** ${r.breadcrumb}`);
+      lines.push(`**URL:** ${r.url}`);
+      lines.push("");
+      lines.push(`> ${r.excerpt}`);
+      lines.push("");
+    }
+
+    lines.push("Use `get_dwt_api_doc` with the article title to get full documentation.");
+
+    return { content: [{ type: "text", text: lines.join("\n") }] };
+  }
+);
+
+// ============================================================================
+// TOOL: get_dwt_api_doc
+// ============================================================================
+
+server.registerTool(
+  "get_dwt_api_doc",
+  {
+    title: "Get DWT API Documentation",
+    description: "Get full Dynamic Web TWAIN documentation article by title or URL. Use search_dwt_docs first to find relevant articles.",
+    inputSchema: {
+      title: z.string().describe("Article title or partial title to match (e.g., 'Loading Documents', 'OCR', 'PDF')")
+    }
+  },
+  async ({ title }) => {
+    const titleLower = title.toLowerCase();
+
+    // Try exact match first, then partial match
+    let article = dwtDocs.articles.find(a => a.title.toLowerCase() === titleLower);
+
+    if (!article) {
+      // Try partial match on title
+      article = dwtDocs.articles.find(a => a.title.toLowerCase().includes(titleLower));
+    }
+
+    if (!article) {
+      // Try matching URL
+      article = dwtDocs.articles.find(a => a.url.toLowerCase().includes(titleLower));
+    }
+
+    if (!article) {
+      // Suggest similar articles
+      const suggestions = dwtDocs.articles
+        .filter(a => {
+          const words = titleLower.split(/\s+/);
+          return words.some(w => a.title.toLowerCase().includes(w) || a.breadcrumb.toLowerCase().includes(w));
+        })
+        .slice(0, 5)
+        .map(a => `- ${a.title}`);
+
+      return {
+        content: [{
+          type: "text",
+          text: `Article "${title}" not found.\n\n${suggestions.length > 0 ? `Similar articles:\n${suggestions.join("\n")}` : "Use search_dwt_docs to find relevant articles."}`
+        }]
+      };
+    }
+
+    const lines = [
+      `# ${article.title}`,
+      "",
+      `**Category:** ${article.breadcrumb}`,
+      `**URL:** ${article.url}`,
+      "",
+      "---",
+      "",
+      article.content
+    ];
 
     return { content: [{ type: "text", text: lines.join("\n") }] };
   }
@@ -1427,6 +1587,35 @@ for (const [category, samples] of Object.entries(dwtCategories)) {
       }
     );
   }
+}
+
+// Register DWT API documentation resources
+for (let i = 0; i < dwtDocs.articles.length; i++) {
+  const article = dwtDocs.articles[i];
+  const resourceName = `dwt-doc-${i}`.toLowerCase();
+  const resourceUri = `dynamsoft://docs/dwt/${encodeURIComponent(article.title)}`;
+  server.registerResource(
+    resourceName,
+    resourceUri,
+    {
+      title: `DWT Doc: ${article.title}`,
+      description: `${article.breadcrumb}: ${article.title}`,
+      mimeType: "text/markdown"
+    },
+    async (uri) => {
+      const content = [
+        `# ${article.title}`,
+        "",
+        `**Category:** ${article.breadcrumb}`,
+        `**URL:** ${article.url}`,
+        "",
+        "---",
+        "",
+        article.content
+      ].join("\n");
+      return { contents: [{ uri: uri.href, text: content, mimeType: "text/markdown" }] };
+    }
+  );
 }
 
 // ============================================================================

@@ -176,6 +176,7 @@
       "version": "19.3",
       "default_platform": "web",
       "snippet_path": "dynamic-web-twain",
+      "api_docs": "web-twain-api-docs.json",
       "platforms": {
         "web": {
           "languages": [

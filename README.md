@@ -36,6 +36,8 @@ https://github.com/user-attachments/assets/cc1c5f4b-1461-4462-897a-75abc20d62a6
 | `get_api_usage` | Usage examples for specific APIs |
 | `search_samples` | Search samples by keyword |
 | `generate_project` | Generate a complete project structure based on a sample |
+| `search_dwt_docs` | Search Dynamic Web TWAIN API documentation |
+| `get_dwt_api_doc` | Get specific DWT documentation article |
 
 
 ## MCP Client Configuration
@@ -226,6 +228,9 @@ After connecting the MCP server, you can ask your AI assistant:
 - "Create a web page that scans documents from a TWAIN scanner"
 - "Show me how to save scanned documents as PDF"
 - "Get the DWT sample for reading barcodes from scanned documents"
+- "Search the DWT docs for how to load images from files"
+- "Get the DWT documentation about OCR"
+- "How do I configure the PDF rasterizer in DWT?"
 
 ## SDK Documentation
 
@@ -255,6 +260,10 @@ code-snippet/
     ├── output-options/
     ├── classification/
     └── UI-customization/
+
+data/
+├── dynamsoft_sdks.json        # SDK registry with versions and docs
+└── web-twain-api-docs.json    # Full DWT API documentation (50+ articles)
 ```
 
 ## Extending the Server
