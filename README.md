@@ -54,7 +54,7 @@ Configuration:
       "type": "local",
       "command": [
         "npx",
-        "simple-dynamsoft-mcp@latest"
+        "simple-dynamsoft-mcp"
       ]
     }
   }
