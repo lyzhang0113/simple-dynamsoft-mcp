@@ -7,6 +7,10 @@ MCP (Model Context Protocol) server that enables AI assistants to write correct 
 - **Dynamsoft Barcode Reader Web** - JavaScript/TypeScript barcode scanning
 - **Dynamic Web TWAIN** - Document scanning from TWAIN/WIA/ICA/SANE scanners
 
+## Demo Video
+https://github.com/user-attachments/assets/cc1c5f4b-1461-4462-897a-75abc20d62a6
+
+
 ## Features
 
 - **Code Snippets**: Real, working source code from official Dynamsoft samples
