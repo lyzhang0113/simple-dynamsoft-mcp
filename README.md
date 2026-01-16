@@ -40,13 +40,34 @@ https://github.com/user-attachments/assets/cc1c5f4b-1461-4462-897a-75abc20d62a6
 
 ## MCP Client Configuration
 
+### OpenCode
+Location: 
+- **macOS**: `~/.config/opencode/opencode.json`
+- **Windows**: `%USERPROFILE%\.config\opencode\opencode.json`
+
+Configuration:
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "dynamsoft": {
+      "type": "local",
+      "command": [
+        "npx",
+        "simple-dynamsoft-mcp@latest"
+      ]
+    }
+  }
+}
+```
+
 ### Claude Desktop
 
-Add to your `claude_desktop_config.json`:
+Location:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`  
-**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-
+Configuration:
 ```json
 {
   "mcpServers": {
@@ -58,24 +79,12 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-### VS Code (GitHub Copilot)
+### VS Code with GitHub Copilot
 
-Add to your VS Code `settings.json` (Ctrl+Shift+P → "Preferences: Open User Settings (JSON)"):
+Global Location:
 
-```json
-{
-  "mcp": {
-    "servers": {
-      "dynamsoft": {
-        "command": "npx",
-        "args": ["-y", "simple-dynamsoft-mcp"]
-      }
-    }
-  }
-}
-```
-
-Or use the workspace `.vscode/mcp.json`:
+- **macOS**: `~/.mcp.json`
+- **Windows**: `%USERPROFILE%\.mcp.json`
 
 ```json
 {
@@ -88,18 +97,14 @@ Or use the workspace `.vscode/mcp.json`:
 }
 ```
 
-### OpenCode
-
-Add to your `~/.config/opencode/opencode.json` (or `%USERPROFILE%\.config\opencode\opencode.json` on Windows):
+Or create workspace-specific `.vscode/mcp.json`:
 
 ```json
 {
-  "mcp": {
-    "servers": {
-      "dynamsoft": {
-        "command": "npx",
-        "args": ["-y", "simple-dynamsoft-mcp"]
-      }
+  "servers": {
+    "dynamsoft": {
+      "command": "npx",
+      "args": ["-y", "simple-dynamsoft-mcp"]
     }
   }
 }
@@ -107,7 +112,11 @@ Add to your `~/.config/opencode/opencode.json` (or `%USERPROFILE%\.config\openco
 
 ### Cursor
 
-Add to your Cursor settings (`~/.cursor/mcp.json`):
+Location: 
+- **macOS**: `~/.cursor/mcp.json`
+- **Windows**: `%USERPROFILE%\.cursor\mcp.json`
+
+Configuration:
 
 ```json
 {
@@ -122,7 +131,10 @@ Add to your Cursor settings (`~/.cursor/mcp.json`):
 
 ### Windsurf
 
-Add to your Windsurf MCP config (`~/.codeium/windsurf/mcp_config.json`):
+Location:
+
+- **macOS**: `~/.codeium/windsurf/mcp_config.json`
+- **Windows**: `%USERPROFILE%\.codeium\windsurf\mcp_config.json`
 
 ```json
 {
@@ -135,20 +147,6 @@ Add to your Windsurf MCP config (`~/.codeium/windsurf/mcp_config.json`):
 }
 ```
 
-### Cline (VS Code Extension)
-
-Add via Cline settings in VS Code or edit `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`:
-
-```json
-{
-  "mcpServers": {
-    "dynamsoft": {
-      "command": "npx",
-      "args": ["-y", "simple-dynamsoft-mcp"]
-    }
-  }
-}
-```
 
 ### Alternative: Run from Local Clone
 
