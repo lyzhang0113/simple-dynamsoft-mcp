@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, relative, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -11,6 +11,9 @@ const projectRoot = join(__dirname, "..");
 
 const registryUrl = new URL("../data/dynamsoft_sdks.json", import.meta.url);
 const registry = JSON.parse(readFileSync(registryUrl, "utf8"));
+
+const dwtDocsUrl = new URL("../data/web-twain-api-docs.json", import.meta.url);
+const dwtDocs = JSON.parse(readFileSync(dwtDocsUrl, "utf8"));
 
 const codeSnippetRoot = join(projectRoot, "code-snippet");
 
@@ -213,6 +216,78 @@ function discoverPythonSamples() {
   return samples;
 }
 
+function discoverWebSamples() {
+  const categories = {
+    "root": [],
+    "frameworks": [],
+    "scenarios": []
+  };
+  const webPath = join(codeSnippetRoot, "dynamsoft-barcode-reader", "web");
+
+  if (!existsSync(webPath)) return categories;
+
+  // Find HTML files in root
+  for (const entry of readdirSync(webPath, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.endsWith(".html")) {
+      categories["root"].push(entry.name.replace(".html", ""));
+    }
+  }
+
+  // Find samples in subdirectories
+  for (const subdir of ["frameworks", "scenarios"]) {
+    const subdirPath = join(webPath, subdir);
+    if (existsSync(subdirPath)) {
+      for (const entry of readdirSync(subdirPath, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          categories[subdir].push(entry.name);
+        } else if (entry.isFile() && entry.name.endsWith(".html")) {
+          categories[subdir].push(entry.name.replace(".html", ""));
+        }
+      }
+    }
+  }
+
+  // Remove empty categories
+  for (const [key, value] of Object.entries(categories)) {
+    if (value.length === 0) delete categories[key];
+  }
+
+  return categories;
+}
+
+function getWebSamplePath(category, sampleName) {
+  const webPath = join(codeSnippetRoot, "dynamsoft-barcode-reader", "web");
+
+  if (category === "root" || !category) {
+    // Try root level
+    const htmlPath = join(webPath, `${sampleName}.html`);
+    if (existsSync(htmlPath)) return htmlPath;
+  } else {
+    // Try in subdirectory
+    const dirPath = join(webPath, category, sampleName);
+    if (existsSync(dirPath) && statSync(dirPath).isDirectory()) {
+      // Look for index.html or main html file
+      const indexPath = join(dirPath, "index.html");
+      if (existsSync(indexPath)) return indexPath;
+      // Look for any html file
+      for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
+        if (entry.isFile() && entry.name.endsWith(".html")) {
+          return join(dirPath, entry.name);
+        }
+      }
+    }
+    // Try as html file directly
+    const htmlPath = join(webPath, category, `${sampleName}.html`);
+    if (existsSync(htmlPath)) return htmlPath;
+  }
+
+  // Fallback: search all
+  const rootPath = join(webPath, `${sampleName}.html`);
+  if (existsSync(rootPath)) return rootPath;
+
+  return null;
+}
+
 function discoverDwtSamples() {
   const categories = {};
   const dwtPath = join(codeSnippetRoot, "dynamic-web-twain");
@@ -382,7 +457,9 @@ server.registerTool(
     lines.push("- `list_sdks` - List all SDKs");
     lines.push("- `get_sdk_info` - Get detailed SDK info for a platform");
     lines.push("- `list_samples` - List code samples (mobile)");
+    lines.push("- `list_web_samples` - List web barcode reader samples");
     lines.push("- `get_code_snippet` - Get actual source code");
+    lines.push("- `get_web_sample` - Get web barcode reader sample code");
     lines.push("- `get_quick_start` - Get complete working example");
     lines.push("- `get_gradle_config` - Get Android build config");
     lines.push("- `get_license_info` - Get license setup code");
@@ -391,6 +468,8 @@ server.registerTool(
     lines.push("- `get_python_sample` - Get Python SDK sample code");
     lines.push("- `get_dwt_sample` - Get Dynamic Web TWAIN sample");
     lines.push("- `list_dwt_categories` - List DWT sample categories");
+    lines.push("- `search_dwt_docs` - Search DWT API documentation");
+    lines.push("- `get_dwt_api_doc` - Get specific DWT documentation article");
 
     return { content: [{ type: "text", text: lines.join("\n") }] };
   }
@@ -577,6 +656,99 @@ server.registerTool(
 );
 
 // ============================================================================
+// TOOL: list_web_samples
+// ============================================================================
+
+server.registerTool(
+  "list_web_samples",
+  {
+    title: "List Web Barcode Samples",
+    description: "List available JavaScript/Web barcode reader code samples",
+    inputSchema: {}
+  },
+  async () => {
+    const categories = discoverWebSamples();
+    const sdkEntry = registry.sdks["dbr-web"];
+
+    const lines = [
+      "# Web Barcode Reader Samples",
+      "",
+      `**SDK Version:** ${sdkEntry.version}`,
+      `**Install:** \`npm install dynamsoft-barcode-reader-bundle\``,
+      `**CDN:** \`${sdkEntry.platforms.web.installation.cdn}\``,
+      "",
+      "## Available Samples",
+      ""
+    ];
+
+    for (const [category, samples] of Object.entries(categories)) {
+      const categoryTitle = category === "root" ? "Basic Samples" : category.charAt(0).toUpperCase() + category.slice(1);
+      lines.push(`### ${categoryTitle}`);
+      lines.push(samples.map(s => `- ${s}`).join("\n"));
+      lines.push("");
+    }
+
+    lines.push("Use `get_web_sample` with sample_name to get code.");
+
+    return { content: [{ type: "text", text: lines.join("\n") }] };
+  }
+);
+
+// ============================================================================
+// TOOL: get_web_sample
+// ============================================================================
+
+server.registerTool(
+  "get_web_sample",
+  {
+    title: "Get Web Barcode Sample",
+    description: "Get JavaScript/Web barcode reader sample code",
+    inputSchema: {
+      sample_name: z.string().describe("Sample name, e.g. hello-world, read-an-image"),
+      category: z.string().optional().describe("Category: root, frameworks, scenarios (optional)")
+    }
+  },
+  async ({ sample_name, category }) => {
+    const samplePath = getWebSamplePath(category, sample_name);
+
+    if (!samplePath) {
+      const categories = discoverWebSamples();
+      const allSamples = Object.entries(categories)
+        .map(([cat, samples]) => samples.map(s => `${cat}/${s}`))
+        .flat();
+      return {
+        content: [{
+          type: "text",
+          text: `Sample "${sample_name}" not found.\n\nAvailable samples:\n${allSamples.map(s => `- ${s}`).join("\n")}\n\nUse \`list_web_samples\` to see all available samples.`
+        }]
+      };
+    }
+
+    const content = readCodeFile(samplePath);
+    if (!content) {
+      return { content: [{ type: "text", text: `Could not read "${sample_name}".` }] };
+    }
+
+    const sdkEntry = registry.sdks["dbr-web"];
+
+    const output = [
+      `# Web Barcode Reader: ${sample_name}`,
+      "",
+      `**SDK Version:** ${sdkEntry.version}`,
+      `**Install:** \`npm install dynamsoft-barcode-reader-bundle\``,
+      `**CDN:** \`${sdkEntry.platforms.web.installation.cdn}\``,
+      `**Trial License:** \`${registry.trial_license}\``,
+      "",
+      "```html",
+      content,
+      "```"
+    ];
+
+    return { content: [{ type: "text", text: output.join("\n") }] };
+  }
+);
+
+// ============================================================================
 // TOOL: list_dwt_categories
 // ============================================================================
 
@@ -609,6 +781,161 @@ server.registerTool(
     }
 
     lines.push("Use `get_dwt_sample` with category and sample_name to get code.");
+    lines.push("");
+    lines.push("**API Documentation Tools:**");
+    lines.push("- `search_dwt_docs` - Search DWT API documentation by keyword");
+    lines.push("- `get_dwt_api_doc` - Get specific DWT documentation article");
+
+    return { content: [{ type: "text", text: lines.join("\n") }] };
+  }
+);
+
+// ============================================================================
+// TOOL: search_dwt_docs
+// ============================================================================
+
+server.registerTool(
+  "search_dwt_docs",
+  {
+    title: "Search DWT Documentation",
+    description: "Search Dynamic Web TWAIN API documentation by keyword. Returns matching articles with titles, URLs, and content excerpts.",
+    inputSchema: {
+      query: z.string().describe("Search keyword or phrase (e.g., 'LoadImage', 'PDF', 'scanner', 'OCR')"),
+      max_results: z.number().optional().describe("Maximum number of results to return (default: 5)")
+    }
+  },
+  async ({ query, max_results = 5 }) => {
+    const searchTerms = query.toLowerCase().split(/\s+/);
+    const results = [];
+
+    for (const article of dwtDocs.articles) {
+      const titleLower = article.title.toLowerCase();
+      const contentLower = article.content.toLowerCase();
+      const breadcrumbLower = (article.breadcrumb || "").toLowerCase();
+
+      // Score based on matches in title (higher weight), breadcrumb, and content
+      let score = 0;
+      for (const term of searchTerms) {
+        if (titleLower.includes(term)) score += 10;
+        if (breadcrumbLower.includes(term)) score += 5;
+        if (contentLower.includes(term)) score += 1;
+      }
+
+      if (score > 0) {
+        // Extract a relevant excerpt (first 300 chars that contain a search term)
+        let excerpt = article.content.substring(0, 300);
+        for (const term of searchTerms) {
+          const idx = contentLower.indexOf(term);
+          if (idx > 50) {
+            const start = Math.max(0, idx - 50);
+            excerpt = "..." + article.content.substring(start, start + 300) + "...";
+            break;
+          }
+        }
+
+        results.push({
+          title: article.title,
+          url: article.url,
+          breadcrumb: article.breadcrumb,
+          score,
+          excerpt: excerpt.replace(/\n+/g, " ").trim()
+        });
+      }
+    }
+
+    // Sort by score descending
+    results.sort((a, b) => b.score - a.score);
+    const topResults = results.slice(0, max_results);
+
+    if (topResults.length === 0) {
+      return {
+        content: [{
+          type: "text",
+          text: `No documentation found for "${query}".\n\nTry different keywords like:\n- API names: LoadImage, SaveAsPDF, AcquireImage\n- Features: scanner, PDF, OCR, barcode\n- Topics: initialization, upload, viewer`
+        }]
+      };
+    }
+
+    const lines = [
+      `# DWT Documentation Search: "${query}"`,
+      "",
+      `Found ${results.length} matches. Showing top ${topResults.length}:`,
+      ""
+    ];
+
+    for (let i = 0; i < topResults.length; i++) {
+      const r = topResults[i];
+      lines.push(`## ${i + 1}. ${r.title}`);
+      lines.push(`**Category:** ${r.breadcrumb}`);
+      lines.push(`**URL:** ${r.url}`);
+      lines.push("");
+      lines.push(`> ${r.excerpt}`);
+      lines.push("");
+    }
+
+    lines.push("Use `get_dwt_api_doc` with the article title to get full documentation.");
+
+    return { content: [{ type: "text", text: lines.join("\n") }] };
+  }
+);
+
+// ============================================================================
+// TOOL: get_dwt_api_doc
+// ============================================================================
+
+server.registerTool(
+  "get_dwt_api_doc",
+  {
+    title: "Get DWT API Documentation",
+    description: "Get full Dynamic Web TWAIN documentation article by title or URL. Use search_dwt_docs first to find relevant articles.",
+    inputSchema: {
+      title: z.string().describe("Article title or partial title to match (e.g., 'Loading Documents', 'OCR', 'PDF')")
+    }
+  },
+  async ({ title }) => {
+    const titleLower = title.toLowerCase();
+
+    // Try exact match first, then partial match
+    let article = dwtDocs.articles.find(a => a.title.toLowerCase() === titleLower);
+
+    if (!article) {
+      // Try partial match on title
+      article = dwtDocs.articles.find(a => a.title.toLowerCase().includes(titleLower));
+    }
+
+    if (!article) {
+      // Try matching URL
+      article = dwtDocs.articles.find(a => a.url.toLowerCase().includes(titleLower));
+    }
+
+    if (!article) {
+      // Suggest similar articles
+      const suggestions = dwtDocs.articles
+        .filter(a => {
+          const words = titleLower.split(/\s+/);
+          return words.some(w => a.title.toLowerCase().includes(w) || a.breadcrumb.toLowerCase().includes(w));
+        })
+        .slice(0, 5)
+        .map(a => `- ${a.title}`);
+
+      return {
+        content: [{
+          type: "text",
+          text: `Article "${title}" not found.\n\n${suggestions.length > 0 ? `Similar articles:\n${suggestions.join("\n")}` : "Use search_dwt_docs to find relevant articles."}`
+        }]
+      };
+    }
+
+    const lines = [
+      `# ${article.title}`,
+      "",
+      `**Category:** ${article.breadcrumb}`,
+      `**URL:** ${article.url}`,
+      "",
+      "---",
+      "",
+      article.content
+    ];
 
     return { content: [{ type: "text", text: lines.join("\n") }] };
   }
@@ -894,6 +1221,49 @@ server.registerTool(
             "```",
             "",
             "## Sample: basic-scan.html",
+            "```html",
+            content,
+            "```",
+            "",
+            "## Notes",
+            "- Trial license requires network connection",
+            `- User Guide: ${sdkEntry.platforms.web.docs["user-guide"]}`
+          ].join("\n")
+        }]
+      };
+    }
+
+    // Handle Web Barcode Reader SDK
+    if (sdkId === "dbr-web") {
+      const sdkEntry = registry.sdks["dbr-web"];
+      const sampleName = use_case?.includes("image") ? "read-an-image" : "hello-world";
+      const samplePath = getWebSamplePath("root", sampleName);
+
+      if (!samplePath || !existsSync(samplePath)) {
+        return { content: [{ type: "text", text: `Sample not found. Use list_web_samples to see available.` }] };
+      }
+
+      const content = readCodeFile(samplePath);
+
+      return {
+        content: [{
+          type: "text", text: [
+            "# Quick Start: Web Barcode Reader",
+            "",
+            `**SDK Version:** ${sdkEntry.version}`,
+            `**Trial License:** \`${registry.trial_license}\``,
+            "",
+            "## Option 1: CDN",
+            "```html",
+            `<script src="${sdkEntry.platforms.web.installation.cdn}"></script>`,
+            "```",
+            "",
+            "## Option 2: NPM",
+            "```bash",
+            "npm install dynamsoft-barcode-reader-bundle",
+            "```",
+            "",
+            `## Sample: ${sampleName}.html`,
             "```html",
             content,
             "```",
@@ -1238,6 +1608,94 @@ server.registerTool(
 );
 
 // ============================================================================
+// TOOL: generate_project
+// ============================================================================
+
+server.registerTool(
+  "generate_project",
+  {
+    title: "Generate Project",
+    description: "Generate a complete project structure based on a sample",
+    inputSchema: {
+      platform: z.enum(["android", "ios"]).describe("Platform: android or ios"),
+      sample_name: z.string().optional().describe("Sample to use as template (default: ScanSingleBarcode)"),
+      api_level: z.string().optional().describe("API level: high-level or low-level")
+    }
+  },
+  async ({ platform, sample_name, api_level }) => {
+    const level = normalizeApiLevel(api_level);
+    const name = sample_name || "ScanSingleBarcode";
+    const samplePath = getMobileSamplePath(platform, level, name);
+
+    if (!existsSync(samplePath)) {
+      return { content: [{ type: "text", text: `Sample "${name}" not found.` }] };
+    }
+
+    const files = [];
+    const textExtensions = [
+      ".java", ".kt", ".swift", ".m", ".h", ".xml", ".gradle", ".properties",
+      ".pro", ".json", ".plist", ".storyboard", ".xib", ".gitignore", ".md"
+    ];
+
+    function walk(dir, root) {
+      const entries = readdirSync(dir);
+      for (const entry of entries) {
+        if (entry === "build" || entry === ".gradle" || entry === ".idea" || entry === ".git" || entry === "capturedImages") continue;
+
+        const fullPath = join(dir, entry);
+        const stat = statSync(fullPath);
+
+        if (stat.isDirectory()) {
+          walk(fullPath, root);
+        } else {
+          const ext = "." + entry.split(".").pop();
+          if (textExtensions.includes(ext) || entry === "gradlew" || entry === "Podfile") {
+            try {
+              const content = readFileSync(fullPath, "utf-8");
+              // Normalize newlines
+              const normalized = content.replace(/\r\n/g, "\n");
+              files.push({
+                path: fullPath.replace(root + "\\", "").replace(root + "/", ""),
+                content: normalized,
+                ext: ext.replace(".", "")
+              });
+            } catch (e) {
+              // Ignore binary read errors if any
+            }
+          }
+        }
+      }
+    }
+
+    walk(samplePath, samplePath);
+
+    // Filter out huge files if any (limit 50KB per file to avoid context overflow)
+    const validFiles = files.filter(f => f.content.length < 50000);
+
+    const output = [
+      `# Project Generation: ${name} (${platform})`,
+      "",
+      `**SDK Version:** ${registry.sdks["dbr-mobile"].version}`,
+      `**Level:** ${level}`,
+      "",
+      "This output contains the complete file structure for the project.",
+      "You can use these files to reconstruct the project locally.",
+      ""
+    ];
+
+    for (const file of validFiles) {
+      output.push(`## ${file.path}`);
+      output.push("```" + (file.ext || "text"));
+      output.push(file.content);
+      output.push("```");
+      output.push("");
+    }
+
+    return { content: [{ type: "text", text: output.join("\n") }] };
+  }
+);
+
+// ============================================================================
 // MCP Resources
 // ============================================================================
 
@@ -1318,6 +1776,29 @@ for (const sampleName of pythonSamples) {
   );
 }
 
+// Register Web barcode reader sample resources
+const webCategories = discoverWebSamples();
+for (const [category, samples] of Object.entries(webCategories)) {
+  for (const sampleName of samples) {
+    const resourceUri = `dynamsoft://samples/web/${category}/${sampleName}`;
+    const resourceName = `web-${category}-${sampleName}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    server.registerResource(
+      resourceName,
+      resourceUri,
+      {
+        title: `Web: ${sampleName}`,
+        description: `Web barcode reader ${category}: ${sampleName}`,
+        mimeType: "text/html"
+      },
+      async (uri) => {
+        const samplePath = getWebSamplePath(category, sampleName);
+        const content = samplePath && existsSync(samplePath) ? readCodeFile(samplePath) : "Sample not found";
+        return { contents: [{ uri: uri.href, text: content, mimeType: "text/html" }] };
+      }
+    );
+  }
+}
+
 // Register DWT sample resources
 const dwtCategories = discoverDwtSamples();
 for (const [category, samples] of Object.entries(dwtCategories)) {
@@ -1339,6 +1820,35 @@ for (const [category, samples] of Object.entries(dwtCategories)) {
       }
     );
   }
+}
+
+// Register DWT API documentation resources
+for (let i = 0; i < dwtDocs.articles.length; i++) {
+  const article = dwtDocs.articles[i];
+  const resourceName = `dwt-doc-${i}`.toLowerCase();
+  const resourceUri = `dynamsoft://docs/dwt/${encodeURIComponent(article.title)}`;
+  server.registerResource(
+    resourceName,
+    resourceUri,
+    {
+      title: `DWT Doc: ${article.title}`,
+      description: `${article.breadcrumb}: ${article.title}`,
+      mimeType: "text/markdown"
+    },
+    async (uri) => {
+      const content = [
+        `# ${article.title}`,
+        "",
+        `**Category:** ${article.breadcrumb}`,
+        `**URL:** ${article.url}`,
+        "",
+        "---",
+        "",
+        article.content
+      ].join("\n");
+      return { contents: [{ uri: uri.href, text: content, mimeType: "text/markdown" }] };
+    }
+  );
 }
 
 // ============================================================================

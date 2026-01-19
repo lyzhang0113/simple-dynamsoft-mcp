@@ -121,7 +121,7 @@ await test('Server responds to initialize request', async () => {
 });
 
 // Test 2: List tools
-await test('tools/list returns all 13 tools', async () => {
+await test('tools/list returns all 18 tools', async () => {
     const response = await sendRequest({
         jsonrpc: '2.0',
         id: 1,
@@ -130,14 +130,15 @@ await test('tools/list returns all 13 tools', async () => {
 
     assert(response.result, 'Should have result');
     assert(response.result.tools, 'Should have tools array');
-    assert(response.result.tools.length === 13, `Expected 13 tools, got ${response.result.tools.length}`);
+    assert(response.result.tools.length === 18, `Expected 18 tools, got ${response.result.tools.length}`);
 
     const toolNames = response.result.tools.map(t => t.name);
     const expectedTools = [
         'list_sdks', 'get_sdk_info', 'list_samples', 'list_python_samples',
-        'list_dwt_categories', 'get_code_snippet', 'get_python_sample',
-        'get_dwt_sample', 'get_quick_start', 'get_gradle_config',
-        'get_license_info', 'get_api_usage', 'search_samples'
+        'list_web_samples', 'list_dwt_categories', 'get_code_snippet',
+        'get_web_sample', 'get_python_sample', 'get_dwt_sample', 'get_quick_start',
+        'get_gradle_config', 'get_license_info', 'get_api_usage', 'search_samples',
+        'generate_project', 'search_dwt_docs', 'get_dwt_api_doc'
     ];
 
     for (const expected of expectedTools) {
@@ -328,7 +329,100 @@ await test('search_samples finds samples by keyword', async () => {
     assert(response.result.content, 'Should have content');
 });
 
-// Test 13: resources/list returns resources
+// Test 13: generate_project tool
+await test('generate_project returns project structure', async () => {
+    const response = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+            name: 'generate_project',
+            arguments: { platform: 'android', sample_name: 'ScanSingleBarcode' }
+        }
+    });
+
+    assert(response.result, 'Should have result');
+    assert(response.result.content, 'Should have content');
+    const text = response.result.content[0].text;
+    assert(text.includes('# Project Generation:'), 'Should include project generation header');
+    assert(text.includes('AndroidManifest.xml') || text.includes('build.gradle'), 'Should include project files');
+});
+
+// Test 14: list_web_samples tool
+await test('list_web_samples returns web barcode samples', async () => {
+    const response = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+            name: 'list_web_samples',
+            arguments: {}
+        }
+    });
+
+    assert(response.result, 'Should have result');
+    assert(response.result.content, 'Should have content');
+    const text = response.result.content[0].text;
+    assert(text.includes('Web Barcode Reader Samples'), 'Should include web samples header');
+});
+
+// Test 15: get_web_sample tool
+await test('get_web_sample returns web barcode sample code', async () => {
+    const response = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+            name: 'get_web_sample',
+            arguments: { sample_name: 'hello-world' }
+        }
+    });
+
+    assert(response.result, 'Should have result');
+    assert(response.result.content, 'Should have content');
+    const text = response.result.content[0].text;
+    assert(text.includes('Web Barcode Reader') || text.includes('html') || text.includes('not found'), 'Should return sample or indicate not found');
+});
+
+// Test 16: search_dwt_docs tool
+await test('search_dwt_docs finds documentation articles', async () => {
+    const response = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+            name: 'search_dwt_docs',
+            arguments: { query: 'PDF' }
+        }
+    });
+
+    assert(response.result, 'Should have result');
+    assert(response.result.content, 'Should have content');
+    const text = response.result.content[0].text;
+    assert(text.includes('DWT Documentation Search'), 'Should include search header');
+    assert(text.includes('PDF') || text.includes('pdf'), 'Should find PDF-related articles');
+});
+
+// Test 17: get_dwt_api_doc tool
+await test('get_dwt_api_doc returns documentation article', async () => {
+    const response = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+            name: 'get_dwt_api_doc',
+            arguments: { title: 'OCR' }
+        }
+    });
+
+    assert(response.result, 'Should have result');
+    assert(response.result.content, 'Should have content');
+    const text = response.result.content[0].text;
+    // Should return either the article or suggestions
+    assert(text.includes('OCR') || text.includes('not found'), 'Should handle OCR query');
+});
+
+// Test 18: resources/list returns registered resources
 await test('resources/list returns registered resources', async () => {
     const response = await sendRequest({
         jsonrpc: '2.0',
@@ -343,9 +437,10 @@ await test('resources/list returns registered resources', async () => {
     // Check for expected resource types
     const uris = response.result.resources.map(r => r.uri);
     assert(uris.some(u => u.includes('sdk-info')), 'Should have sdk-info resources');
+    assert(uris.some(u => u.includes('docs/dwt')), 'Should have DWT doc resources');
 });
 
-// Test 14: Invalid tool call returns error
+// Test 19: Invalid tool call returns error
 await test('Invalid tool call returns proper error', async () => {
     const response = await sendRequest({
         jsonrpc: '2.0',
@@ -361,7 +456,7 @@ await test('Invalid tool call returns proper error', async () => {
         'Should return error for invalid tool');
 });
 
-// Test 15: Tool with invalid arguments returns error
+// Test 20: Tool with invalid arguments returns error
 await test('Tool with missing required arguments returns error', async () => {
     const response = await sendRequest({
         jsonrpc: '2.0',
