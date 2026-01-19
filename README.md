@@ -87,8 +87,8 @@ Configuration:
 
 Global Location:
 
-- **macOS**: `~/.mcp.json`
-- **Windows**: `%USERPROFILE%\.mcp.json`
+- **macOS**: `~/Library/Application Support/Code/User/mcp.json`
+- **Windows**: `%APPDATA%\Code\User\mcp.json`
 
 ```json
 {
