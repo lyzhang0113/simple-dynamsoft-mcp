@@ -17,6 +17,7 @@ https://github.com/user-attachments/assets/cc1c5f4b-1461-4462-897a-75abc20d62a6
 - **Trial License Included**: Ready-to-use trial license for quick testing
 - **Multiple SDKs**: Barcode Reader (Mobile/Python/Web) + Dynamic Web TWAIN
 - **Multiple API Levels**: High-level (simple) and low-level (advanced) options
+- **HTTP MCP Wrapper for Copilot Studio**: `npm start:http` runs `http/wrapper.js`, exposing MCP over HTTP at `/mcp` (POST JSON-RPC, optional GET SSE). Discovery (tools/resources) is returned inline on `initialize` and `notifications/initialized`, plus SSE push when enabled.
 
 ## Available Tools
 
@@ -162,6 +163,16 @@ If you prefer running from source:
   "args": ["/absolute/path/to/simple-dynamsoft-mcp/src/index.js"]
 }
 ```
+
+### Copilot Studio / HTTP Wrapper
+
+- Install deps: `npm install`
+- Run the HTTP wrapper: `npm start:http` (listens on `http://localhost:3333`)
+  - POST `/mcp` for JSON-RPC (initialize returns capabilities, instructions, and discovery inline)
+  - GET `/mcp` for SSE (optional; discovery also pushed here if enabled)
+  - GET `/health` for status
+
+The wrapper proxies to the MCP stdio child (`./src/index.js`) and embeds `mcp-session-id` plus an instructions block in the initialize response for compatibility with Copilot Studio.
 
 ## Supported SDKs
 
