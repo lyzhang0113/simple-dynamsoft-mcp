@@ -2,8 +2,15 @@
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, relative, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
+import Fuse from "fuse.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+  SubscribeRequestSchema,
+  UnsubscribeRequestSchema
+} from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -414,6 +421,204 @@ function formatDocs(docs) {
 }
 
 // ============================================================================
+// Resource index + fuzzy search
+// ============================================================================
+
+/**
+ * @typedef {{
+ *   uri: string;
+ *   name: string;
+ *   description: string;
+ *   mimeType: string;
+ *   tags: string[];
+ *   pinned?: boolean;
+ *   loadContent: () => Promise<{ text?: string; blob?: string; mimeType?: string }>;
+ * }} ResourceEntry
+ */
+
+const resourceIndex = [];
+
+function getMimeTypeForExtension(ext) {
+  const normalized = ext.replace(/^\./, "").toLowerCase();
+  if (normalized === "swift") return "text/x-swift";
+  if (normalized === "kt") return "text/x-kotlin";
+  if (normalized === "java") return "text/x-java";
+  if (normalized === "py") return "text/x-python";
+  if (normalized === "html") return "text/html";
+  if (normalized === "md" || normalized === "markdown") return "text/markdown";
+  if (normalized === "json") return "application/json";
+  if (normalized === "png") return "image/png";
+  return "text/plain";
+}
+
+function addResourceToIndex(entry) {
+  resourceIndex.push(entry);
+}
+
+function buildResourceIndex() {
+  // SDK overview (pinned so it shows up in list_resources)
+  addResourceToIndex({
+    uri: "dynamsoft://sdk-info",
+    name: "Dynamsoft SDK Overview",
+    description: "Trial license, platforms, and versions for Dynamsoft SDKs",
+    mimeType: "application/json",
+    tags: ["sdk", "overview", "license", "version", "platform"],
+    pinned: true,
+    loadContent: async () => {
+      const info = {
+        trial_license: registry.trial_license,
+        license_request_url: registry.license_request_url,
+        maven_url: registry.maven_url,
+        sdks: Object.entries(registry.sdks).map(([id, sdk]) => ({
+          id,
+          name: sdk.name,
+          version: sdk.version,
+          platforms: Object.keys(sdk.platforms)
+        }))
+      };
+      return { text: JSON.stringify(info, null, 2), mimeType: "application/json" };
+    }
+  });
+
+  // Mobile sample main files
+  for (const platform of ["android", "ios"]) {
+    const samples = discoverMobileSamples(platform);
+    for (const level of ["high-level", "low-level"]) {
+      for (const sampleName of samples[level]) {
+        addResourceToIndex({
+          uri: `dynamsoft://samples/mobile/${platform}/${level}/${sampleName}`,
+          name: `${sampleName} (${platform}, ${level})`,
+          description: `Main sample code for ${platform} (${level}) - ${sampleName}`,
+          mimeType: "text/plain",
+          tags: ["sample", "mobile", platform, level, sampleName],
+          loadContent: async () => {
+            const samplePath = getMobileSamplePath(platform, level, sampleName);
+            const mainFile = getMainCodeFile(platform, samplePath);
+            if (!mainFile) {
+              return { text: "Sample not found", mimeType: "text/plain" };
+            }
+            const content = readCodeFile(mainFile.path);
+            const ext = mainFile.filename.split(".").pop() || "";
+            return { text: content, mimeType: getMimeTypeForExtension(ext) };
+          }
+        });
+      }
+    }
+  }
+
+  // Python sample files
+  for (const sampleName of discoverPythonSamples()) {
+    addResourceToIndex({
+      uri: `dynamsoft://samples/python/${sampleName}`,
+      name: `Python sample: ${sampleName}`,
+      description: `Python SDK sample ${sampleName}`,
+      mimeType: "text/x-python",
+      tags: ["sample", "python", sampleName],
+      loadContent: async () => {
+        const samplePath = getPythonSamplePath(sampleName);
+        const content = existsSync(samplePath) ? readCodeFile(samplePath) : "Sample not found";
+        return { text: content, mimeType: "text/x-python" };
+      }
+    });
+  }
+
+  // Web barcode reader samples
+  const webCategories = discoverWebSamples();
+  for (const [category, samples] of Object.entries(webCategories)) {
+    for (const sampleName of samples) {
+      addResourceToIndex({
+        uri: `dynamsoft://samples/web/${category}/${sampleName}`,
+        name: `Web sample: ${sampleName} (${category})`,
+        description: `Web barcode reader sample ${category}/${sampleName}`,
+        mimeType: "text/html",
+        tags: ["sample", "web", category, sampleName],
+        loadContent: async () => {
+          const samplePath = getWebSamplePath(category, sampleName);
+          const content = samplePath && existsSync(samplePath) ? readCodeFile(samplePath) : "Sample not found";
+          return { text: content, mimeType: "text/html" };
+        }
+      });
+    }
+  }
+
+  // DWT sample files
+  const dwtCategories = discoverDwtSamples();
+  for (const [category, samples] of Object.entries(dwtCategories)) {
+    for (const sampleName of samples) {
+      addResourceToIndex({
+        uri: `dynamsoft://samples/dwt/${category}/${sampleName}`,
+        name: `DWT sample: ${sampleName} (${category})`,
+        description: `Dynamic Web TWAIN sample ${category}/${sampleName}`,
+        mimeType: "text/html",
+        tags: ["sample", "dwt", category, sampleName],
+        loadContent: async () => {
+          const samplePath = getDwtSamplePath(category, sampleName);
+          const content = samplePath && existsSync(samplePath) ? readCodeFile(samplePath) : "Sample not found";
+          return { text: content, mimeType: "text/html" };
+        }
+      });
+    }
+  }
+
+  // DWT documentation articles
+  for (let i = 0; i < dwtDocs.articles.length; i++) {
+    const article = dwtDocs.articles[i];
+    const slug = `${encodeURIComponent(article.title)}-${i}`;
+    const tags = ["doc", "dwt"];
+    if (article.breadcrumb) {
+      tags.push(...article.breadcrumb.toLowerCase().split(/\s*>\s*/));
+    }
+    addResourceToIndex({
+      uri: `dynamsoft://docs/dwt/${slug}`,
+      name: `DWT Doc: ${article.title}`,
+      description: article.breadcrumb || "Dynamic Web TWAIN documentation",
+      mimeType: "text/markdown",
+      tags,
+      loadContent: async () => {
+        const content = [
+          `# ${article.title}`,
+          "",
+          article.breadcrumb ? `**Category:** ${article.breadcrumb}` : "",
+          article.url ? `**URL:** ${article.url}` : "",
+          "",
+          "---",
+          "",
+          article.content
+        ].filter(Boolean).join("\n");
+        return { text: content, mimeType: "text/markdown" };
+      }
+    });
+  }
+}
+
+buildResourceIndex();
+
+const resourceSearch = new Fuse(resourceIndex, {
+  keys: ["name", "description", "tags"],
+  threshold: 0.38,
+  ignoreLocation: true,
+  includeScore: true
+});
+
+function getPinnedResources() {
+  return resourceIndex.filter((entry) => entry.pinned);
+}
+
+async function readResourceContent(uri) {
+  const resource = resourceIndex.find((entry) => entry.uri === uri);
+  if (!resource) {
+    return null;
+  }
+  const content = await resource.loadContent();
+  return {
+    uri,
+    mimeType: content.mimeType || resource.mimeType || "text/plain",
+    text: content.text,
+    blob: content.blob
+  };
+}
+
+// ============================================================================
 // MCP Server
 // ============================================================================
 
@@ -465,6 +670,8 @@ server.registerTool(
     lines.push("- `get_license_info` - Get license setup code");
     lines.push("- `get_api_usage` - Get API usage examples");
     lines.push("- `search_samples` - Search samples by keyword");
+    lines.push("- `search_resources` - Fuzzy search docs and code, returns resource links");
+    lines.push("- `list_resource_topics` - Show resource categories to guide searching");
     lines.push("- `get_python_sample` - Get Python SDK sample code");
     lines.push("- `get_dwt_sample` - Get Dynamic Web TWAIN sample");
     lines.push("- `list_dwt_categories` - List DWT sample categories");
@@ -1608,6 +1815,94 @@ server.registerTool(
 );
 
 // ============================================================================
+// TOOL: search_resources
+// ============================================================================
+
+server.registerTool(
+  "search_resources",
+  {
+    title: "Search Resources (fuzzy)",
+    description: "Fuzzy search across code samples and documentation, returning resource links for lazy loading.",
+    inputSchema: {
+      query: z.string().describe("Keywords to search (sample name, platform, feature, doc topic)."),
+      limit: z.number().int().min(1).max(10).optional().describe("Max number of results (default 5, max 10).")
+    }
+  },
+  async ({ query, limit }) => {
+    const maxResults = Math.min(limit || 5, 10);
+    const results = resourceSearch.search(query).slice(0, maxResults).map((r) => r.item);
+
+    if (results.length === 0) {
+      return {
+        content: [{
+          type: "text",
+          text: `No resources matched "${query}". Try platform names (android, ios, web, dwt) or sample titles.`
+        }]
+      };
+    }
+
+    const content = [
+      {
+        type: "text",
+        text: `Found ${results.length} resource${results.length > 1 ? "s" : ""} for "${query}". Read only the links you need to stay within the context window.`
+      }
+    ];
+
+    for (const resource of results) {
+      content.push({
+        type: "resource_link",
+        uri: resource.uri,
+        name: resource.name,
+        description: resource.description,
+        mimeType: resource.mimeType,
+        annotations: {
+          audience: ["assistant"],
+          priority: 0.8
+        }
+      });
+    }
+
+    return { content };
+  }
+);
+
+// ============================================================================
+// TOOL: list_resource_topics
+// ============================================================================
+
+server.registerTool(
+  "list_resource_topics",
+  {
+    title: "List Resource Topics",
+    description: "Summarize available resource groups to guide search_resources usage.",
+    inputSchema: {}
+  },
+  async () => {
+    const counts = {
+      mobile: resourceIndex.filter((r) => r.tags.includes("mobile")).length,
+      python: resourceIndex.filter((r) => r.tags.includes("python")).length,
+      web: resourceIndex.filter((r) => r.tags.includes("web")).length,
+      dwtSamples: resourceIndex.filter((r) => r.tags.includes("dwt") && r.tags.includes("sample")).length,
+      dwtDocs: resourceIndex.filter((r) => r.tags.includes("doc") && r.tags.includes("dwt")).length
+    };
+
+    const lines = [
+      "# Resource Topics",
+      "- SDK overview and licensing (pinned)",
+      `- Mobile samples (Android/iOS): ${counts.mobile}`,
+      `- Python samples: ${counts.python}`,
+      `- Web barcode reader samples: ${counts.web}`,
+      `- Dynamic Web TWAIN samples: ${counts.dwtSamples}`,
+      `- Dynamic Web TWAIN docs: ${counts.dwtDocs}`,
+      "",
+      "Use search_resources with keywords like 'android scan', 'web html sample', or 'dwt acquire image'."
+    ];
+
+    return { content: [{ type: "text", text: lines.join("\n") }] };
+  }
+);
+
+// ============================================================================
 // TOOL: generate_project
 // ============================================================================
 
@@ -1696,160 +1991,37 @@ server.registerTool(
 );
 
 // ============================================================================
-// MCP Resources
+// MCP Resources (tool-discovered, lazy-read)
 // ============================================================================
 
-// SDK Info resource
-server.registerResource(
-  "sdk-info",
-  "dynamsoft://sdk-info",
-  {
-    title: "Dynamsoft SDK Information",
-    description: "Dynamsoft SDKs information including versions and platforms",
-    mimeType: "application/json"
-  },
-  async (uri) => {
-    const info = {
-      trial_license: registry.trial_license,
-      license_request_url: registry.license_request_url,
-      maven_url: registry.maven_url,
-      sdks: Object.entries(registry.sdks).map(([id, sdk]) => ({
-        id,
-        name: sdk.name,
-        version: sdk.version,
-        platforms: Object.keys(sdk.platforms)
-      }))
-    };
-    return { contents: [{ uri: uri.href, text: JSON.stringify(info, null, 2), mimeType: "application/json" }] };
+server.server.registerCapabilities({
+  resources: {
+    listChanged: false,
+    subscribe: true
   }
-);
+});
 
-// Register mobile sample resources dynamically
-for (const platform of ["android", "ios"]) {
-  const samples = discoverMobileSamples(platform);
-  for (const level of ["high-level", "low-level"]) {
-    for (const sampleName of samples[level]) {
-      const resourceUri = `dynamsoft://samples/mobile/${platform}/${level}/${sampleName}`;
-      const resourceName = `mobile-${platform}-${level}-${sampleName}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-      server.registerResource(
-        resourceName,
-        resourceUri,
-        {
-          title: `${sampleName} (${platform})`,
-          description: `${sampleName} for ${platform} (${level})`,
-          mimeType: "text/plain"
-        },
-        async (uri) => {
-          const samplePath = getMobileSamplePath(platform, level, sampleName);
-          const mainFile = getMainCodeFile(platform, samplePath);
-          if (!mainFile) {
-            return { contents: [{ uri: uri.href, text: "Sample not found", mimeType: "text/plain" }] };
-          }
-          const content = readCodeFile(mainFile.path);
-          const ext = mainFile.filename.split(".").pop();
-          const mimeType = ext === "swift" ? "text/x-swift" : ext === "kt" ? "text/x-kotlin" : ext === "java" ? "text/x-java" : "text/plain";
-          return { contents: [{ uri: uri.href, text: content, mimeType }] };
-        }
-      );
-    }
+server.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+  // Only surface a small, pinned set to avoid bloating the context window.
+  const resources = getPinnedResources().map((r) => ({
+    uri: r.uri,
+    name: r.name,
+    description: r.description,
+    mimeType: r.mimeType
+  }));
+  return { resources };
+});
+
+server.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const resource = await readResourceContent(request.params.uri);
+  if (!resource) {
+    throw new Error(`Resource not found: ${request.params.uri}`);
   }
-}
+  return { contents: [resource] };
+});
 
-// Register Python sample resources
-const pythonSamples = discoverPythonSamples();
-for (const sampleName of pythonSamples) {
-  const resourceUri = `dynamsoft://samples/python/${sampleName}`;
-  const resourceName = `python-${sampleName}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-  server.registerResource(
-    resourceName,
-    resourceUri,
-    {
-      title: `Python: ${sampleName}`,
-      description: `Python sample: ${sampleName}`,
-      mimeType: "text/x-python"
-    },
-    async (uri) => {
-      const samplePath = getPythonSamplePath(sampleName);
-      const content = existsSync(samplePath) ? readCodeFile(samplePath) : "Sample not found";
-      return { contents: [{ uri: uri.href, text: content, mimeType: "text/x-python" }] };
-    }
-  );
-}
-
-// Register Web barcode reader sample resources
-const webCategories = discoverWebSamples();
-for (const [category, samples] of Object.entries(webCategories)) {
-  for (const sampleName of samples) {
-    const resourceUri = `dynamsoft://samples/web/${category}/${sampleName}`;
-    const resourceName = `web-${category}-${sampleName}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-    server.registerResource(
-      resourceName,
-      resourceUri,
-      {
-        title: `Web: ${sampleName}`,
-        description: `Web barcode reader ${category}: ${sampleName}`,
-        mimeType: "text/html"
-      },
-      async (uri) => {
-        const samplePath = getWebSamplePath(category, sampleName);
-        const content = samplePath && existsSync(samplePath) ? readCodeFile(samplePath) : "Sample not found";
-        return { contents: [{ uri: uri.href, text: content, mimeType: "text/html" }] };
-      }
-    );
-  }
-}
-
-// Register DWT sample resources
-const dwtCategories = discoverDwtSamples();
-for (const [category, samples] of Object.entries(dwtCategories)) {
-  for (const sampleName of samples) {
-    const resourceUri = `dynamsoft://samples/dwt/${category}/${sampleName}`;
-    const resourceName = `dwt-${category}-${sampleName}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-    server.registerResource(
-      resourceName,
-      resourceUri,
-      {
-        title: `DWT: ${sampleName}`,
-        description: `DWT ${category}: ${sampleName}`,
-        mimeType: "text/html"
-      },
-      async (uri) => {
-        const samplePath = getDwtSamplePath(category, sampleName);
-        const content = samplePath && existsSync(samplePath) ? readCodeFile(samplePath) : "Sample not found";
-        return { contents: [{ uri: uri.href, text: content, mimeType: "text/html" }] };
-      }
-    );
-  }
-}
-
-// Register DWT API documentation resources
-for (let i = 0; i < dwtDocs.articles.length; i++) {
-  const article = dwtDocs.articles[i];
-  const resourceName = `dwt-doc-${i}`.toLowerCase();
-  const resourceUri = `dynamsoft://docs/dwt/${encodeURIComponent(article.title)}`;
-  server.registerResource(
-    resourceName,
-    resourceUri,
-    {
-      title: `DWT Doc: ${article.title}`,
-      description: `${article.breadcrumb}: ${article.title}`,
-      mimeType: "text/markdown"
-    },
-    async (uri) => {
-      const content = [
-        `# ${article.title}`,
-        "",
-        `**Category:** ${article.breadcrumb}`,
-        `**URL:** ${article.url}`,
-        "",
-        "---",
-        "",
-        article.content
-      ].join("\n");
-      return { contents: [{ uri: uri.href, text: content, mimeType: "text/markdown" }] };
-    }
-  );
-}
+server.server.setRequestHandler(SubscribeRequestSchema, async () => ({}));
+server.server.setRequestHandler(UnsubscribeRequestSchema, async () => ({}));
 
 // ============================================================================
 // Start Server

@@ -17,16 +17,12 @@
   "files": [
     "src",
     "data",
-    "http",
     "code-snippet",
     "README.md"
   ],
   "scripts": {
     "start": "node src/index.js",
-    "start:http": "node http/wrapper.js",
-    "test": "npm run test:stdio && npm run test:http",
-    "test:stdio": "node test/server.test.js",
-    "test:http": "node test/http-wrapper.test.js"
+    "test": "node test/server.test.js"
   },
   "keywords": [
     "mcp",
@@ -44,7 +40,7 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
-    "express": "^4.21.2",
+    "fuse.js": "^7.0.0",
     "zod": "~3.24.0"
   },
   "devDependencies": {

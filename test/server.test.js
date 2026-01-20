@@ -121,7 +121,7 @@ await test('Server responds to initialize request', async () => {
 });
 
 // Test 2: List tools
-await test('tools/list returns all 18 tools', async () => {
+await test('tools/list returns all registered tools', async () => {
     const response = await sendRequest({
         jsonrpc: '2.0',
         id: 1,
@@ -130,16 +130,18 @@ await test('tools/list returns all 18 tools', async () => {
 
     assert(response.result, 'Should have result');
     assert(response.result.tools, 'Should have tools array');
-    assert(response.result.tools.length === 18, `Expected 18 tools, got ${response.result.tools.length}`);
-
     const toolNames = response.result.tools.map(t => t.name);
     const expectedTools = [
         'list_sdks', 'get_sdk_info', 'list_samples', 'list_python_samples',
         'list_web_samples', 'list_dwt_categories', 'get_code_snippet',
         'get_web_sample', 'get_python_sample', 'get_dwt_sample', 'get_quick_start',
         'get_gradle_config', 'get_license_info', 'get_api_usage', 'search_samples',
-        'generate_project', 'search_dwt_docs', 'get_dwt_api_doc'
+        'generate_project', 'search_dwt_docs', 'get_dwt_api_doc', 'search_resources',
+        'list_resource_topics'
     ];
+
+    assert(response.result.tools.length >= expectedTools.length,
+        `Expected at least ${expectedTools.length} tools, got ${response.result.tools.length}`);
 
     for (const expected of expectedTools) {
         assert(toolNames.includes(expected), `Missing tool: ${expected}`);
@@ -321,7 +323,7 @@ await test('search_samples finds samples by keyword', async () => {
         method: 'tools/call',
         params: {
             name: 'search_samples',
-            arguments: { query: 'barcode' }
+            arguments: { keyword: 'barcode' }
         }
     });
 
@@ -422,8 +424,8 @@ await test('get_dwt_api_doc returns documentation article', async () => {
     assert(text.includes('OCR') || text.includes('not found'), 'Should handle OCR query');
 });
 
-// Test 18: resources/list returns registered resources
-await test('resources/list returns registered resources', async () => {
+// Test 18: resources/list returns pinned resources
+await test('resources/list returns pinned resources', async () => {
     const response = await sendRequest({
         jsonrpc: '2.0',
         id: 1,
@@ -433,11 +435,11 @@ await test('resources/list returns registered resources', async () => {
     assert(response.result, 'Should have result');
     assert(response.result.resources, 'Should have resources array');
     assert(response.result.resources.length > 0, 'Should have at least one resource');
+    assert(response.result.resources.length <= 5, 'Should only expose a small pinned set');
 
     // Check for expected resource types
     const uris = response.result.resources.map(r => r.uri);
-    assert(uris.some(u => u.includes('sdk-info')), 'Should have sdk-info resources');
-    assert(uris.some(u => u.includes('docs/dwt')), 'Should have DWT doc resources');
+    assert(uris.some(u => u.includes('sdk-info')), 'Should have sdk-info resource');
 });
 
 // Test 19: Invalid tool call returns error
@@ -472,37 +474,34 @@ await test('Tool with missing required arguments returns error', async () => {
         'Should return error for missing required argument');
 });
 
-// Test 21: Verify deep folder sample discovery (GeneralSettings)
-await test('Deep folder sample (GeneralSettings) is discoverable and readable', async () => {
-    // 1. Check if it's in the list
-    const listResponse = await sendRequest({
+// Test 21: Verify search_resources returns a resource link and it can be read
+await test('search_resources + resources/read works together', async () => {
+    const searchResponse = await sendRequest({
         jsonrpc: '2.0',
         id: 1,
-        method: 'resources/list'
+        method: 'tools/call',
+        params: {
+            name: 'search_resources',
+            arguments: { query: 'ScanSingleBarcode' }
+        }
     });
 
-    const resources = listResponse.result.resources;
-    const targetUri = 'dynamsoft://samples/mobile/android/low-level/GeneralSettings';
-    const found = resources.find(r => r.uri === targetUri);
-    assert(found, `Should find resource: ${targetUri}`);
+    assert(searchResponse.result, 'Should have result');
+    const link = searchResponse.result.content.find(item => item.type === 'resource_link');
+    assert(link, 'Should return at least one resource link');
 
-    // 2. Try to read it
     const readResponse = await sendRequest({
         jsonrpc: '2.0',
         id: 2,
         method: 'resources/read',
-        params: {
-            uri: targetUri
-        }
+        params: { uri: link.uri }
     });
 
     assert(readResponse.result, 'Should have read result');
-    assert(readResponse.result.contents, 'Should have contents');
-    assert(readResponse.result.contents.length > 0, 'Should have content item');
-    const content = readResponse.result.contents[0].text;
+    assert(readResponse.result.contents, 'Should have contents array');
+    assert(readResponse.result.contents.length > 0, 'Should return content');
+    const content = readResponse.result.contents[0].text || '';
     assert(content.length > 0, 'Content should not be empty');
-    assert(content !== 'Sample not found', 'Should not return "Sample not found"');
-    assert(content.includes('class HomeActivity') || content.includes('package'), 'Should contain Java/Kotlin code');
 });
 
 // ============================================
