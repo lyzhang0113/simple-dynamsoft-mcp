@@ -472,6 +472,39 @@ await test('Tool with missing required arguments returns error', async () => {
         'Should return error for missing required argument');
 });
 
+// Test 21: Verify deep folder sample discovery (GeneralSettings)
+await test('Deep folder sample (GeneralSettings) is discoverable and readable', async () => {
+    // 1. Check if it's in the list
+    const listResponse = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'resources/list'
+    });
+
+    const resources = listResponse.result.resources;
+    const targetUri = 'dynamsoft://samples/mobile/android/low-level/GeneralSettings';
+    const found = resources.find(r => r.uri === targetUri);
+    assert(found, `Should find resource: ${targetUri}`);
+
+    // 2. Try to read it
+    const readResponse = await sendRequest({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'resources/read',
+        params: {
+            uri: targetUri
+        }
+    });
+
+    assert(readResponse.result, 'Should have read result');
+    assert(readResponse.result.contents, 'Should have contents');
+    assert(readResponse.result.contents.length > 0, 'Should have content item');
+    const content = readResponse.result.contents[0].text;
+    assert(content.length > 0, 'Content should not be empty');
+    assert(content !== 'Sample not found', 'Should not return "Sample not found"');
+    assert(content.includes('class HomeActivity') || content.includes('package'), 'Should contain Java/Kotlin code');
+});
+
 // ============================================
 // Test Summary
 // ============================================

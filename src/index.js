@@ -325,7 +325,7 @@ function discoverSamples(platform) {
   return discoverMobileSamples(platform);
 }
 
-function findCodeFilesInSample(samplePath, maxDepth = 6) {
+function findCodeFilesInSample(samplePath, maxDepth = 15) {
   const codeFiles = [];
 
   function walk(dir, depth) {
