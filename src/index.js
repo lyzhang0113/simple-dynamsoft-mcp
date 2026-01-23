@@ -642,7 +642,10 @@ const LEGACY_DBR_LINKS = {
     java: { desktop: null },
     dotnet: { desktop: "https://www.dynamsoft.com/barcode-reader/docs/v10/server/programming/dotnet/" },
     python: { desktop: "http://dynamsoft.com/barcode-reader/docs/v10/server/programming/python/" },
-    mobile: { android: null, ios: null }
+    mobile: { 
+      android: "https://www.dynamsoft.com/barcode-reader/docs/v10/mobile/programming/android/", 
+      ios: "https://www.dynamsoft.com/barcode-reader/docs/v10/mobile/programming/objectivec-swift/" 
+    }
   },
   "9": {
     web: { web: "https://www.dynamsoft.com/barcode-reader/docs/v9/web/programming/javascript/" },
