@@ -1,7 +1,7 @@
 {
   "name": "simple-dynamsoft-mcp",
   "version": "3.1.0",
-  "description": "MCP server for Dynamsoft SDKs - Barcode Reader (Mobile/Python/Web) and Dynamic Web TWAIN. Provides documentation, code snippets, and API guidance.",
+  "description": "MCP server for Dynamsoft SDKs - Barcode Reader (Mobile/Python/Web), Dynamic Web TWAIN, and Document Viewer. Provides documentation, code snippets, and API guidance.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -17,16 +17,12 @@
   "files": [
     "src",
     "data",
-    "http",
     "code-snippet",
     "README.md"
   ],
   "scripts": {
     "start": "node src/index.js",
-    "start:http": "node http/wrapper.js",
-    "test": "npm run test:stdio && npm run test:http",
-    "test:stdio": "node test/server.test.js",
-    "test:http": "node test/http-wrapper.test.js"
+    "test": "node test/server.test.js"
   },
   "keywords": [
     "mcp",
@@ -35,6 +31,7 @@
     "barcode-reader",
     "barcode-scanner",
     "document-scanner",
+    "document-viewer",
     "web-twain",
     "android",
     "ios",
@@ -44,7 +41,7 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
-    "express": "^4.21.2",
+    "fuse.js": "^7.0.0",
     "zod": "~3.24.0"
   },
   "devDependencies": {

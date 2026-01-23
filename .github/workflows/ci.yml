@@ -22,8 +22,5 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Test (stdio)
-        run: npm run test:stdio
-
-      - name: Test (http wrapper)
-        run: npm run test:http
+      - name: Test
+        run: npm run test

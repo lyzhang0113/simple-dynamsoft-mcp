@@ -16,36 +16,21 @@ https://github.com/user-attachments/assets/cc1c5f4b-1461-4462-897a-75abc20d62a6
 
 - **Code Snippets**: Real, working source code from official Dynamsoft samples
 - **Trial License Included**: Ready-to-use trial license for quick testing
-- **Multiple SDKs**: Barcode Reader (Mobile/Python/Web) + Dynamic Web TWAIN
+- **Multiple SDKs**: Barcode Reader (Mobile/Python/Web) + Dynamic Web TWAIN + Document Viewer
 - **Multiple API Levels**: High-level (simple) and low-level (advanced) options
-- **HTTP MCP Wrapper for Copilot Studio**: `npm start:http` runs `http/wrapper.js`, exposing MCP over HTTP at `/mcp` (POST JSON-RPC, optional GET SSE). Discovery (tools/resources) is returned inline on `initialize` and `notifications/initialized`, plus SSE push when enabled.
+- **Stdio MCP server**: Runs on stdio. Works with any MCP-capable client.
+- **Resource-efficient discovery**: Resources are discovered via tools (fuzzy search + resource links). Only a small pinned set is listed by default; heavy content is fetched on-demand with `resources/read`.
+- **Latest-major policy**: The server only serves the latest major versions; older major requests are refused with legacy links when available.
 
 ## Available Tools
 
 | Tool | Description |
 |------|-------------|
-| `list_sdks` | List all SDKs with versions and platforms |
-| `get_sdk_info` | Get detailed SDK info for a specific platform |
-| `list_samples` | List mobile code samples |
-| `list_python_samples` | List Python SDK samples |
-| `list_web_samples` | List web barcode reader samples |
-| `list_dwt_categories` | List Dynamic Web TWAIN sample categories |
-| `get_code_snippet` | Get mobile sample source code |
-| `get_python_sample` | Get Python sample code |
-| `get_web_sample` | Get web barcode reader sample HTML/JS code |
-| `get_dwt_sample` | Get Dynamic Web TWAIN sample |
-| `list_ddv_samples` | List Dynamsoft Document Viewer samples |
-| `get_ddv_sample` | Get Dynamsoft Document Viewer sample |
-| `get_quick_start` | Complete quick start guide with dependencies |
-| `get_gradle_config` | Android Gradle configuration |
-| `get_license_info` | License initialization code |
-| `get_api_usage` | Usage examples for specific APIs |
-| `search_samples` | Search samples by keyword |
-| `generate_project` | Generate a complete project structure based on a sample |
-| `search_dwt_docs` | Search Dynamic Web TWAIN API documentation |
-| `get_dwt_api_doc` | Get specific DWT documentation article |
-| `search_ddv_docs` | Search Dynamsoft Document Viewer API documentation |
-| `get_ddv_api_doc` | Get specific DDV documentation article |
+| `get_index` | Compact index of products, editions, versions, samples, and docs |
+| `search` | Unified search across docs and samples; returns resource links |
+| `resolve_version` | Resolve a concrete latest-major version for a product/edition |
+| `get_quickstart` | Opinionated quickstart for a target stack |
+| `generate_project` | Assemble a project structure from a sample (no AI generation) |
 
 
 ## MCP Client Configuration
@@ -169,16 +154,6 @@ If you prefer running from source:
 }
 ```
 
-### Copilot Studio / HTTP Wrapper
-
-- Install deps: `npm install`
-- Run the HTTP wrapper: `npm start:http` (listens on `http://localhost:3333`)
-  - POST `/mcp` for JSON-RPC (initialize returns capabilities, instructions, and discovery inline)
-  - GET `/mcp` for SSE (optional; discovery also pushed here if enabled)
-  - GET `/health` for status
-
-The wrapper proxies to the MCP stdio child (`./src/index.js`) and embeds `mcp-session-id` plus an instructions block in the initialize response for compatibility with Copilot Studio.
-
 ## Supported SDKs
 
 ### Dynamsoft Barcode Reader Mobile (v11.2.5000)
@@ -230,6 +205,16 @@ The wrapper proxies to the MCP stdio child (`./src/index.js`) and embeds `mcp-se
 - **output-options** - Save, upload, convert to PDF/Base64/Blob
 - **classification** - Document classification and tagging
 - **UI-customization** - Customize viewer and scan UI
+
+### Dynamsoft Document Viewer (v3.x)
+
+**Installation:** `npm install dynamsoft-document-viewer`
+
+**CDN:** `https://cdn.jsdelivr.net/npm/dynamsoft-document-viewer@latest/dist/ddv.js`
+
+**Samples:**
+- **hello-world** - Basic viewer setup
+- **angular**, **react-vite**, **vue**, **next** - Framework starter samples
 
 ## Trial License
 https://www.dynamsoft.com/customer/license/trialLicense/?product=dcv&package=cross-platform
@@ -295,6 +280,18 @@ data/
 ├── dynamsoft_sdks.json        # SDK registry with versions and docs
 └── web-twain-api-docs.json    # Full DWT API documentation (50+ articles)
 ```
+
+## Using Search-Based Discovery (Recommended)
+
+- On session start, let your client call `tools/list` and `resources/list` (pinned only, not exhaustive).
+- For any query, call `search` with keywords; it returns `resource_link` entries.
+- Read only the links you need via `resources/read` to avoid bloating the context window.
+- If unsure what to search, call `get_index` first to see what is available.
+
+## Version Policy
+
+- This MCP server serves only the latest major versions (DBR v11, DWT v19).
+- Requests for older major versions are refused. For select legacy versions, the server returns official archived documentation links.
 
 ## Extending the Server
 
