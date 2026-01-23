@@ -82,7 +82,6 @@ const platformAliases = {
   "objective-c": "ios",
   android: "android",
   kotlin: "android",
-  java: "android",
   flutter: "flutter",
   dart: "flutter",
   maui: "maui",
@@ -91,13 +90,51 @@ const platformAliases = {
   // Desktop/Server
   python: "python",
   py: "python",
+  cpp: "cpp",
+  "c++": "cpp",
+  cplusplus: "cpp",
+  java: "java",
+  dotnet: "dotnet",
+  ".net": "dotnet",
+  "c#": "dotnet",
+  csharp: "dotnet",
   // Web
   web: "web",
   javascript: "web",
   js: "web",
   typescript: "web",
-  ts: "web"
+  ts: "web",
+  // Web frameworks (from code-snippet)
+  angular: "angular",
+  angularjs: "angular",
+  react: "react",
+  reactjs: "react",
+  "react.js": "react",
+  "react-vite": "react",
+  vue: "vue",
+  vuejs: "vue",
+  next: "next",
+  nextjs: "next",
+  nuxt: "nuxt",
+  nuxtjs: "nuxt",
+  svelte: "svelte",
+  blazor: "blazor",
+  capacitor: "capacitor",
+  electron: "electron",
+  es6: "es6",
+  "native-ts": "native-ts",
+  pwa: "pwa",
+  requirejs: "requirejs",
+  webview: "webview"
 };
+
+const SERVER_PLATFORMS = new Set(["python", "cpp", "java", "dotnet"]);
+const WEB_FRAMEWORK_TAG_ALIASES = {
+  react: ["react", "react-vite"]
+};
+let cachedWebFrameworkPlatforms = null;
+let cachedDbrWebFrameworkPlatforms = null;
+let cachedDdvWebFrameworkPlatforms = null;
 
 const languageAliases = {
   kt: "kotlin",
@@ -201,19 +238,30 @@ function normalizeEdition(edition, platform, product) {
 
   if (!edition) {
     if (["android", "ios"].includes(normalizedPlatform)) return "mobile";
-    if (normalizedPlatform === "web") return "web";
-    if (normalizedPlatform === "python") return "python";
+    if (isWebPlatform(normalizedPlatform)) return "web";
+    if (isServerPlatform(normalizedPlatform)) return "server";
     return "";
   }
 
   const normalized = edition.trim().toLowerCase();
+  const compact = normalized.replace(/\s+/g, "");
   if (["mobile", "android", "ios"].includes(normalized)) return "mobile";
   if (["web", "javascript", "js", "typescript", "ts"].includes(normalized)) return "web";
-  if (["python", "py"].includes(normalized)) return "python";
-  if (["java"].includes(normalized)) return "java";
-  if (["c++", "cpp"].includes(normalized)) return "cpp";
-  if ([".net", "dotnet", "c#", "csharp"].includes(normalized)) return "dotnet";
+  if (["server", "desktop", "server/desktop", "server-desktop", "serverdesktop"].includes(normalized) || compact === "serverdesktop") return "server";
+  if (["python", "py", "java", "c++", "cpp", "dotnet", ".net", "c#", "csharp"].includes(normalized)) return "server";
   return normalized;
+}
+
+function isServerPlatform(platform) {
+  return SERVER_PLATFORMS.has(platform);
+}
+
+function isWebFrameworkPlatform(platform) {
+  return getWebFrameworkPlatforms().has(platform);
+}
+
+function isWebPlatform(platform) {
+  return platform === "web" || isWebFrameworkPlatform(platform);
 }
 
 function inferProductFromQuery(query) {
@@ -405,6 +453,53 @@ function discoverDdvSamples() {
   return samples;
 }
 
+function mapDdvSampleToFramework(sampleName) {
+  if (!sampleName) return "";
+  const normalized = sampleName.trim().toLowerCase();
+  if (normalized === "react-vite" || normalized === "react") return "react";
+  if (normalized === "vue") return "vue";
+  if (normalized === "angular") return "angular";
+  if (normalized === "next") return "next";
+  return "";
+}
+
+function getDbrWebFrameworkPlatforms() {
+  if (cachedDbrWebFrameworkPlatforms) return cachedDbrWebFrameworkPlatforms;
+  const webSamples = discoverWebSamples();
+  const frameworks = new Set();
+  if (webSamples.frameworks) {
+    for (const name of webSamples.frameworks) {
+      const normalized = normalizePlatform(name);
+      if (normalized && normalized !== "web") {
+        frameworks.add(normalized);
+      }
+    }
+  }
+  cachedDbrWebFrameworkPlatforms = Array.from(frameworks).sort();
+  return cachedDbrWebFrameworkPlatforms;
+}
+
+function getDdvWebFrameworkPlatforms() {
+  if (cachedDdvWebFrameworkPlatforms) return cachedDdvWebFrameworkPlatforms;
+  const frameworks = new Set();
+  for (const sampleName of discoverDdvSamples()) {
+    const framework = mapDdvSampleToFramework(sampleName);
+    if (framework) frameworks.add(framework);
+  }
+  cachedDdvWebFrameworkPlatforms = Array.from(frameworks).sort();
+  return cachedDdvWebFrameworkPlatforms;
+}
+
+function getWebFrameworkPlatforms() {
+  if (cachedWebFrameworkPlatforms) return cachedWebFrameworkPlatforms;
+  const frameworks = new Set([
+    ...getDbrWebFrameworkPlatforms(),
+    ...getDdvWebFrameworkPlatforms()
+  ]);
+  cachedWebFrameworkPlatforms = frameworks;
+  return cachedWebFrameworkPlatforms;
+}
+
 // Legacy function for backward compatibility
 function discoverSamples(platform) {
   return discoverMobileSamples(platform);
@@ -580,6 +675,7 @@ const LATEST_VERSIONS = {
   dbr: {
     mobile: registry.sdks["dbr-mobile"].version,
     web: registry.sdks["dbr-web"].version,
+    server: registry.sdks["dbr-python"].version,
     python: registry.sdks["dbr-python"].version
   },
   dwt: {
@@ -632,13 +728,13 @@ function formatLegacyLinksForDBR(major) {
 
   const lines = [
     `Legacy docs for DBR v${major}:`,
-    `- Web JS: ${byMajor.web.web || "Not available"}`,
-    `- C++: ${byMajor.cpp.desktop || "Not available"}`,
-    `- Java: ${byMajor.java.desktop || "Not available"}`,
-    `- .NET: ${byMajor.dotnet.desktop || "Not available"}`,
-    `- Python: ${byMajor.python.desktop || "Not available"}`,
-    `- Android: ${byMajor.mobile.android || "Not available"}`,
-    `- iOS: ${byMajor.mobile.ios || "Not available"}`
+    `- Web (JS): ${byMajor.web.web || "Not available"}`,
+    `- Server/Desktop (C++): ${byMajor.cpp.desktop || "Not available"}`,
+    `- Server/Desktop (Java): ${byMajor.java.desktop || "Not available"}`,
+    `- Server/Desktop (.NET): ${byMajor.dotnet.desktop || "Not available"}`,
+    `- Server/Desktop (Python): ${byMajor.python.desktop || "Not available"}`,
+    `- Mobile (Android): ${byMajor.mobile.android || "Not available"}`,
+    `- Mobile (iOS): ${byMajor.mobile.ios || "Not available"}`
   ];
 
   return lines.join("\n");
@@ -657,17 +753,20 @@ function getLegacyLink(product, version, edition, platform) {
   const byMajor = LEGACY_DBR_LINKS[String(major)];
   if (!byMajor) return null;
 
-  const normalizedEdition = edition || "web";
+  const normalizedEdition = normalizeEdition(edition, platform, product) || "web";
+  const normalizedPlatform = normalizePlatform(platform);
   if (normalizedEdition === "mobile") {
-    if (platform === "android") return byMajor.mobile.android;
-    if (platform === "ios") return byMajor.mobile.ios;
+    if (normalizedPlatform === "android") return byMajor.mobile.android;
+    if (normalizedPlatform === "ios") return byMajor.mobile.ios;
     return null;
   }
   if (normalizedEdition === "web") return byMajor.web.web;
-  if (normalizedEdition === "python") return byMajor.python.desktop;
-  if (normalizedEdition === "cpp") return byMajor.cpp.desktop;
-  if (normalizedEdition === "java") return byMajor.java.desktop;
-  if (normalizedEdition === "dotnet") return byMajor.dotnet.desktop;
+  if (normalizedEdition === "server") {
+    if (normalizedPlatform === "python") return byMajor.python.desktop;
+    if (normalizedPlatform === "cpp") return byMajor.cpp.desktop;
+    if (normalizedPlatform === "java") return byMajor.java.desktop;
+    if (normalizedPlatform === "dotnet") return byMajor.dotnet.desktop;
+  }
   return null;
 }
 
@@ -785,10 +884,10 @@ function parseSampleUri(uri) {
     };
   }
 
-  if (parsed.product === "dbr" && parsed.edition === "python") {
+  if (parsed.product === "dbr" && (parsed.edition === "python" || parsed.edition === "server")) {
     return {
       product: "dbr",
-      edition: "python",
+      edition: parsed.edition,
       platform: parsed.platform,
       version: parsed.version,
       sampleName: parsed.parts[4]
@@ -841,7 +940,7 @@ function buildVersionPolicyText() {
 function buildIndexData() {
   const dbrMobileVersion = LATEST_VERSIONS.dbr.mobile;
   const dbrWebVersion = LATEST_VERSIONS.dbr.web;
-  const dbrPythonVersion = LATEST_VERSIONS.dbr.python;
+  const dbrServerVersion = LATEST_VERSIONS.dbr.server;
   const dwtVersion = LATEST_VERSIONS.dwt.web;
   const ddvVersion = LATEST_VERSIONS.ddv.web;
 
@@ -849,6 +948,8 @@ function buildIndexData() {
   const mobileIos = discoverMobileSamples("ios");
   const webSamples = discoverWebSamples();
   const pythonSamples = discoverPythonSamples();
+  const dbrWebFrameworks = getDbrWebFrameworkPlatforms();
+  const ddvWebFrameworks = getDdvWebFrameworkPlatforms();
   const dwtSamples = discoverDwtSamples();
   const ddvSamples = discoverDdvSamples();
 
@@ -868,12 +969,12 @@ function buildIndexData() {
           },
           web: {
             version: dbrWebVersion,
-            platforms: ["web"],
+            platforms: ["js", ...dbrWebFrameworks],
             samples: webSamples
           },
-          python: {
-            version: dbrPythonVersion,
-            platforms: ["python"],
+          server: {
+            version: dbrServerVersion,
+            platforms: ["python", "cpp", "java", "dotnet"],
             samples: pythonSamples
           }
         }
@@ -883,7 +984,7 @@ function buildIndexData() {
         editions: {
           web: {
             version: dwtVersion,
-            platforms: ["web"],
+            platforms: ["js"],
             sampleCategories: dwtSamples,
             docCount: dwtDocs.articles.length,
             docTitles: dwtDocs.articles.map((article) => ({
@@ -898,7 +999,7 @@ function buildIndexData() {
         editions: {
           web: {
             version: ddvVersion,
-            platforms: ["web"],
+            platforms: ["js", ...ddvWebFrameworks],
             samples: ddvSamples,
             docCount: ddvDocs.articles.length,
             docTitles: ddvDocs.articles.map((article) => ({
@@ -945,7 +1046,7 @@ function buildResourceIndex() {
 
   const dbrMobileVersion = LATEST_VERSIONS.dbr.mobile;
   const dbrWebVersion = LATEST_VERSIONS.dbr.web;
-  const dbrPythonVersion = LATEST_VERSIONS.dbr.python;
+  const dbrServerVersion = LATEST_VERSIONS.dbr.server;
   const dwtVersion = LATEST_VERSIONS.dwt.web;
   const ddvVersion = LATEST_VERSIONS.ddv.web;
 
@@ -986,12 +1087,12 @@ function buildResourceIndex() {
   for (const sampleName of discoverPythonSamples()) {
     addResourceToIndex({
       id: `dbr-python-${sampleName}`,
-      uri: `sample://dbr/python/python/${dbrPythonVersion}/${sampleName}`,
+      uri: `sample://dbr/python/python/${dbrServerVersion}/${sampleName}`,
       type: "sample",
       product: "dbr",
       edition: "python",
       platform: "python",
-      version: dbrPythonVersion,
+      version: dbrServerVersion,
       majorVersion: LATEST_MAJOR.dbr,
       title: `Python sample: ${sampleName}`,
       summary: `DBR Python sample ${sampleName}.`,
@@ -1197,6 +1298,29 @@ function buildResourceIndex() {
 
 buildResourceIndex();
 
+function editionMatches(normalizedEdition, entryEdition) {
+  if (!normalizedEdition) return true;
+  if (normalizedEdition === entryEdition) return true;
+  if (normalizedEdition === "server" && entryEdition === "python") return true;
+  if (normalizedEdition === "python" && entryEdition === "server") return true;
+  return false;
+}
+
+function platformMatches(normalizedPlatform, entry) {
+  if (!normalizedPlatform) return true;
+  if (normalizedPlatform === entry.platform) return true;
+  if (normalizedPlatform === "web") return entry.platform === "web";
+  if (isWebFrameworkPlatform(normalizedPlatform)) {
+    if (entry.platform === "web" && Array.isArray(entry.tags)) {
+      const tags = entry.tags.map((tag) => String(tag).toLowerCase());
+      const aliases = WEB_FRAMEWORK_TAG_ALIASES[normalizedPlatform] || [normalizedPlatform];
+      return aliases.some((alias) => tags.includes(alias));
+    }
+    return entry.platform === normalizedPlatform;
+  }
+  return false;
+}
+
 const resourceSearch = new Fuse(resourceIndex, {
   keys: ["title", "summary", "tags", "uri"],
   threshold: 0.35,
@@ -1229,7 +1353,7 @@ async function readResourceContent(uri) {
 const server = new McpServer({
   name: "simple-dynamsoft-mcp",
   version: pkg.version,
-  description: "MCP server for latest major versions of Dynamsoft SDKs: Barcode Reader (Mobile/Python/Web), Dynamic Web TWAIN, and Document Viewer"
+  description: "MCP server for latest major versions of Dynamsoft SDKs: Barcode Reader (Mobile/Server/Web), Dynamic Web TWAIN, and Document Viewer"
 });
 
 // ============================================================================
@@ -1260,8 +1384,8 @@ server.registerTool(
     inputSchema: {
       query: z.string().describe("Keywords to search across docs and samples."),
       product: z.string().optional().describe("Product: dbr, dwt, ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, python, java, cpp, dotnet"),
-      platform: z.string().optional().describe("Platform: android, ios, web, python"),
+      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       version: z.string().optional().describe("Version constraint (major or full version)"),
       type: z.enum(["doc", "sample", "index", "policy", "any"]).optional(),
       limit: z.number().int().min(1).max(10).optional().describe("Max results (default 5)")
@@ -1289,8 +1413,8 @@ server.registerTool(
 
     const results = resourceSearch.search(query).map((result) => result.item).filter((entry) => {
       if (normalizedProduct && entry.product !== normalizedProduct) return false;
-      if (normalizedEdition && entry.edition !== normalizedEdition) return false;
-      if (normalizedPlatform && entry.platform !== normalizedPlatform) return false;
+      if (!editionMatches(normalizedEdition, entry.edition)) return false;
+      if (!platformMatches(normalizedPlatform, entry)) return false;
       if (type && type !== "any" && entry.type !== type) return false;
       return true;
     });
@@ -1316,10 +1440,12 @@ server.registerTool(
 
     for (const entry of topResults) {
       const versionLabel = entry.version ? `v${entry.version}` : "n/a";
+      const displayEdition = entry.edition === "python" ? "server" : entry.edition;
+      const displayPlatform = entry.platform === "web" ? "js" : entry.platform;
       const scopeLabel = [
         entry.product || "general",
-        entry.edition || "",
-        entry.platform || ""
+        displayEdition || "",
+        displayPlatform || ""
       ].filter(Boolean).join("/");
       content.push({
         type: "resource_link",
@@ -1349,8 +1475,8 @@ server.registerTool(
     description: "Resolve a concrete latest-major version for a product/edition/platform.",
     inputSchema: {
       product: z.string().describe("Product: dbr, dwt, or ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, python, java, cpp, dotnet"),
-      platform: z.string().optional().describe("Platform: android, ios, web, python"),
+      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       constraint: z.string().optional().describe("Version constraint, e.g., latest, 11.x, 10"),
       feature: z.string().optional().describe("Optional feature hint")
     }
@@ -1386,7 +1512,7 @@ server.registerTool(
           `- Latest major: v${LATEST_MAJOR.dbr}`,
           `- Mobile: ${LATEST_VERSIONS.dbr.mobile}`,
           `- Web: ${LATEST_VERSIONS.dbr.web}`,
-          `- Python: ${LATEST_VERSIONS.dbr.python}`,
+          `- Server/Desktop: ${LATEST_VERSIONS.dbr.server}`,
           "",
           "Specify edition/platform to resolve a single version."
         ];
@@ -1401,10 +1527,11 @@ server.registerTool(
         };
       }
 
+      const displayPlatform = normalizedPlatform === "web" ? "js" : normalizedPlatform;
       const lines = [
         "# DBR Version Resolution",
         `- Edition: ${normalizedEdition}`,
-        normalizedPlatform ? `- Platform: ${normalizedPlatform}` : "",
+        displayPlatform ? `- Platform: ${displayPlatform}` : "",
         `- Latest major: v${LATEST_MAJOR.dbr}`,
         `- Resolved version: ${resolved}`
       ].filter(Boolean);
@@ -1442,9 +1569,9 @@ server.registerTool(
     description: "Opinionated quickstart for a target product/edition/platform.",
     inputSchema: {
       product: z.string().describe("Product: dbr, dwt, or ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, python"),
-      platform: z.string().optional().describe("Platform: android, ios, web, python"),
-      language: z.string().optional().describe("Language hint: kotlin, java, swift, js, ts, python, react, vue, angular"),
+      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      language: z.string().optional().describe("Language hint: kotlin, java, swift, js, ts, python, cpp, csharp, react, vue, angular"),
       version: z.string().optional().describe("Version constraint"),
       api_level: z.string().optional().describe("API level: high-level or low-level (mobile only)"),
       scenario: z.string().optional().describe("Scenario: camera, image, single, multiple, react, etc.")
@@ -1466,7 +1593,7 @@ server.registerTool(
       return { isError: true, content: [{ type: "text", text: policy.message }] };
     }
 
-    if (normalizedProduct === "dbr" && normalizedEdition === "python") {
+    if (normalizedProduct === "dbr" && normalizedEdition === "server") {
       const sdkEntry = registry.sdks["dbr-python"];
       const scenarioLower = (scenario || "").toLowerCase();
       const sampleName = scenarioLower.includes("video") ? "video_decoding" : "read_an_image";
@@ -1777,8 +1904,8 @@ server.registerTool(
     description: "Generate a project structure from a sample (no AI generation).",
     inputSchema: {
       product: z.string().describe("Product: dbr, dwt, or ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, python"),
-      platform: z.string().optional().describe("Platform: android, ios, web, python"),
+      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       version: z.string().optional().describe("Version constraint"),
       sample_id: z.string().optional().describe("Sample identifier (name or path)"),
       resource_uri: z.string().optional().describe("Resource URI returned by search"),
@@ -1819,7 +1946,7 @@ server.registerTool(
         samplePath = getMobileSamplePath(sampleInfo.platform, sampleInfo.level, sampleInfo.sampleName);
       } else if (sampleInfo.product === "dbr" && sampleInfo.edition === "web") {
         samplePath = getWebSamplePath(sampleInfo.category, sampleInfo.sampleName);
-      } else if (sampleInfo.product === "dbr" && sampleInfo.edition === "python") {
+      } else if (sampleInfo.product === "dbr" && (sampleInfo.edition === "python" || sampleInfo.edition === "server")) {
         samplePath = getPythonSamplePath(sampleInfo.sampleName);
       } else if (sampleInfo.product === "dwt") {
         samplePath = getDwtSamplePath(sampleInfo.category, sampleInfo.sampleName);
@@ -1843,7 +1970,7 @@ server.registerTool(
         samplePath = existsSync(primaryPath) ? primaryPath : (existsSync(alternatePath) ? alternatePath : null);
       } else if (normalizedProduct === "dbr" && normalizedEdition === "web") {
         samplePath = getWebSamplePath(undefined, sampleName);
-      } else if (normalizedProduct === "dbr" && normalizedEdition === "python") {
+      } else if (normalizedProduct === "dbr" && normalizedEdition === "server") {
         samplePath = getPythonSamplePath(sampleName);
       } else if (normalizedProduct === "dwt") {
         const categories = discoverDwtSamples();
