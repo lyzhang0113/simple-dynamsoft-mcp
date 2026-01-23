@@ -1321,12 +1321,68 @@ function platformMatches(normalizedPlatform, entry) {
   return false;
 }
 
+function getDisplayEdition(entryEdition) {
+  return entryEdition === "python" ? "server" : entryEdition;
+}
+
+function getDisplayPlatform(entryPlatform) {
+  return entryPlatform === "web" ? "js" : entryPlatform;
+}
+
+function formatScopeLabel(entry) {
+  const displayEdition = getDisplayEdition(entry.edition);
+  const displayPlatform = getDisplayPlatform(entry.platform);
+  return [
+    entry.product || "general",
+    displayEdition || "",
+    displayPlatform || ""
+  ].filter(Boolean).join("/");
+}
+
 const resourceSearch = new Fuse(resourceIndex, {
   keys: ["title", "summary", "tags", "uri"],
   threshold: 0.35,
   ignoreLocation: true,
   includeScore: true
 });
+
+function getSampleSuggestions({ query, product, edition, platform, limit = 5 }) {
+  const normalizedProduct = normalizeProduct(product);
+  const normalizedPlatform = normalizePlatform(platform);
+  const normalizedEdition = normalizeEdition(edition, normalizedPlatform, normalizedProduct);
+  const searchQuery = query ? String(query).trim() : "";
+
+  const matchesScope = (entry) => {
+    if (normalizedProduct && entry.product !== normalizedProduct) return false;
+    if (!editionMatches(normalizedEdition, entry.edition)) return false;
+    if (!platformMatches(normalizedPlatform, entry)) return false;
+    return entry.type === "sample";
+  };
+
+  let candidates = [];
+  if (searchQuery) {
+    candidates = resourceSearch.search(searchQuery).map((result) => result.item).filter(matchesScope);
+  }
+
+  if (candidates.length === 0) {
+    candidates = resourceIndex.filter(matchesScope);
+  }
+
+  if (candidates.length === 0 && normalizedProduct) {
+    candidates = resourceIndex.filter((entry) => entry.type === "sample" && entry.product === normalizedProduct);
+  }
+
+  const seen = new Set();
+  const results = [];
+  for (const entry of candidates) {
+    if (seen.has(entry.uri)) continue;
+    seen.add(entry.uri);
+    results.push(entry);
+    if (results.length >= limit) break;
+  }
+
+  return results;
+}
 
 function getPinnedResources() {
   return resourceIndex.filter((entry) => entry.pinned);
@@ -1440,13 +1496,7 @@ server.registerTool(
 
     for (const entry of topResults) {
       const versionLabel = entry.version ? `v${entry.version}` : "n/a";
-      const displayEdition = entry.edition === "python" ? "server" : entry.edition;
-      const displayPlatform = entry.platform === "web" ? "js" : entry.platform;
-      const scopeLabel = [
-        entry.product || "general",
-        displayEdition || "",
-        displayPlatform || ""
-      ].filter(Boolean).join("/");
+      const scopeLabel = formatScopeLabel(entry);
       content.push({
         type: "resource_link",
         uri: entry.uri,
@@ -1939,9 +1989,11 @@ server.registerTool(
 
     let samplePath = null;
     let sampleLabel = "";
+    let sampleQuery = "";
 
     if (sampleInfo) {
       sampleLabel = sampleInfo.sampleName || resource_uri;
+      sampleQuery = sampleInfo.sampleName || sample_id || "";
       if (sampleInfo.product === "dbr" && sampleInfo.edition === "mobile") {
         samplePath = getMobileSamplePath(sampleInfo.platform, sampleInfo.level, sampleInfo.sampleName);
       } else if (sampleInfo.product === "dbr" && sampleInfo.edition === "web") {
@@ -1961,6 +2013,7 @@ server.registerTool(
       const level = normalizeApiLevel(api_level);
       const sampleName = normalizeSampleName(sample_id);
       sampleLabel = sampleName;
+      sampleQuery = sampleName;
 
       if (normalizedProduct === "dbr" && normalizedEdition === "mobile") {
         const targetPlatform = normalizedPlatform || "android";
@@ -1990,7 +2043,39 @@ server.registerTool(
     }
 
     if (!samplePath || !existsSync(samplePath)) {
-      return { isError: true, content: [{ type: "text", text: `Sample not found for "${sampleLabel}".` }] };
+      const suggestions = getSampleSuggestions({
+        query: sampleQuery,
+        product: normalizedProduct,
+        edition: normalizedEdition,
+        platform: normalizedPlatform,
+        limit: 5
+      });
+
+      const content = [{
+        type: "text",
+        text: [
+          `Sample not found for "${sampleLabel}".`,
+          suggestions.length ? "Related samples:" : "No related samples found. Try search or get_index."
+        ].join("\n")
+      }];
+
+      for (const entry of suggestions) {
+        const versionLabel = entry.version ? `v${entry.version}` : "n/a";
+        const scopeLabel = formatScopeLabel(entry);
+        content.push({
+          type: "resource_link",
+          uri: entry.uri,
+          name: entry.title,
+          description: `${entry.type.toUpperCase()} | ${scopeLabel} | ${versionLabel} - ${entry.summary}`,
+          mimeType: entry.mimeType,
+          annotations: {
+            audience: ["assistant"],
+            priority: 0.6
+          }
+        });
+      }
+
+      return { isError: true, content };
     }
 
     const textExtensions = [
