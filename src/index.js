@@ -13,6 +13,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
+import pkg from "../package.json" with { type: "json" };
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, "..");
 
@@ -1226,7 +1228,7 @@ async function readResourceContent(uri) {
 
 const server = new McpServer({
   name: "simple-dynamsoft-mcp",
-  version: "3.1.0",
+  version: pkg.version,
   description: "MCP server for latest major versions of Dynamsoft SDKs: Barcode Reader (Mobile/Python/Web), Dynamic Web TWAIN, and Document Viewer"
 });
 
