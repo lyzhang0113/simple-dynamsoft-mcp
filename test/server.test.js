@@ -20,7 +20,8 @@ const results = [];
 async function sendRequest(request) {
     return new Promise((resolve, reject) => {
         const proc = spawn('node', [serverPath], {
-            stdio: ['pipe', 'pipe', 'pipe']
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env: { ...process.env, RAG_PROVIDER: 'fuse' }
         });
 
         let stdout = '';
@@ -117,6 +118,8 @@ await test('tools/list returns the minimal tool surface', async () => {
     const expectedTools = [
         'get_index',
         'search',
+        'list_samples',
+        'resolve_sample',
         'resolve_version',
         'get_quickstart',
         'generate_project'
@@ -161,6 +164,8 @@ await test('search returns resource links for DWT', async () => {
     assert(response.result, 'Should have result');
     const link = response.result.content.find(item => item.type === 'resource_link');
     assert(link, 'Should return at least one resource link');
+    const plain = response.result.content.find(item => item.type === 'text' && item.text.includes('Plain URIs'));
+    assert(plain, 'Should include plain URIs for copy/paste');
 });
 
 await test('search returns resource links for DDV', async () => {
@@ -177,6 +182,50 @@ await test('search returns resource links for DDV', async () => {
     assert(response.result, 'Should have result');
     const link = response.result.content.find(item => item.type === 'resource_link');
     assert(link, 'Should return at least one resource link');
+    const plain = response.result.content.find(item => item.type === 'text' && item.text.includes('Plain URIs'));
+    assert(plain, 'Should include plain URIs for copy/paste');
+});
+
+await test('list_samples returns sample URIs and JSON payload', async () => {
+    const response = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+            name: 'list_samples',
+            arguments: { product: 'dwt' }
+        }
+    });
+
+    assert(response.result, 'Should have result');
+    const text = response.result.content[0].text;
+    assert(text.includes('Plain URIs'), 'Should include plain URIs section');
+
+    const jsonIndex = text.indexOf('JSON:');
+    assert(jsonIndex !== -1, 'Should include JSON section');
+    const jsonText = text.slice(jsonIndex + 5).trim();
+    const parsed = JSON.parse(jsonText);
+    assert(Array.isArray(parsed.samples), 'JSON should include samples array');
+    assert(parsed.samples.length > 0, 'Should return at least one sample');
+});
+
+await test('resolve_sample returns a matching DWT sample', async () => {
+    const response = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+            name: 'resolve_sample',
+            arguments: { sample_id: 'basic-scan', product: 'dwt' }
+        }
+    });
+
+    assert(response.result, 'Should have result');
+    const text = response.result.content[0].text;
+    assert(text.includes('Found'), 'Should report matches');
+    assert(text.includes('Plain URIs'), 'Should include plain URIs section');
+    const link = response.result.content.find(item => item.type === 'resource_link');
+    assert(link, 'Should include resource link');
 });
 
 await test('resources/list returns pinned resources', async () => {

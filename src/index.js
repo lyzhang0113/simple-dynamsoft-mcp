@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, relative, dirname, extname } from "node:path";
-import { fileURLToPath } from "node:url";
-import Fuse from "fuse.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -12,1215 +10,41 @@ import {
   UnsubscribeRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-
-import pkg from "../package.json" with { type: "json" };
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = join(__dirname, "..");
-
-const registryUrl = new URL("../data/dynamsoft_sdks.json", import.meta.url);
-const registry = JSON.parse(readFileSync(registryUrl, "utf8"));
-
-const dwtDocsUrl = new URL("../data/web-twain-api-docs.json", import.meta.url);
-const dwtDocs = JSON.parse(readFileSync(dwtDocsUrl, "utf8"));
-
-const ddvDocsUrl = new URL("../data/ddv-api-docs.json", import.meta.url);
-const ddvDocs = JSON.parse(readFileSync(ddvDocsUrl, "utf8"));
-
-const codeSnippetRoot = join(projectRoot, "code-snippet");
-
-// ============================================================================
-// Aliases for flexible input handling
-// ============================================================================
-
-const sdkAliases = {
-  // DDV
-  "ddv": "ddv",
-  "document-viewer": "ddv",
-  "document viewer": "ddv",
-  "pdf viewer": "ddv",
-  "edit viewer": "ddv",
-  // DBR Mobile
-  "dbr": "dbr-mobile",
-  "dbr-mobile": "dbr-mobile",
-  "barcode-reader": "dbr-mobile",
-  "barcode reader": "dbr-mobile",
-  "barcode reader mobile": "dbr-mobile",
-  "mobile barcode": "dbr-mobile",
-  // DBR Python
-  "dbr-python": "dbr-python",
-  "python barcode": "dbr-python",
-  "barcode python": "dbr-python",
-  "barcode reader python": "dbr-python",
-  // DBR Web
-  "dbr-web": "dbr-web",
-  "web barcode": "dbr-web",
-  "barcode web": "dbr-web",
-  "javascript barcode": "dbr-web",
-  "barcode javascript": "dbr-web",
-  "barcode js": "dbr-web",
-  // Dynamic Web TWAIN
-  "dwt": "dwt",
-  "web twain": "dwt",
-  "webtwain": "dwt",
-  "dynamic web twain": "dwt",
-  "document scanner": "dwt",
-  "document scanning": "dwt",
-  "twain": "dwt",
-  "scanner": "dwt"
-};
-
-const platformAliases = {
-  // Mobile platforms
-  rn: "react-native",
-  reactnative: "react-native",
-  "react native": "react-native",
-  "react-native": "react-native",
-  ios: "ios",
-  swift: "ios",
-  objc: "ios",
-  "objective-c": "ios",
-  android: "android",
-  kotlin: "android",
-  java: "android",
-  flutter: "flutter",
-  dart: "flutter",
-  maui: "maui",
-  "dotnet maui": "maui",
-  ".net maui": "maui",
-  // Desktop/Server
-  python: "python",
-  py: "python",
-  // Web
-  web: "web",
-  javascript: "web",
-  js: "web",
-  typescript: "web",
-  ts: "web"
-};
-
-const languageAliases = {
-  kt: "kotlin",
-  kotlin: "kotlin",
-  java: "java",
-  swift: "swift",
-  objc: "objective-c",
-  "objective-c": "objective-c",
-  py: "python",
-  python: "python",
-  js: "javascript",
-  javascript: "javascript",
-  ts: "typescript",
-  typescript: "typescript"
-};
-
-const sampleAliases = {
-  // Mobile samples
-  "scan single": "ScanSingleBarcode",
-  "single barcode": "ScanSingleBarcode",
-  "scan multiple": "ScanMultipleBarcodes",
-  "multiple barcodes": "ScanMultipleBarcodes",
-  "camera enhancer": "DecodeWithCameraEnhancer",
-  "dce": "DecodeWithCameraEnhancer",
-  "camerax": "DecodeWithCameraX",
-  "decode image": "DecodeFromAnImage",
-  "from image": "DecodeFromAnImage",
-  "driver license": "DriversLicenseScanner",
-  "general settings": "GeneralSettings",
-  "tiny barcode": "TinyBarcodeDecoding",
-  "gs1": "ReadGS1AI",
-  "locate item": "LocateAnItemWithBarcode",
-  // Python samples
-  "read image": "read_an_image",
-  "video decoding": "video_decoding",
-  "video": "video_decoding",
-  // DWT samples
-  "basic scan": "basic-scan",
-  "scan": "basic-scan",
-  "read barcode": "read-barcode",
-  "load local": "load-from-local-drive",
-  "save": "save",
-  "upload": "upload"
-};
-
-// ============================================================================
-// Normalization functions
-// ============================================================================
-
-function normalizeSdkId(sdk) {
-  if (!sdk) return "";
-  const normalized = sdk.trim().toLowerCase();
-  return sdkAliases[normalized] || normalized;
-}
-
-function normalizePlatform(platform) {
-  if (!platform) return "";
-  const normalized = platform.trim().toLowerCase();
-  return platformAliases[normalized] || normalized;
-}
-
-function normalizeLanguage(lang) {
-  if (!lang) return "";
-  const normalized = lang.trim().toLowerCase();
-  return languageAliases[normalized] || normalized;
-}
-
-function normalizeApiLevel(level) {
-  if (!level) return "high-level";
-  const normalized = level.trim().toLowerCase();
-  if (["low", "foundation", "foundational", "base", "manual", "core", "advanced", "custom", "template", "capturevision", "cvr"].some((word) => normalized.includes(word))) {
-    return "low-level";
-  }
-  return "high-level";
-}
-
-function normalizeSampleName(name) {
-  if (!name) return "";
-  const normalized = name.trim().toLowerCase();
-  return sampleAliases[normalized] || name;
-}
-
-function normalizeProduct(product) {
-  if (!product) return "";
-  const normalized = product.trim().toLowerCase();
-  if (["ddv", "document viewer", "document-viewer", "dynamsoft document viewer", "doc viewer", "pdf viewer"].includes(normalized)) {
-    return "ddv";
-  }
-  if (["dbr", "barcode reader", "barcode-reader", "dynamsoft barcode reader"].includes(normalized)) {
-    return "dbr";
-  }
-  if (["dwt", "dynamic web twain", "web twain", "webtwain"].includes(normalized)) {
-    return "dwt";
-  }
-  return normalized;
-}
-
-function normalizeEdition(edition, platform, product) {
-  if (product === "dwt" || product === "ddv") return "web";
-  const normalizedPlatform = normalizePlatform(platform);
-
-  if (!edition) {
-    if (["android", "ios"].includes(normalizedPlatform)) return "mobile";
-    if (normalizedPlatform === "web") return "web";
-    if (normalizedPlatform === "python") return "python";
-    return "";
-  }
-
-  const normalized = edition.trim().toLowerCase();
-  if (["mobile", "android", "ios"].includes(normalized)) return "mobile";
-  if (["web", "javascript", "js", "typescript", "ts"].includes(normalized)) return "web";
-  if (["python", "py"].includes(normalized)) return "python";
-  if (["java"].includes(normalized)) return "java";
-  if (["c++", "cpp"].includes(normalized)) return "cpp";
-  if ([".net", "dotnet", "c#", "csharp"].includes(normalized)) return "dotnet";
-  return normalized;
-}
-
-function inferProductFromQuery(query) {
-  if (!query) return "";
-  const normalized = query.toLowerCase();
-  if (normalized.includes("ddv") || normalized.includes("document viewer") || normalized.includes("pdf viewer") || normalized.includes("edit viewer")) {
-    return "ddv";
-  }
-  if (normalized.includes("dwt") || normalized.includes("web twain") || normalized.includes("webtwain")) {
-    return "dwt";
-  }
-  if (normalized.includes("dbr") || normalized.includes("barcode reader") || normalized.includes("barcode")) {
-    return "dbr";
-  }
-  return "";
-}
-
-// ============================================================================
-// Code snippet utilities
-// ============================================================================
-
-function getCodeFileExtensions() {
-  return [".java", ".kt", ".swift", ".m", ".h", ".py", ".js", ".jsx", ".ts", ".tsx", ".vue", ".html"];
-}
-
-function isCodeFile(filename) {
-  return getCodeFileExtensions().includes(extname(filename).toLowerCase());
-}
-
-function discoverMobileSamples(platform) {
-  const samples = { "high-level": [], "low-level": [] };
-  const platformPath = join(codeSnippetRoot, "dynamsoft-barcode-reader", platform);
-
-  if (!existsSync(platformPath)) return samples;
-
-  const highLevelPath = join(platformPath, "BarcodeScannerAPISamples");
-  if (existsSync(highLevelPath)) {
-    for (const entry of readdirSync(highLevelPath, { withFileTypes: true })) {
-      if (entry.isDirectory() && !entry.name.startsWith(".") && !entry.name.startsWith("gradle") && !entry.name.startsWith("build")) {
-        samples["high-level"].push(entry.name);
-      }
-    }
-  }
-
-  const lowLevelPath = join(platformPath, "FoundationalAPISamples");
-  if (existsSync(lowLevelPath)) {
-    for (const entry of readdirSync(lowLevelPath, { withFileTypes: true })) {
-      if (entry.isDirectory() && !entry.name.startsWith(".") && !entry.name.startsWith("gradle") && !entry.name.startsWith("build")) {
-        samples["low-level"].push(entry.name);
-      }
-    }
-  }
-
-  return samples;
-}
-
-function discoverPythonSamples() {
-  const samples = [];
-  const pythonPath = join(codeSnippetRoot, "dynamsoft-barcode-reader", "python", "Samples");
-
-  if (!existsSync(pythonPath)) return samples;
-
-  for (const entry of readdirSync(pythonPath, { withFileTypes: true })) {
-    if (entry.isFile() && entry.name.endsWith(".py")) {
-      samples.push(entry.name.replace(".py", ""));
-    }
-  }
-
-  return samples;
-}
-
-function discoverWebSamples() {
-  const categories = {
-    "root": [],
-    "frameworks": [],
-    "scenarios": []
-  };
-  const webPath = join(codeSnippetRoot, "dynamsoft-barcode-reader", "web");
-
-  if (!existsSync(webPath)) return categories;
-
-  // Find HTML files in root
-  for (const entry of readdirSync(webPath, { withFileTypes: true })) {
-    if (entry.isFile() && entry.name.endsWith(".html")) {
-      categories["root"].push(entry.name.replace(".html", ""));
-    }
-  }
-
-  // Find samples in subdirectories
-  for (const subdir of ["frameworks", "scenarios"]) {
-    const subdirPath = join(webPath, subdir);
-    if (existsSync(subdirPath)) {
-      for (const entry of readdirSync(subdirPath, { withFileTypes: true })) {
-        if (entry.isDirectory()) {
-          categories[subdir].push(entry.name);
-        } else if (entry.isFile() && entry.name.endsWith(".html")) {
-          categories[subdir].push(entry.name.replace(".html", ""));
-        }
-      }
-    }
-  }
-
-  // Remove empty categories
-  for (const [key, value] of Object.entries(categories)) {
-    if (value.length === 0) delete categories[key];
-  }
-
-  return categories;
-}
-
-function getWebSamplePath(category, sampleName) {
-  const webPath = join(codeSnippetRoot, "dynamsoft-barcode-reader", "web");
-
-  if (category === "root" || !category) {
-    // Try root level
-    const htmlPath = join(webPath, `${sampleName}.html`);
-    if (existsSync(htmlPath)) return htmlPath;
-  } else {
-    // Try in subdirectory
-    const dirPath = join(webPath, category, sampleName);
-    if (existsSync(dirPath) && statSync(dirPath).isDirectory()) {
-      // Look for index.html or main html file
-      const indexPath = join(dirPath, "index.html");
-      if (existsSync(indexPath)) return indexPath;
-      // Look for any html file
-      for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
-        if (entry.isFile() && entry.name.endsWith(".html")) {
-          return join(dirPath, entry.name);
-        }
-      }
-    }
-    // Try as html file directly
-    const htmlPath = join(webPath, category, `${sampleName}.html`);
-    if (existsSync(htmlPath)) return htmlPath;
-  }
-
-  // Fallback: search all
-  const rootPath = join(webPath, `${sampleName}.html`);
-  if (existsSync(rootPath)) return rootPath;
-
-  return null;
-}
-
-function discoverDwtSamples() {
-  const categories = {};
-  const dwtPath = join(codeSnippetRoot, "dynamic-web-twain");
-
-  if (!existsSync(dwtPath)) return categories;
-
-  for (const entry of readdirSync(dwtPath, { withFileTypes: true })) {
-    if (entry.isDirectory() && !entry.name.startsWith(".")) {
-      const categoryPath = join(dwtPath, entry.name);
-      const samples = [];
-
-      // Recursively find HTML files
-      function findHtmlFiles(dir) {
-        for (const item of readdirSync(dir, { withFileTypes: true })) {
-          if (item.isFile() && item.name.endsWith(".html")) {
-            samples.push(item.name.replace(".html", ""));
-          } else if (item.isDirectory() && !item.name.startsWith(".")) {
-            findHtmlFiles(join(dir, item.name));
-          }
-        }
-      }
-
-      findHtmlFiles(categoryPath);
-      if (samples.length > 0) {
-        categories[entry.name] = samples;
-      }
-    }
-  }
-
-  return categories;
-}
-
-function discoverDdvSamples() {
-  const samples = [];
-  const ddvPath = join(codeSnippetRoot, "dynamsoft-document-viewer");
-
-  if (!existsSync(ddvPath)) return samples;
-
-  for (const entry of readdirSync(ddvPath, { withFileTypes: true })) {
-    if (entry.isFile() && entry.name.endsWith(".html")) {
-      samples.push(entry.name.replace(".html", ""));
-    } else if (entry.isDirectory() && !entry.name.startsWith(".")) {
-      samples.push(entry.name);
-    }
-  }
-  return samples;
-}
-
-// Legacy function for backward compatibility
-function discoverSamples(platform) {
-  return discoverMobileSamples(platform);
-}
-
-function findCodeFilesInSample(samplePath, maxDepth = 15) {
-  const codeFiles = [];
-
-  function walk(dir, depth) {
-    if (depth > maxDepth || !existsSync(dir)) return;
-
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const fullPath = join(dir, entry.name);
-
-      if (entry.isDirectory()) {
-        if (!["build", "gradle", ".gradle", ".idea", "node_modules", "Pods", "DerivedData", ".git", "__pycache__"].includes(entry.name)) {
-          walk(fullPath, depth + 1);
-        }
-      } else if (entry.isFile() && isCodeFile(entry.name)) {
-        codeFiles.push({
-          path: fullPath,
-          relativePath: relative(samplePath, fullPath),
-          filename: entry.name,
-          extension: extname(entry.name).toLowerCase()
-        });
-      }
-    }
-  }
-
-  walk(samplePath, 0);
-  return codeFiles;
-}
-
-function getMobileSamplePath(platform, apiLevel, sampleName) {
-  const levelFolder = apiLevel === "high-level" ? "BarcodeScannerAPISamples" : "FoundationalAPISamples";
-  return join(codeSnippetRoot, "dynamsoft-barcode-reader", platform, levelFolder, sampleName);
-}
-
-function getPythonSamplePath(sampleName) {
-  const fileName = sampleName.endsWith(".py") ? sampleName : sampleName + ".py";
-  return join(codeSnippetRoot, "dynamsoft-barcode-reader", "python", "Samples", fileName);
-}
-
-function getDwtSamplePath(category, sampleName) {
-  const fileName = sampleName.endsWith(".html") ? sampleName : sampleName + ".html";
-  const categoryPath = join(codeSnippetRoot, "dynamic-web-twain", category);
-
-  // Search recursively for the file
-  function findFile(dir) {
-    if (!existsSync(dir)) return null;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.isFile() && entry.name === fileName) {
-        return join(dir, entry.name);
-      } else if (entry.isDirectory()) {
-        const found = findFile(join(dir, entry.name));
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  return findFile(categoryPath);
-}
-
-function getDdvSamplePath(sampleName) {
-  const ddvPath = join(codeSnippetRoot, "dynamsoft-document-viewer");
-  
-  // check for html file
-  let path = join(ddvPath, `${sampleName}.html`);
-  if (existsSync(path)) return path;
-
-  // check for directory
-  path = join(ddvPath, sampleName);
-  if (existsSync(path) && statSync(path).isDirectory()) {
-    // Look for README.md or src/index.js/ts or just return the dir
-    // Returning the dir allows findCodeFilesInSample to work on it
-    return path;
-  }
-  return null;
-}
-
-// Legacy function for backward compatibility
-function getSamplePath(platform, apiLevel, sampleName) {
-  return getMobileSamplePath(platform, apiLevel, sampleName);
-}
-
-function readCodeFile(filePath) {
-  if (!existsSync(filePath)) return null;
-  return readFileSync(filePath, "utf8");
-}
-
-function getMainCodeFile(platform, samplePath) {
-  const codeFiles = findCodeFilesInSample(samplePath);
-
-  const mainPatterns = platform === "android"
-    ? ["MainActivity.java", "MainActivity.kt", "HomeActivity.java", "CaptureActivity.java"]
-    : ["ViewController.swift", "CameraViewController.swift", "ContentView.swift"];
-
-  for (const pattern of mainPatterns) {
-    const found = codeFiles.find(f => f.filename === pattern);
-    if (found) return found;
-  }
-
-  return codeFiles[0];
-}
-
-function formatDocs(docs) {
-  return Object.entries(docs).map(([key, url]) => `- ${key}: ${url}`).join("\n");
-}
-
-// ============================================================================
-// Resource index + version policy
-// ============================================================================
-
-/**
- * @typedef {{
- *   id: string;
- *   uri: string;
- *   type: "doc" | "sample" | "index" | "policy";
- *   product?: "dbr" | "dwt" | "ddv";
- *   edition?: string;
- *   platform?: string;
- *   version?: string;
- *   majorVersion?: number;
- *   title: string;
- *   summary: string;
- *   mimeType: string;
- *   tags: string[];
- *   pinned?: boolean;
- *   loadContent: () => Promise<{ text?: string; blob?: string; mimeType?: string }>;
- * }} ResourceEntry
- */
-
-const resourceIndex = [];
-
-const LEGACY_DBR_LINKS = {
-  "10": {
-    web: { web: "https://www.dynamsoft.com/barcode-reader/docs/v10/web/programming/javascript/" },
-    cpp: { desktop: "https://www.dynamsoft.com/barcode-reader/docs/v10/server/programming/cplusplus/" },
-    java: { desktop: null },
-    dotnet: { desktop: "https://www.dynamsoft.com/barcode-reader/docs/v10/server/programming/dotnet/" },
-    python: { desktop: "http://dynamsoft.com/barcode-reader/docs/v10/server/programming/python/" },
-    mobile: { android: null, ios: null }
-  },
-  "9": {
-    web: { web: "https://www.dynamsoft.com/barcode-reader/docs/v9/web/programming/javascript/" },
-    cpp: { desktop: "https://www.dynamsoft.com/barcode-reader/docs/v9/server/programming/cplusplus/" },
-    java: { desktop: "https://www.dynamsoft.com/barcode-reader/docs/v9/server/programming/java/" },
-    dotnet: { desktop: "https://www.dynamsoft.com/barcode-reader/docs/v9/server/programming/dotnet/" },
-    python: { desktop: "https://www.dynamsoft.com/barcode-reader/docs/v9/server/programming/python/" },
-    mobile: {
-      android: "https://www.dynamsoft.com/barcode-reader/docs/v9/mobile/programming/android/",
-      ios: "https://www.dynamsoft.com/barcode-reader/docs/v9/mobile/programming/objectivec-swift/"
-    }
-  }
-};
-
-const LEGACY_DWT_LINKS = {
-  "18.5.1": "https://www.dynamsoft.com/web-twain/docs-archive/v18.5.1/info/api/",
-  "18.4": "https://www.dynamsoft.com/web-twain/docs-archive/v18.4/info/api/",
-  "18.3": "https://www.dynamsoft.com/web-twain/docs-archive/v18.3/info/api/",
-  "18.1": "https://www.dynamsoft.com/web-twain/docs-archive/v18.1/info/api/",
-  "18.0": "https://www.dynamsoft.com/web-twain/docs-archive/v18.0/info/api/",
-  "17.3": "https://www.dynamsoft.com/web-twain/docs-archive/v17.3/info/api/",
-  "17.2.1": "https://www.dynamsoft.com/web-twain/docs-archive/v17.2.1/info/api/",
-  "17.1.1": "https://www.dynamsoft.com/web-twain/docs-archive/v17.1.1/info/api/",
-  "17.0": "https://www.dynamsoft.com/web-twain/docs-archive/v17.0/info/api/",
-  "16.2": "https://www.dynamsoft.com/web-twain/docs-archive/v16.2/info/api/",
-  "16.1.1": "https://www.dynamsoft.com/web-twain/docs-archive/v16.1.1/info/api/"
-};
-
-const LATEST_VERSIONS = {
-  dbr: {
-    mobile: registry.sdks["dbr-mobile"].version,
-    web: registry.sdks["dbr-web"].version,
-    python: registry.sdks["dbr-python"].version
-  },
-  dwt: {
-    web: registry.sdks["dwt"].version
-  },
-  ddv: {
-    web: registry.sdks["ddv"].version
-  }
-};
-
-const LATEST_MAJOR = {
-  dbr: parseMajorVersion(registry.sdks["dbr-mobile"].version),
-  dwt: parseMajorVersion(registry.sdks["dwt"].version),
-  ddv: parseMajorVersion(registry.sdks["ddv"].version)
-};
-
-function parseMajorVersion(version) {
-  if (!version) return null;
-  const match = String(version).match(/(\d+)/);
-  if (!match) return null;
-  return Number.parseInt(match[1], 10);
-}
-
-function getMimeTypeForExtension(ext) {
-  const normalized = ext.replace(/^\./, "").toLowerCase();
-  if (normalized === "swift") return "text/x-swift";
-  if (normalized === "kt") return "text/x-kotlin";
-  if (normalized === "java") return "text/x-java";
-  if (normalized === "py") return "text/x-python";
-  if (normalized === "jsx") return "text/jsx";
-  if (normalized === "tsx") return "text/tsx";
-  if (normalized === "vue") return "text/x-vue";
-  if (normalized === "cjs") return "text/javascript";
-  if (normalized === "html") return "text/html";
-  if (normalized === "md" || normalized === "markdown") return "text/markdown";
-  if (normalized === "json") return "application/json";
-  if (normalized === "png") return "image/png";
-  return "text/plain";
-}
-
-function addResourceToIndex(entry) {
-  resourceIndex.push(entry);
-}
-
-function formatLegacyLinksForDBR(major) {
-  const byMajor = LEGACY_DBR_LINKS[String(major)];
-  if (!byMajor) {
-    return `No legacy docs are available for DBR v${major}.`;
-  }
-
-  const lines = [
-    `Legacy docs for DBR v${major}:`,
-    `- Web JS: ${byMajor.web.web || "Not available"}`,
-    `- C++: ${byMajor.cpp.desktop || "Not available"}`,
-    `- Java: ${byMajor.java.desktop || "Not available"}`,
-    `- .NET: ${byMajor.dotnet.desktop || "Not available"}`,
-    `- Python: ${byMajor.python.desktop || "Not available"}`,
-    `- Android: ${byMajor.mobile.android || "Not available"}`,
-    `- iOS: ${byMajor.mobile.ios || "Not available"}`
-  ];
-
-  return lines.join("\n");
-}
-
-function getLegacyLink(product, version, edition, platform) {
-  if (product === "dwt") {
-    if (!version) return null;
-    return LEGACY_DWT_LINKS[version] || null;
-  }
-
-  if (product !== "dbr") return null;
-  const major = parseMajorVersion(version);
-  if (!major) return null;
-
-  const byMajor = LEGACY_DBR_LINKS[String(major)];
-  if (!byMajor) return null;
-
-  const normalizedEdition = edition || "web";
-  if (normalizedEdition === "mobile") {
-    if (platform === "android") return byMajor.mobile.android;
-    if (platform === "ios") return byMajor.mobile.ios;
-    return null;
-  }
-  if (normalizedEdition === "web") return byMajor.web.web;
-  if (normalizedEdition === "python") return byMajor.python.desktop;
-  if (normalizedEdition === "cpp") return byMajor.cpp.desktop;
-  if (normalizedEdition === "java") return byMajor.java.desktop;
-  if (normalizedEdition === "dotnet") return byMajor.dotnet.desktop;
-  return null;
-}
-
-function detectMajorFromQuery(query) {
-  if (!query) return null;
-  const text = String(query);
-  const explicit = text.match(/(?:\bv|\bversion\s*)(\d{1,2})(?:\.\d+)?/i);
-  const productScoped = text.match(/(?:dbr|dwt|ddv)[^0-9]*(\d{1,2})(?:\.\d+)?/i);
-  const match = explicit || productScoped;
-  if (!match) return null;
-  const major = Number.parseInt(match[1], 10);
-  return Number.isNaN(major) ? null : major;
-}
-
-function ensureLatestMajor({ product, version, query, edition, platform }) {
-  const inferredProduct = product || inferProductFromQuery(query);
-  if (!inferredProduct) return { ok: true };
-
-  const latestMajor = LATEST_MAJOR[inferredProduct];
-  const requestedMajor = parseMajorVersion(version) ?? detectMajorFromQuery(query);
-
-  if (!requestedMajor || requestedMajor === latestMajor) {
-    return { ok: true, latestMajor };
-  }
-
-  if (inferredProduct === "ddv") {
-    return {
-      ok: false,
-      message: `This MCP server only serves the latest major version of DDV (v${latestMajor}).`
-    };
-  }
-
-  if (inferredProduct === "dbr" && requestedMajor < 9) {
-    return {
-      ok: false,
-      message: `This MCP server only serves the latest major version of DBR (v${latestMajor}). DBR versions prior to v9 are not available.`
-    };
-  }
-
-  if (inferredProduct === "dwt" && requestedMajor < 16) {
-    return {
-      ok: false,
-      message: `This MCP server only serves the latest major version of DWT (v${latestMajor}). DWT versions prior to v16 are not available.`
-    };
-  }
-
-  if (inferredProduct === "dbr") {
-    const link = getLegacyLink("dbr", String(requestedMajor), edition, platform);
-    const fallback = formatLegacyLinksForDBR(requestedMajor);
-    return {
-      ok: false,
-      message: [
-        `This MCP server only serves the latest major version of DBR (v${latestMajor}).`,
-        link ? `Legacy docs: ${link}` : fallback
-      ].join("\n")
-    };
-  }
-
-  if (inferredProduct === "dwt") {
-    const available = Object.keys(LEGACY_DWT_LINKS).sort();
-    const link = getLegacyLink("dwt", String(version), edition, platform);
-    const legacyNote = link
-      ? `Legacy docs: ${link}`
-      : `Available archived DWT versions: ${available.join(", ")}`;
-    return {
-      ok: false,
-      message: [
-        `This MCP server only serves the latest major version of DWT (v${latestMajor}).`,
-        legacyNote
-      ].join("\n")
-    };
-  }
-
-  return { ok: false, message: "Unsupported version request." };
-}
-
-function parseResourceUri(uri) {
-  if (!uri || !uri.includes("://")) return null;
-  const [scheme, rest] = uri.split("://");
-  const parts = rest.split("/").filter(Boolean);
-  if (parts.length < 4) return { scheme, parts };
-  return {
-    scheme,
-    product: parts[0],
-    edition: parts[1],
-    platform: parts[2],
-    version: parts[3],
-    parts
-  };
-}
-
-function parseSampleUri(uri) {
-  const parsed = parseResourceUri(uri);
-  if (!parsed || parsed.scheme !== "sample" || !parsed.product) return null;
-
-  if (parsed.product === "dbr" && parsed.edition === "mobile") {
-    return {
-      product: "dbr",
-      edition: "mobile",
-      platform: parsed.platform,
-      version: parsed.version,
-      level: parsed.parts[4],
-      sampleName: parsed.parts[5]
-    };
-  }
-
-  if (parsed.product === "dbr" && parsed.edition === "web") {
-    return {
-      product: "dbr",
-      edition: "web",
-      platform: parsed.platform,
-      version: parsed.version,
-      category: parsed.parts[4],
-      sampleName: parsed.parts[5]
-    };
-  }
-
-  if (parsed.product === "dbr" && parsed.edition === "python") {
-    return {
-      product: "dbr",
-      edition: "python",
-      platform: parsed.platform,
-      version: parsed.version,
-      sampleName: parsed.parts[4]
-    };
-  }
-
-  if (parsed.product === "dwt") {
-    return {
-      product: "dwt",
-      edition: parsed.edition,
-      platform: parsed.platform,
-      version: parsed.version,
-      category: parsed.parts[4],
-      sampleName: parsed.parts[5]
-    };
-  }
-
-  if (parsed.product === "ddv") {
-    return {
-      product: "ddv",
-      edition: parsed.edition,
-      platform: parsed.platform,
-      version: parsed.version,
-      sampleName: parsed.parts[4]
-    };
-  }
-
-  return null;
-}
-
-function buildVersionPolicyText() {
-  const dbrMajor = LATEST_MAJOR.dbr;
-  const dwtMajor = LATEST_MAJOR.dwt;
-  const ddvMajor = LATEST_MAJOR.ddv;
-  const dwtLegacyVersions = Object.keys(LEGACY_DWT_LINKS).sort().join(", ");
-
-  return [
-    "# Version Policy",
-    "",
-    `- This MCP server serves the latest major versions only (DBR v${dbrMajor}, DWT v${dwtMajor}, DDV v${ddvMajor}).`,
-    "- Requests for older major versions are refused.",
-    "- DBR legacy docs are only available for v9 and v10 (no docs prior to v9).",
-    "- DWT archived docs are available for versions: " + dwtLegacyVersions,
-    "- DDV archived docs are not provided by this MCP server.",
-    "",
-    "Use the official Dynamsoft documentation if you must target older versions."
-  ].join("\n");
-}
-
-function buildIndexData() {
-  const dbrMobileVersion = LATEST_VERSIONS.dbr.mobile;
-  const dbrWebVersion = LATEST_VERSIONS.dbr.web;
-  const dbrPythonVersion = LATEST_VERSIONS.dbr.python;
-  const dwtVersion = LATEST_VERSIONS.dwt.web;
-  const ddvVersion = LATEST_VERSIONS.ddv.web;
-
-  const mobileAndroid = discoverMobileSamples("android");
-  const mobileIos = discoverMobileSamples("ios");
-  const webSamples = discoverWebSamples();
-  const pythonSamples = discoverPythonSamples();
-  const dwtSamples = discoverDwtSamples();
-  const ddvSamples = discoverDdvSamples();
-
-  return {
-    products: {
-      dbr: {
-        latestMajor: LATEST_MAJOR.dbr,
-        editions: {
-          mobile: {
-            version: dbrMobileVersion,
-            platforms: ["android", "ios"],
-            apiLevels: ["high-level", "low-level"],
-            samples: {
-              android: mobileAndroid,
-              ios: mobileIos
-            }
-          },
-          web: {
-            version: dbrWebVersion,
-            platforms: ["web"],
-            samples: webSamples
-          },
-          python: {
-            version: dbrPythonVersion,
-            platforms: ["python"],
-            samples: pythonSamples
-          }
-        }
-      },
-      dwt: {
-        latestMajor: LATEST_MAJOR.dwt,
-        editions: {
-          web: {
-            version: dwtVersion,
-            platforms: ["web"],
-            sampleCategories: dwtSamples,
-            docCount: dwtDocs.articles.length,
-            docTitles: dwtDocs.articles.map((article) => ({
-              title: article.title,
-              category: article.breadcrumb || ""
-            }))
-          }
-        }
-      },
-      ddv: {
-        latestMajor: LATEST_MAJOR.ddv,
-        editions: {
-          web: {
-            version: ddvVersion,
-            platforms: ["web"],
-            samples: ddvSamples,
-            docCount: ddvDocs.articles.length,
-            docTitles: ddvDocs.articles.map((article) => ({
-              title: article.title,
-              category: article.breadcrumb || ""
-            }))
-          }
-        }
-      }
-    }
-  };
-}
-
-function buildResourceIndex() {
-  addResourceToIndex({
-    id: "index",
-    uri: "doc://index",
-    type: "index",
-    title: "Dynamsoft MCP Index",
-    summary: "Compact index of products, editions, versions, samples, and docs.",
-    mimeType: "application/json",
-    tags: ["index", "overview", "catalog"],
-    pinned: true,
-    loadContent: async () => ({
-      text: JSON.stringify(buildIndexData(), null, 2),
-      mimeType: "application/json"
-    })
-  });
-
-  addResourceToIndex({
-    id: "version-policy",
-    uri: "doc://version-policy",
-    type: "policy",
-    title: "Version Policy",
-    summary: "Latest major versions only; legacy docs are linked for select versions.",
-    mimeType: "text/markdown",
-    tags: ["policy", "version", "support"],
-    pinned: true,
-    loadContent: async () => ({
-      text: buildVersionPolicyText(),
-      mimeType: "text/markdown"
-    })
-  });
-
-  const dbrMobileVersion = LATEST_VERSIONS.dbr.mobile;
-  const dbrWebVersion = LATEST_VERSIONS.dbr.web;
-  const dbrPythonVersion = LATEST_VERSIONS.dbr.python;
-  const dwtVersion = LATEST_VERSIONS.dwt.web;
-  const ddvVersion = LATEST_VERSIONS.ddv.web;
-
-  // DBR mobile samples (main file only)
-  for (const platform of ["android", "ios"]) {
-    const samples = discoverMobileSamples(platform);
-    for (const level of ["high-level", "low-level"]) {
-      for (const sampleName of samples[level]) {
-        addResourceToIndex({
-          id: `dbr-mobile-${platform}-${level}-${sampleName}`,
-          uri: `sample://dbr/mobile/${platform}/${dbrMobileVersion}/${level}/${sampleName}`,
-          type: "sample",
-          product: "dbr",
-          edition: "mobile",
-          platform,
-          version: dbrMobileVersion,
-          majorVersion: LATEST_MAJOR.dbr,
-          title: `${sampleName} (${platform}, ${level})`,
-          summary: `DBR mobile ${platform} ${level} sample ${sampleName}.`,
-          mimeType: "text/plain",
-          tags: ["sample", "dbr", "mobile", platform, level, sampleName],
-          loadContent: async () => {
-            const samplePath = getMobileSamplePath(platform, level, sampleName);
-            const mainFile = getMainCodeFile(platform, samplePath);
-            if (!mainFile) {
-              return { text: "Sample not found", mimeType: "text/plain" };
-            }
-            const content = readCodeFile(mainFile.path);
-            const ext = mainFile.filename.split(".").pop() || "";
-            return { text: content, mimeType: getMimeTypeForExtension(ext) };
-          }
-        });
-      }
-    }
-  }
-
-  // DBR Python samples
-  for (const sampleName of discoverPythonSamples()) {
-    addResourceToIndex({
-      id: `dbr-python-${sampleName}`,
-      uri: `sample://dbr/python/python/${dbrPythonVersion}/${sampleName}`,
-      type: "sample",
-      product: "dbr",
-      edition: "python",
-      platform: "python",
-      version: dbrPythonVersion,
-      majorVersion: LATEST_MAJOR.dbr,
-      title: `Python sample: ${sampleName}`,
-      summary: `DBR Python sample ${sampleName}.`,
-      mimeType: "text/x-python",
-      tags: ["sample", "dbr", "python", sampleName],
-      loadContent: async () => {
-        const samplePath = getPythonSamplePath(sampleName);
-        const content = existsSync(samplePath) ? readCodeFile(samplePath) : "Sample not found";
-        return { text: content, mimeType: "text/x-python" };
-      }
-    });
-  }
-
-  // DBR web samples
-  const webCategories = discoverWebSamples();
-  for (const [category, samples] of Object.entries(webCategories)) {
-    for (const sampleName of samples) {
-      addResourceToIndex({
-        id: `dbr-web-${category}-${sampleName}`,
-        uri: `sample://dbr/web/web/${dbrWebVersion}/${category}/${sampleName}`,
-        type: "sample",
-        product: "dbr",
-        edition: "web",
-        platform: "web",
-        version: dbrWebVersion,
-        majorVersion: LATEST_MAJOR.dbr,
-        title: `Web sample: ${sampleName} (${category})`,
-        summary: `DBR web sample ${category}/${sampleName}.`,
-        mimeType: "text/html",
-        tags: ["sample", "dbr", "web", category, sampleName],
-        loadContent: async () => {
-          const samplePath = getWebSamplePath(category, sampleName);
-          const content = samplePath && existsSync(samplePath) ? readCodeFile(samplePath) : "Sample not found";
-          return { text: content, mimeType: "text/html" };
-        }
-      });
-    }
-  }
-
-  // DWT samples
-  const dwtCategories = discoverDwtSamples();
-  for (const [category, samples] of Object.entries(dwtCategories)) {
-    for (const sampleName of samples) {
-      addResourceToIndex({
-        id: `dwt-${category}-${sampleName}`,
-        uri: `sample://dwt/web/web/${dwtVersion}/${category}/${sampleName}`,
-        type: "sample",
-        product: "dwt",
-        edition: "web",
-        platform: "web",
-        version: dwtVersion,
-        majorVersion: LATEST_MAJOR.dwt,
-        title: `DWT sample: ${sampleName} (${category})`,
-        summary: `Dynamic Web TWAIN sample ${category}/${sampleName}.`,
-        mimeType: "text/html",
-        tags: ["sample", "dwt", category, sampleName],
-        loadContent: async () => {
-          const samplePath = getDwtSamplePath(category, sampleName);
-          const content = samplePath && existsSync(samplePath) ? readCodeFile(samplePath) : "Sample not found";
-          return { text: content, mimeType: "text/html" };
-        }
-      });
-    }
-  }
-
-  // DWT documentation articles
-  for (let i = 0; i < dwtDocs.articles.length; i++) {
-    const article = dwtDocs.articles[i];
-    const slug = `${encodeURIComponent(article.title)}-${i}`;
-    const tags = ["doc", "dwt"];
-    if (article.breadcrumb) {
-      tags.push(...article.breadcrumb.toLowerCase().split(/\s*>\s*/));
-    }
-    addResourceToIndex({
-      id: `dwt-doc-${i}`,
-      uri: `doc://dwt/web/web/${dwtVersion}/${slug}`,
-      type: "doc",
-      product: "dwt",
-      edition: "web",
-      platform: "web",
-      version: dwtVersion,
-      majorVersion: LATEST_MAJOR.dwt,
-      title: article.title,
-      summary: article.breadcrumb || "Dynamic Web TWAIN documentation",
-      mimeType: "text/markdown",
-      tags,
-      loadContent: async () => {
-        const content = [
-          `# ${article.title}`,
-          "",
-          article.breadcrumb ? `**Category:** ${article.breadcrumb}` : "",
-          article.url ? `**URL:** ${article.url}` : "",
-          "",
-          "---",
-          "",
-          article.content
-        ].filter(Boolean).join("\n");
-        return { text: content, mimeType: "text/markdown" };
-      }
-    });
-  }
-
-  // DDV samples
-  for (const sampleName of discoverDdvSamples()) {
-    addResourceToIndex({
-      id: `ddv-${sampleName}`,
-      uri: `sample://ddv/web/web/${ddvVersion}/${sampleName}`,
-      type: "sample",
-      product: "ddv",
-      edition: "web",
-      platform: "web",
-      version: ddvVersion,
-      majorVersion: LATEST_MAJOR.ddv,
-      title: `DDV sample: ${sampleName}`,
-      summary: `Dynamsoft Document Viewer sample ${sampleName}.`,
-      mimeType: "text/plain",
-      tags: ["sample", "ddv", "document-viewer", "web", sampleName],
-      loadContent: async () => {
-        const samplePath = getDdvSamplePath(sampleName);
-        if (!samplePath || !existsSync(samplePath)) {
-          return { text: "Sample not found", mimeType: "text/plain" };
-        }
-
-        const stat = statSync(samplePath);
-        if (stat.isDirectory()) {
-          const readmePath = join(samplePath, "README.md");
-          if (existsSync(readmePath)) {
-            return { text: readCodeFile(readmePath), mimeType: "text/markdown" };
-          }
-
-          const codeFiles = findCodeFilesInSample(samplePath);
-          if (codeFiles.length === 0) {
-            const entries = readdirSync(samplePath, { withFileTypes: true })
-              .filter((entry) => entry.isFile())
-              .map((entry) => entry.name);
-            return {
-              text: entries.length ? entries.join("\n") : "Sample found, but no code files detected.",
-              mimeType: "text/plain"
-            };
-          }
-
-          const preferredNames = [
-            "main.tsx",
-            "main.jsx",
-            "main.ts",
-            "main.js",
-            "App.tsx",
-            "App.jsx",
-            "App.vue",
-            "Viewer.tsx",
-            "Viewer.jsx",
-            "Viewer.vue"
-          ];
-          const preferred = codeFiles.find((file) => preferredNames.includes(file.filename)) || codeFiles[0];
-          const content = readCodeFile(preferred.path);
-          return { text: content, mimeType: getMimeTypeForExtension(preferred.extension) };
-        }
-
-        const ext = extname(samplePath).replace(".", "");
-        return { text: readCodeFile(samplePath), mimeType: getMimeTypeForExtension(ext) };
-      }
-    });
-  }
-
-  // DDV documentation articles
-  for (let i = 0; i < ddvDocs.articles.length; i++) {
-    const article = ddvDocs.articles[i];
-    if (!article.title) continue;
-    const slug = `${encodeURIComponent(article.title)}-${i}`;
-    const tags = ["doc", "ddv"];
-    if (article.breadcrumb) {
-      tags.push(...article.breadcrumb.toLowerCase().split(/\s*>\s*/));
-    }
-    addResourceToIndex({
-      id: `ddv-doc-${i}`,
-      uri: `doc://ddv/web/web/${ddvVersion}/${slug}`,
-      type: "doc",
-      product: "ddv",
-      edition: "web",
-      platform: "web",
-      version: ddvVersion,
-      majorVersion: LATEST_MAJOR.ddv,
-      title: article.title,
-      summary: article.breadcrumb || "Dynamsoft Document Viewer documentation",
-      mimeType: "text/markdown",
-      tags,
-      loadContent: async () => {
-        const content = [
-          `# ${article.title}`,
-          "",
-          article.breadcrumb ? `**Category:** ${article.breadcrumb}` : "",
-          article.url ? `**URL:** ${article.url}` : "",
-          "",
-          "---",
-          "",
-          article.content
-        ].filter(Boolean).join("\n");
-        return { text: content, mimeType: "text/markdown" };
-      }
-    });
-  }
-}
-
-buildResourceIndex();
-
-const resourceSearch = new Fuse(resourceIndex, {
-  keys: ["title", "summary", "tags", "uri"],
-  threshold: 0.35,
-  ignoreLocation: true,
-  includeScore: true
-});
-
-function getPinnedResources() {
-  return resourceIndex.filter((entry) => entry.pinned);
-}
-
-async function readResourceContent(uri) {
-  const resource = resourceIndex.find((entry) => entry.uri === uri);
-  if (!resource) {
-    return null;
-  }
-  const content = await resource.loadContent();
-  return {
-    uri,
-    mimeType: content.mimeType || resource.mimeType || "text/plain",
-    text: content.text,
-    blob: content.blob
-  };
-}
+import {
+  registry,
+  LATEST_VERSIONS,
+  LATEST_MAJOR,
+  discoverDwtSamples,
+  findCodeFilesInSample,
+  getMobileSamplePath,
+  getPythonSamplePath,
+  getDwtSamplePath,
+  getDdvSamplePath,
+  readCodeFile,
+  getMainCodeFile,
+  ensureLatestMajor,
+  parseResourceUri,
+  parseSampleUri,
+  getSampleIdFromUri,
+  getSampleEntries,
+  buildIndexData,
+  getDisplayEdition,
+  getDisplayPlatform,
+  formatScopeLabel,
+  getPinnedResources,
+  readResourceContent,
+  normalizePlatform,
+  normalizeApiLevel,
+  normalizeSampleName,
+  normalizeProduct,
+  normalizeEdition,
+  resourceIndex,
+  getWebSamplePath
+} from "./resource-index.js";
+import { searchResources, getSampleSuggestions, prewarmRagIndex, ragConfig } from "./rag.js";
+
+const pkgUrl = new URL("../package.json", import.meta.url);
+const pkg = JSON.parse(readFileSync(pkgUrl, "utf8"));
 
 // ============================================================================
 // MCP Server
@@ -1229,8 +53,18 @@ async function readResourceContent(uri) {
 const server = new McpServer({
   name: "simple-dynamsoft-mcp",
   version: pkg.version,
-  description: "MCP server for latest major versions of Dynamsoft SDKs: Barcode Reader (Mobile/Python/Web), Dynamic Web TWAIN, and Document Viewer"
+  description: "MCP server for latest major versions of Dynamsoft SDKs: Barcode Reader (Mobile/Server/Web), Dynamic Web TWAIN, and Document Viewer"
 });
+
+function formatScoreLabel(entry) {
+  if (!Number.isFinite(entry?.score)) return "";
+  return ` | score: ${entry.score.toFixed(3)}`;
+}
+
+function formatScoreNote(entry) {
+  if (!Number.isFinite(entry?.score)) return "";
+  return ` score=${entry.score.toFixed(3)}`;
+}
 
 // ============================================================================
 // TOOL: get_index
@@ -1256,12 +90,12 @@ server.registerTool(
   "search",
   {
     title: "Search",
-    description: "Unified search across docs and samples; returns resource links for lazy loading.",
+    description: "Semantic (RAG) search across docs and samples with fuzzy fallback; returns resource links for lazy loading.",
     inputSchema: {
       query: z.string().describe("Keywords to search across docs and samples."),
       product: z.string().optional().describe("Product: dbr, dwt, ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, python, java, cpp, dotnet"),
-      platform: z.string().optional().describe("Platform: android, ios, web, python"),
+      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       version: z.string().optional().describe("Version constraint (major or full version)"),
       type: z.enum(["doc", "sample", "index", "policy", "any"]).optional(),
       limit: z.number().int().min(1).max(10).optional().describe("Max results (default 5)")
@@ -1287,16 +121,15 @@ server.registerTool(
       return { isError: true, content: [{ type: "text", text: policy.message }] };
     }
 
-    const results = resourceSearch.search(query).map((result) => result.item).filter((entry) => {
-      if (normalizedProduct && entry.product !== normalizedProduct) return false;
-      if (normalizedEdition && entry.edition !== normalizedEdition) return false;
-      if (normalizedPlatform && entry.platform !== normalizedPlatform) return false;
-      if (type && type !== "any" && entry.type !== type) return false;
-      return true;
-    });
-
     const maxResults = Math.min(limit || 5, 10);
-    const topResults = results.slice(0, maxResults);
+    const topResults = await searchResources({
+      query,
+      product: normalizedProduct,
+      edition: normalizedEdition,
+      platform: normalizedPlatform,
+      type: type || "any",
+      limit: maxResults
+    });
 
     if (topResults.length === 0) {
       return {
@@ -1316,16 +149,333 @@ server.registerTool(
 
     for (const entry of topResults) {
       const versionLabel = entry.version ? `v${entry.version}` : "n/a";
-      const scopeLabel = [
-        entry.product || "general",
-        entry.edition || "",
-        entry.platform || ""
-      ].filter(Boolean).join("/");
+      const scopeLabel = formatScopeLabel(entry);
+      const sampleId = entry.type === "sample" ? getSampleIdFromUri(entry.uri) : "";
+      const sampleHint = sampleId ? ` | sample_id: ${sampleId}` : "";
+      const scoreLabel = formatScoreLabel(entry);
       content.push({
         type: "resource_link",
         uri: entry.uri,
         name: entry.title,
-        description: `${entry.type.toUpperCase()} | ${scopeLabel} | ${versionLabel} - ${entry.summary}`,
+        description: `${entry.type.toUpperCase()} | ${scopeLabel} | ${versionLabel}${scoreLabel} - ${entry.summary}${sampleHint}`,
+        mimeType: entry.mimeType,
+        annotations: {
+          audience: ["assistant"],
+          priority: 0.8
+        }
+      });
+    }
+
+    const plainLines = topResults.map((entry, index) => {
+      const sampleId = entry.type === "sample" ? getSampleIdFromUri(entry.uri) : "";
+      const action = entry.type === "sample" ? "generate_project resource_uri" : "resources/read uri";
+      const sampleNote = sampleId ? ` sample_id=${sampleId}` : "";
+      const scoreNote = formatScoreNote(entry);
+      return `- ${index + 1}. ${entry.uri}${sampleNote}${scoreNote} (${action})`;
+    });
+    content.push({
+      type: "text",
+      text: ["Plain URIs (copy/paste):", ...plainLines].join("\n")
+    });
+
+    return { content };
+  }
+);
+
+// ============================================================================
+// TOOL: list_samples
+// ============================================================================
+
+server.registerTool(
+  "list_samples",
+  {
+    title: "List Samples",
+    description: "List available sample IDs and URIs for a given scope.",
+    inputSchema: {
+      product: z.string().optional().describe("Product: dbr, dwt, ddv"),
+      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      limit: z.number().int().min(1).max(200).optional().describe("Max results (default 50)")
+    }
+  },
+  async ({ product, edition, platform, limit }) => {
+    const normalizedProduct = normalizeProduct(product);
+    const normalizedPlatform = normalizePlatform(platform);
+    const normalizedEdition = normalizeEdition(edition, normalizedPlatform, normalizedProduct);
+
+    const policy = ensureLatestMajor({
+      product: normalizedProduct,
+      version: undefined,
+      query: "",
+      edition: normalizedEdition,
+      platform: normalizedPlatform
+    });
+
+    if (!policy.ok) {
+      return { isError: true, content: [{ type: "text", text: policy.message }] };
+    }
+
+    const samples = getSampleEntries({
+      product: normalizedProduct,
+      edition: normalizedEdition,
+      platform: normalizedPlatform
+    });
+
+    const maxResults = Math.min(limit || 50, 200);
+    const selected = samples.slice(0, maxResults);
+
+    const payload = selected.map((entry) => ({
+      sample_id: getSampleIdFromUri(entry.uri),
+      uri: entry.uri,
+      product: entry.product,
+      edition: getDisplayEdition(entry.edition),
+      platform: getDisplayPlatform(entry.platform),
+      version: entry.version,
+      title: entry.title,
+      summary: entry.summary
+    }));
+
+    const lines = [
+      `Total matches: ${samples.length}`,
+      `Returned: ${payload.length}`,
+      "",
+      "Plain URIs (copy/paste):",
+      ...payload.map((item, index) => {
+        const sampleNote = item.sample_id ? ` (sample_id: ${item.sample_id})` : "";
+        return `- ${index + 1}. ${item.uri}${sampleNote}`;
+      })
+    ];
+
+    const output = {
+      total: samples.length,
+      returned: payload.length,
+      samples: payload
+    };
+
+    return {
+      content: [{
+        type: "text",
+        text: `${lines.join("\n")}\n\nJSON:\n${JSON.stringify(output, null, 2)}`
+      }]
+    };
+  }
+);
+
+// ============================================================================
+// TOOL: resolve_sample
+// ============================================================================
+
+server.registerTool(
+  "resolve_sample",
+  {
+    title: "Resolve Sample",
+    description: "Resolve a sample_id (or sample URI) to matching sample URIs.",
+    inputSchema: {
+      sample_id: z.string().describe("Sample identifier or sample:// URI"),
+      product: z.string().optional().describe("Product: dbr, dwt, ddv"),
+      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      limit: z.number().int().min(1).max(10).optional().describe("Max results (default 5)")
+    }
+  },
+  async ({ sample_id, product, edition, platform, limit }) => {
+    if (!sample_id || !sample_id.trim()) {
+      return { isError: true, content: [{ type: "text", text: "sample_id is required." }] };
+    }
+
+    const normalizedProduct = normalizeProduct(product);
+    const normalizedPlatform = normalizePlatform(platform);
+    const normalizedEdition = normalizeEdition(edition, normalizedPlatform, normalizedProduct);
+
+    const policy = ensureLatestMajor({
+      product: normalizedProduct,
+      version: undefined,
+      query: sample_id,
+      edition: normalizedEdition,
+      platform: normalizedPlatform
+    });
+
+    if (!policy.ok) {
+      return { isError: true, content: [{ type: "text", text: policy.message }] };
+    }
+
+    if (sample_id.includes("://")) {
+      const parsed = parseSampleUri(sample_id);
+      if (!parsed) {
+        return {
+          isError: true,
+          content: [{
+            type: "text",
+            text: "sample_id looks like a URI but is not a valid sample:// URI. For doc:// URIs, use resources/read."
+          }]
+        };
+      }
+      const entry = resourceIndex.find((item) => item.uri === sample_id && item.type === "sample");
+      if (!entry) {
+        return {
+          isError: true,
+          content: [{
+            type: "text",
+            text: `Sample URI not found in index: ${sample_id}. Use list_samples or search.`
+          }]
+        };
+      }
+
+      const payload = [{
+        sample_id: getSampleIdFromUri(entry.uri),
+        uri: entry.uri,
+        product: entry.product,
+        edition: getDisplayEdition(entry.edition),
+        platform: getDisplayPlatform(entry.platform),
+        version: entry.version,
+        title: entry.title,
+        summary: entry.summary
+      }];
+
+      const output = {
+        query: sample_id,
+        returned: payload.length,
+        samples: payload
+      };
+
+      return {
+        content: [{
+          type: "text",
+          text: [
+            `Found ${payload.length} match(es) for "${sample_id}".`,
+            "Plain URIs (copy/paste):",
+            `- 1. ${entry.uri} (sample_id: ${payload[0].sample_id})`,
+            "",
+            "JSON:",
+            JSON.stringify(output, null, 2)
+          ].join("\n")
+        }, {
+          type: "resource_link",
+          uri: entry.uri,
+          name: entry.title,
+          description: `SAMPLE | ${formatScopeLabel(entry)} | v${entry.version}${formatScoreLabel(entry)} | sample_id: ${payload[0].sample_id}`,
+          mimeType: entry.mimeType,
+          annotations: {
+            audience: ["assistant"],
+            priority: 0.8
+          }
+        }]
+      };
+    }
+
+    const sampleQuery = normalizeSampleName(sample_id);
+    const maxResults = Math.min(limit || 5, 10);
+
+    const scopedSamples = getSampleEntries({
+      product: normalizedProduct,
+      edition: normalizedEdition,
+      platform: normalizedPlatform
+    });
+
+    let matches = scopedSamples.filter((entry) => {
+      const entryId = getSampleIdFromUri(entry.uri);
+      return entryId && entryId.toLowerCase() === sampleQuery.toLowerCase();
+    });
+
+    if (matches.length === 0) {
+      matches = await searchResources({
+        query: sample_id,
+        product: normalizedProduct,
+        edition: normalizedEdition,
+        platform: normalizedPlatform,
+        type: "sample",
+        limit: maxResults
+      });
+    }
+
+    const selected = matches.slice(0, maxResults);
+    if (selected.length === 0) {
+      const suggestions = await getSampleSuggestions({
+        query: sample_id,
+        product: normalizedProduct,
+        edition: normalizedEdition,
+        platform: normalizedPlatform,
+        limit: maxResults
+      });
+
+      const content = [{
+        type: "text",
+        text: suggestions.length
+          ? `No exact sample match for "${sample_id}". Related samples:`
+          : `No samples found for "${sample_id}". Try list_samples or search.`
+      }];
+
+      for (const entry of suggestions) {
+        const sampleId = getSampleIdFromUri(entry.uri);
+        content.push({
+          type: "resource_link",
+          uri: entry.uri,
+          name: entry.title,
+          description: `${entry.type.toUpperCase()} | ${formatScopeLabel(entry)} | v${entry.version}${formatScoreLabel(entry)} | sample_id: ${sampleId || "n/a"}`,
+          mimeType: entry.mimeType,
+          annotations: {
+            audience: ["assistant"],
+            priority: 0.6
+          }
+        });
+      }
+
+      if (suggestions.length) {
+        const plainLines = suggestions.map((entry, index) => {
+          const sampleId = getSampleIdFromUri(entry.uri);
+          const sampleNote = sampleId ? ` (sample_id: ${sampleId})` : "";
+          const scoreNote = formatScoreNote(entry);
+          return `- ${index + 1}. ${entry.uri}${sampleNote}${scoreNote}`;
+        });
+        content.push({
+          type: "text",
+          text: ["Plain URIs (copy/paste):", ...plainLines].join("\n")
+        });
+      }
+
+      return { isError: true, content };
+    }
+
+    const payload = selected.map((entry) => ({
+      sample_id: getSampleIdFromUri(entry.uri),
+      uri: entry.uri,
+      product: entry.product,
+      edition: getDisplayEdition(entry.edition),
+      platform: getDisplayPlatform(entry.platform),
+      version: entry.version,
+      title: entry.title,
+      summary: entry.summary
+    }));
+
+    const lines = [
+      `Found ${selected.length} match(es) for "${sample_id}".`,
+      "Plain URIs (copy/paste):",
+      ...selected.map((entry, index) => {
+        const sampleId = getSampleIdFromUri(entry.uri);
+        const sampleNote = sampleId ? ` (sample_id: ${sampleId})` : "";
+        const scoreNote = formatScoreNote(entry);
+        return `- ${index + 1}. ${entry.uri}${sampleNote}${scoreNote}`;
+      })
+    ];
+
+    const output = {
+      query: sample_id,
+      returned: payload.length,
+      samples: payload
+    };
+
+    const content = [{
+      type: "text",
+      text: `${lines.join("\n")}\n\nJSON:\n${JSON.stringify(output, null, 2)}`
+    }];
+
+    for (const entry of selected) {
+      const sampleId = getSampleIdFromUri(entry.uri);
+      content.push({
+        type: "resource_link",
+        uri: entry.uri,
+        name: entry.title,
+        description: `${entry.type.toUpperCase()} | ${formatScopeLabel(entry)} | v${entry.version}${formatScoreLabel(entry)} | sample_id: ${sampleId || "n/a"}`,
         mimeType: entry.mimeType,
         annotations: {
           audience: ["assistant"],
@@ -1349,8 +499,8 @@ server.registerTool(
     description: "Resolve a concrete latest-major version for a product/edition/platform.",
     inputSchema: {
       product: z.string().describe("Product: dbr, dwt, or ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, python, java, cpp, dotnet"),
-      platform: z.string().optional().describe("Platform: android, ios, web, python"),
+      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       constraint: z.string().optional().describe("Version constraint, e.g., latest, 11.x, 10"),
       feature: z.string().optional().describe("Optional feature hint")
     }
@@ -1386,7 +536,7 @@ server.registerTool(
           `- Latest major: v${LATEST_MAJOR.dbr}`,
           `- Mobile: ${LATEST_VERSIONS.dbr.mobile}`,
           `- Web: ${LATEST_VERSIONS.dbr.web}`,
-          `- Python: ${LATEST_VERSIONS.dbr.python}`,
+          `- Server/Desktop: ${LATEST_VERSIONS.dbr.server}`,
           "",
           "Specify edition/platform to resolve a single version."
         ];
@@ -1401,10 +551,11 @@ server.registerTool(
         };
       }
 
+      const displayPlatform = normalizedPlatform === "web" ? "js" : normalizedPlatform;
       const lines = [
         "# DBR Version Resolution",
         `- Edition: ${normalizedEdition}`,
-        normalizedPlatform ? `- Platform: ${normalizedPlatform}` : "",
+        displayPlatform ? `- Platform: ${displayPlatform}` : "",
         `- Latest major: v${LATEST_MAJOR.dbr}`,
         `- Resolved version: ${resolved}`
       ].filter(Boolean);
@@ -1442,9 +593,9 @@ server.registerTool(
     description: "Opinionated quickstart for a target product/edition/platform.",
     inputSchema: {
       product: z.string().describe("Product: dbr, dwt, or ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, python"),
-      platform: z.string().optional().describe("Platform: android, ios, web, python"),
-      language: z.string().optional().describe("Language hint: kotlin, java, swift, js, ts, python, react, vue, angular"),
+      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      language: z.string().optional().describe("Language hint: kotlin, java, swift, js, ts, python, cpp, csharp, react, vue, angular"),
       version: z.string().optional().describe("Version constraint"),
       api_level: z.string().optional().describe("API level: high-level or low-level (mobile only)"),
       scenario: z.string().optional().describe("Scenario: camera, image, single, multiple, react, etc.")
@@ -1466,7 +617,7 @@ server.registerTool(
       return { isError: true, content: [{ type: "text", text: policy.message }] };
     }
 
-    if (normalizedProduct === "dbr" && normalizedEdition === "python") {
+    if (normalizedProduct === "dbr" && normalizedEdition === "server") {
       const sdkEntry = registry.sdks["dbr-python"];
       const scenarioLower = (scenario || "").toLowerCase();
       const sampleName = scenarioLower.includes("video") ? "video_decoding" : "read_an_image";
@@ -1774,11 +925,11 @@ server.registerTool(
   "generate_project",
   {
     title: "Generate Project",
-    description: "Generate a project structure from a sample (no AI generation).",
+    description: "Generate a project structure from a sample and return files inline (no zip/download).",
     inputSchema: {
       product: z.string().describe("Product: dbr, dwt, or ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, python"),
-      platform: z.string().optional().describe("Platform: android, ios, web, python"),
+      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       version: z.string().optional().describe("Version constraint"),
       sample_id: z.string().optional().describe("Sample identifier (name or path)"),
       resource_uri: z.string().optional().describe("Resource URI returned by search"),
@@ -1804,22 +955,49 @@ server.registerTool(
 
     let sampleInfo = null;
     if (resource_uri) {
+      const parsed = parseResourceUri(resource_uri);
+      if (!parsed) {
+        return {
+          isError: true,
+          content: [{
+            type: "text",
+            text: "resource_uri must be a sample://... URI. Use search or list_samples to get a valid sample URI."
+          }]
+        };
+      }
+      if (parsed.scheme !== "sample") {
+        return {
+          isError: true,
+          content: [{
+            type: "text",
+            text: "resource_uri must use the sample:// scheme. For doc:// URIs, use resources/read instead."
+          }]
+        };
+      }
       sampleInfo = parseSampleUri(resource_uri);
       if (!sampleInfo) {
-        return { isError: true, content: [{ type: "text", text: "Invalid or non-sample resource_uri." }] };
+        return {
+          isError: true,
+          content: [{
+            type: "text",
+            text: "Invalid sample URI format. Use search or list_samples to obtain a valid sample:// URI."
+          }]
+        };
       }
     }
 
     let samplePath = null;
     let sampleLabel = "";
+    let sampleQuery = "";
 
     if (sampleInfo) {
       sampleLabel = sampleInfo.sampleName || resource_uri;
+      sampleQuery = sampleInfo.sampleName || sample_id || "";
       if (sampleInfo.product === "dbr" && sampleInfo.edition === "mobile") {
         samplePath = getMobileSamplePath(sampleInfo.platform, sampleInfo.level, sampleInfo.sampleName);
       } else if (sampleInfo.product === "dbr" && sampleInfo.edition === "web") {
         samplePath = getWebSamplePath(sampleInfo.category, sampleInfo.sampleName);
-      } else if (sampleInfo.product === "dbr" && sampleInfo.edition === "python") {
+      } else if (sampleInfo.product === "dbr" && (sampleInfo.edition === "python" || sampleInfo.edition === "server")) {
         samplePath = getPythonSamplePath(sampleInfo.sampleName);
       } else if (sampleInfo.product === "dwt") {
         samplePath = getDwtSamplePath(sampleInfo.category, sampleInfo.sampleName);
@@ -1828,12 +1006,19 @@ server.registerTool(
       }
     } else if (sample_id) {
       if (!normalizedProduct || !normalizedEdition) {
-        return { isError: true, content: [{ type: "text", text: "Specify product/edition or provide resource_uri." }] };
+        return {
+          isError: true,
+          content: [{
+            type: "text",
+            text: "Specify product/edition or provide resource_uri. Use list_samples or get_index to discover valid scopes."
+          }]
+        };
       }
 
       const level = normalizeApiLevel(api_level);
       const sampleName = normalizeSampleName(sample_id);
       sampleLabel = sampleName;
+      sampleQuery = sampleName;
 
       if (normalizedProduct === "dbr" && normalizedEdition === "mobile") {
         const targetPlatform = normalizedPlatform || "android";
@@ -1843,7 +1028,7 @@ server.registerTool(
         samplePath = existsSync(primaryPath) ? primaryPath : (existsSync(alternatePath) ? alternatePath : null);
       } else if (normalizedProduct === "dbr" && normalizedEdition === "web") {
         samplePath = getWebSamplePath(undefined, sampleName);
-      } else if (normalizedProduct === "dbr" && normalizedEdition === "python") {
+      } else if (normalizedProduct === "dbr" && normalizedEdition === "server") {
         samplePath = getPythonSamplePath(sampleName);
       } else if (normalizedProduct === "dwt") {
         const categories = discoverDwtSamples();
@@ -1863,7 +1048,53 @@ server.registerTool(
     }
 
     if (!samplePath || !existsSync(samplePath)) {
-      return { isError: true, content: [{ type: "text", text: `Sample not found for "${sampleLabel}".` }] };
+      const suggestions = await getSampleSuggestions({
+        query: sampleQuery,
+        product: normalizedProduct,
+        edition: normalizedEdition,
+        platform: normalizedPlatform,
+        limit: 5
+      });
+
+      const content = [{
+        type: "text",
+        text: [
+          `Sample not found for "${sampleLabel}".`,
+          suggestions.length ? "Related samples:" : "No related samples found. Try search or get_index."
+        ].join("\n")
+      }];
+
+      for (const entry of suggestions) {
+        const versionLabel = entry.version ? `v${entry.version}` : "n/a";
+        const scopeLabel = formatScopeLabel(entry);
+        const sampleId = entry.type === "sample" ? getSampleIdFromUri(entry.uri) : "";
+        const sampleHint = sampleId ? ` | sample_id: ${sampleId}` : "";
+        content.push({
+          type: "resource_link",
+          uri: entry.uri,
+          name: entry.title,
+          description: `${entry.type.toUpperCase()} | ${scopeLabel} | ${versionLabel} - ${entry.summary}${sampleHint}`,
+          mimeType: entry.mimeType,
+          annotations: {
+            audience: ["assistant"],
+            priority: 0.6
+          }
+        });
+      }
+
+      if (suggestions.length) {
+        const plainLines = suggestions.map((entry, index) => {
+          const sampleId = entry.type === "sample" ? getSampleIdFromUri(entry.uri) : "";
+          const sampleNote = sampleId ? ` sample_id=${sampleId}` : "";
+          return `- ${index + 1}. ${entry.uri}${sampleNote}`;
+        });
+        content.push({
+          type: "text",
+          text: ["Plain URIs (copy/paste):", ...plainLines].join("\n")
+        });
+      }
+
+      return { isError: true, content };
     }
 
     const textExtensions = [
@@ -1923,6 +1154,7 @@ server.registerTool(
       `# Project Generation: ${sampleLabel}`,
       "",
       "This output contains the file structure for the project.",
+      "Note: This tool returns files inline and does not create a downloadable zip.",
       ""
     ];
 
@@ -1988,3 +1220,11 @@ server.server.setRequestHandler(UnsubscribeRequestSchema, async () => ({}));
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
+
+if (ragConfig.prewarm) {
+  if (ragConfig.prewarmBlock) {
+    await prewarmRagIndex();
+  } else {
+    void prewarmRagIndex();
+  }
+}
