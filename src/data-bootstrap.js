@@ -40,8 +40,10 @@ function readManifest(rootDir = bundledDataRoot) {
 function isDirectoryReady(path) {
   try {
     if (!existsSync(path)) return false;
-    const entries = readdirSync(path);
-    return entries.length > 0;
+    const entries = readdirSync(path, { withFileTypes: true });
+    // A non-initialized submodule usually has only a `.git` marker entry.
+    // Treat that as not ready so runtime bootstrap can download real content.
+    return entries.some((entry) => entry.name !== ".git");
   } catch {
     return false;
   }
