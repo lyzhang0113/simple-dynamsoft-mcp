@@ -117,12 +117,12 @@
         }
       }
     },
-    "dbr-python": {
-      "name": "Dynamsoft Barcode Reader Python SDK",
-      "description": "Barcode scanning for Python desktop/server applications.",
+    "dbr-server": {
+      "name": "Dynamsoft Barcode Reader Server/Desktop SDK",
+      "description": "Barcode scanning for server/desktop platforms including Python, .NET, Java, C++, and Node.js.",
       "version": "11.2.5000",
       "default_platform": "python",
-      "snippet_path": "dynamsoft-barcode-reader/python",
+      "snippet_path": "dynamsoft-barcode-reader/server",
       "platforms": {
         "python": {
           "languages": [
@@ -139,6 +139,88 @@
           },
           "installation": {
             "pip": "pip install dynamsoft-barcode-reader-bundle"
+          }
+        },
+        "dotnet": {
+          "languages": [
+            "C#"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/barcode-reader/docs/server/programming/dotnet/user-guide.html",
+            "api-reference": "https://www.dynamsoft.com/barcode-reader/docs/server/programming/dotnet/api-reference/",
+            "samples": "https://www.dynamsoft.com/barcode-reader/docs/server/programming/dotnet/samples/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/barcode-reader-dotnet-samples"
+          },
+          "installation": {
+            "nuget": "dotnet add package Dynamsoft.DotNet.BarcodeReader.Bundle"
+          }
+        },
+        "java": {
+          "languages": [
+            "Java"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/barcode-reader/docs/server/programming/java/user-guide.html",
+            "api-reference": "https://www.dynamsoft.com/barcode-reader/docs/server/programming/java/api-reference/",
+            "samples": "https://www.dynamsoft.com/barcode-reader/docs/server/programming/java/samples/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/barcode-reader-java-samples"
+          },
+          "installation": {
+            "maven_repository_id": "dbr",
+            "maven_repository_url": "https://download2.dynamsoft.com/maven/dbr/jar",
+            "group_id": "com.dynamsoft",
+            "artifact_id": "dbr",
+            "version": "latest",
+            "pom_template": "<repositories>\n    <repository>\n        <id>dbr</id>\n        <url>https://download2.dynamsoft.com/maven/dbr/jar</url>\n    </repository>\n</repositories>\n\n<dependencies>\n    <dependency>\n        <groupId>com.dynamsoft</groupId>\n        <artifactId>dbr</artifactId>\n        <version>${dbr.version}</version>\n    </dependency>\n</dependencies>"
+          }
+        },
+        "cpp": {
+          "languages": [
+            "C++"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/barcode-reader/docs/server/programming/cplusplus/user-guide.html",
+            "api-reference": "https://www.dynamsoft.com/barcode-reader/docs/server/programming/cplusplus/api-reference/",
+            "samples": "https://www.dynamsoft.com/barcode-reader/docs/server/programming/cplusplus/samples/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/barcode-reader-c-cpp-samples"
+          },
+          "installation": {
+            "include_header": "#include \"[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Include/DynamsoftCaptureVisionRouter.h\"",
+            "windows_libs_x64": [
+              "[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Dist/Lib/Windows/x64/DynamsoftCorex64.lib",
+              "[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Dist/Lib/Windows/x64/DynamsoftLicensex64.lib",
+              "[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Dist/Lib/Windows/x64/DynamsoftCaptureVisionRouterx64.lib"
+            ],
+            "windows_libs_x86": [
+              "[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Dist/Lib/Windows/x86/DynamsoftCorex86.lib",
+              "[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Dist/Lib/Windows/x86/DynamsoftLicensex86.lib",
+              "[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Dist/Lib/Windows/x86/DynamsoftCaptureVisionRouterx86.lib"
+            ],
+            "pragma_comment_example": "#if defined(_WIN64) || defined(_WIN32)\n    #ifdef _WIN64\n        #pragma comment(lib, \"[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Dist/Lib/Windows/x64/DynamsoftCorex64.lib\")\n        #pragma comment(lib, \"[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Dist/Lib/Windows/x64/DynamsoftLicensex64.lib\")\n        #pragma comment(lib, \"[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Dist/Lib/Windows/x64/DynamsoftCaptureVisionRouterx64.lib\")\n    #else\n        #pragma comment(lib, \"[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Dist/Lib/Windows/x86/DynamsoftCorex86.lib\")\n        #pragma comment(lib, \"[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Dist/Lib/Windows/x86/DynamsoftLicensex86.lib\")\n        #pragma comment(lib, \"[INSTALLATION FOLDER]/DynamsoftBarcodeReader/Dist/Lib/Windows/x86/DynamsoftCaptureVisionRouterx86.lib\")\n    #endif\n#endif"
+          }
+        },
+        "nodejs": {
+          "languages": [
+            "JavaScript",
+            "TypeScript"
+          ],
+          "docs": {
+            "user-guide": "https://github.com/Dynamsoft/capture-vision-nodejs-samples#readme",
+            "api-reference": "https://www.dynamsoft.com/capture-vision/docs/server/programming/cplusplus/api-reference/",
+            "samples": "https://github.com/Dynamsoft/capture-vision-nodejs-samples"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-nodejs-samples"
+          },
+          "installation": {
+            "npm": "npm i dynamsoft-capture-vision-for-node",
+            "model": "npm i dynamsoft-capture-vision-for-node-model"
           }
         }
       }

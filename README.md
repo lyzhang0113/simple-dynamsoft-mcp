@@ -3,7 +3,7 @@
 MCP (Model Context Protocol) server that enables AI assistants to write correct code with Dynamsoft SDKs. It provides actual working code snippets, documentation links, and API guidance for:
 
 - **Dynamsoft Barcode Reader Mobile** - Android (Java/Kotlin) and iOS (Swift)
-- **Dynamsoft Barcode Reader Server/Desktop** - Python, .NET, Java, C/C++, Node.js
+- **Dynamsoft Barcode Reader Server/Desktop** - Python, .NET, Java, C++, Node.js
 - **Dynamsoft Barcode Reader Web** - JavaScript/TypeScript barcode scanning
 - **Dynamic Web TWAIN** - Document scanning from TWAIN/WIA/ICA/SANE scanners
 - **Dynamsoft Document Viewer** - Web document viewing and annotation
@@ -180,7 +180,7 @@ If you prefer running from source:
 
 ### Dynamsoft Barcode Reader Server/Desktop (v11.2.5000)
 
-**Platforms:** Python, .NET, Java, C/C++, Node.js
+**Platforms:** Python, .NET, Java, C++, Node.js
 
 **Python installation:** `pip install dynamsoft-barcode-reader-bundle`
 

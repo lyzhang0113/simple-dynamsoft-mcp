@@ -12,11 +12,14 @@ const sdkAliases = {
   "barcode reader": "dbr-mobile",
   "barcode reader mobile": "dbr-mobile",
   "mobile barcode": "dbr-mobile",
-  // DBR Python
-  "dbr-python": "dbr-python",
-  "python barcode": "dbr-python",
-  "barcode python": "dbr-python",
-  "barcode reader python": "dbr-python",
+  // DBR Server/Desktop
+  "dbr-server": "dbr-server",
+  "dbr-python": "dbr-server",
+  "python barcode": "dbr-server",
+  "barcode python": "dbr-server",
+  "barcode reader python": "dbr-server",
+  "server barcode": "dbr-server",
+  "desktop barcode": "dbr-server",
   // DBR Web
   "dbr-web": "dbr-web",
   "web barcode": "dbr-web",

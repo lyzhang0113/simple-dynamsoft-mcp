@@ -637,7 +637,7 @@ server.registerTool(
     }
 
     if (normalizedProduct === "dbr" && normalizedEdition === "server") {
-      const sdkEntry = registry.sdks["dbr-python"];
+      const sdkEntry = registry.sdks["dbr-server"] || registry.sdks["dbr-python"];
       const scenarioLower = (scenario || "").toLowerCase();
       const sampleName = scenarioLower.includes("video") ? "video_decoding" : "read_an_image";
       const samplePath = getDbrServerSamplePath("python", sampleName);
@@ -652,7 +652,7 @@ server.registerTool(
         content: [{
           type: "text",
           text: [
-            "# Quick Start: DBR Python",
+            "# Quick Start: DBR Server (Python)",
             "",
             `**SDK Version:** ${sdkEntry.version}`,
             `**Trial License:** \`${registry.trial_license}\``,

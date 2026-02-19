@@ -397,7 +397,6 @@ function getMimeTypeForExtension(ext) {
   const normalized = ext.replace(/^\./, "").toLowerCase();
   if (normalized === "cs") return "text/x-csharp";
   if (["cpp", "cc", "cxx"].includes(normalized)) return "text/x-c++src";
-  if (normalized === "c") return "text/x-csrc";
   if (["hpp", "hxx"].includes(normalized)) return "text/x-c++hdr";
   if (normalized === "swift") return "text/x-swift";
   if (normalized === "kt") return "text/x-kotlin";

@@ -73,12 +73,14 @@ const ddvDocs = loadMarkdownDocs({
   excludeFiles: DOCS_CONFIG.ddv.excludeFiles
 });
 
+const dbrServerSdk = registry.sdks["dbr-server"] || registry.sdks["dbr-python"];
+
 const LATEST_VERSIONS = {
   dbr: {
     mobile: registry.sdks["dbr-mobile"].version,
     web: registry.sdks["dbr-web"].version,
-    server: registry.sdks["dbr-python"].version,
-    python: registry.sdks["dbr-python"].version
+    server: dbrServerSdk.version,
+    python: dbrServerSdk.version
   },
   dwt: {
     web: registry.sdks.dwt.version

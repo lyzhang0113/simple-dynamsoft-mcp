@@ -54,7 +54,6 @@ const CODE_FILE_EXTENSIONS = [
   ".h",
   ".hpp",
   ".hxx",
-  ".c",
   ".cc",
   ".cpp",
   ".cxx",
@@ -87,14 +86,14 @@ const DDV_PREFERRED_ENTRY_FILES = [
 const DBR_SERVER_PREFERRED_FILES = {
   dotnet: ["Program.cs", "MainPage.xaml.cs", "MainPage.cs"],
   java: ["Main.java", "App.java"],
-  cpp: ["main.cpp", "Main.cpp", "main.c", "Main.c"],
+  cpp: ["main.cpp", "Main.cpp"],
   nodejs: ["index.js", "index.mjs", "app.js", "app.mjs", "server.js", "server.mjs"]
 };
 
 const DBR_SERVER_PREFERRED_EXTS = {
   dotnet: [".cs"],
   java: [".java"],
-  cpp: [".cpp", ".cc", ".cxx", ".c", ".h", ".hpp"],
+  cpp: [".cpp", ".cc", ".cxx", ".h", ".hpp"],
   nodejs: [".js", ".mjs", ".cjs", ".ts"]
 };
 
