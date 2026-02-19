@@ -334,6 +334,10 @@ Optional runtime data bootstrap (mainly for npm/npx installs):
 - `MCP_DATA_CACHE_DIR=<cache path>`
 - `MCP_DATA_REFRESH_ON_START=false`
 
+Default cache location when `MCP_DATA_CACHE_DIR` is not set:
+- Windows: `%LOCALAPPDATA%\simple-dynamsoft-mcp\data`
+- Linux/macOS: `~/.cache/simple-dynamsoft-mcp/data`
+
 ## Using Search-Based Discovery (Recommended)
 
 - On session start, let your client call `tools/list` and `resources/list` (pinned only, not exhaustive).

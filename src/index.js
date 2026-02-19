@@ -17,7 +17,14 @@ const pkgUrl = new URL("../package.json", import.meta.url);
 const pkg = JSON.parse(readFileSync(pkgUrl, "utf8"));
 
 await maybeSyncSubmodulesOnStart();
-await ensureDataReady();
+const dataStatus = await ensureDataReady();
+if (dataStatus.mode === "downloaded") {
+  console.error(
+    `[data] mode=downloaded path=${dataStatus.dataRoot} source=${dataStatus.downloaded ? "fresh-download" : "cache"}`
+  );
+} else {
+  console.error(`[data] mode=${dataStatus.mode} path=${dataStatus.dataRoot}`);
+}
 
 const {
   registry,

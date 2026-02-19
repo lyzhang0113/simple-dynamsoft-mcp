@@ -167,7 +167,7 @@ async function ensureDownloadedData(cacheRoot) {
   if (!refresh && existsSync(signaturePath)) {
     const existingSignature = readFileSync(signaturePath, "utf8").trim();
     if (existingSignature === signature && isDataRootReady(cacheRoot)) {
-      return;
+      return { downloaded: false };
     }
   }
 
@@ -180,6 +180,7 @@ async function ensureDownloadedData(cacheRoot) {
     copyBundledMetadata(stagingRoot);
     await populateFromManifest(stagingRoot, manifest, timeoutMs);
     finalizeCacheRoot(cacheRoot, stagingRoot, signature);
+    return { downloaded: true };
   } catch (error) {
     rmSync(stagingRoot, { recursive: true, force: true });
     throw error;
@@ -193,12 +194,12 @@ async function ensureDataReady() {
       throw new Error(`MCP_DATA_DIR is set but data is incomplete: ${explicitRoot}`);
     }
     process.env.MCP_RESOLVED_DATA_DIR = explicitRoot;
-    return { dataRoot: explicitRoot, mode: "custom" };
+    return { dataRoot: explicitRoot, mode: "custom", downloaded: false };
   }
 
   if (isDataRootReady(bundledDataRoot)) {
     process.env.MCP_RESOLVED_DATA_DIR = bundledDataRoot;
-    return { dataRoot: bundledDataRoot, mode: "bundled" };
+    return { dataRoot: bundledDataRoot, mode: "bundled", downloaded: false };
   }
 
   const autoDownload = readBoolEnv("MCP_DATA_AUTO_DOWNLOAD", true);
@@ -211,9 +212,13 @@ async function ensureDataReady() {
 
   const defaultCacheRoot = join(process.env.LOCALAPPDATA || join(homedir(), ".cache"), "simple-dynamsoft-mcp", "data");
   const cacheRoot = resolve(process.env.MCP_DATA_CACHE_DIR || defaultCacheRoot);
-  await ensureDownloadedData(cacheRoot);
+  const result = await ensureDownloadedData(cacheRoot);
   process.env.MCP_RESOLVED_DATA_DIR = cacheRoot;
-  return { dataRoot: cacheRoot, mode: "downloaded" };
+  return {
+    dataRoot: cacheRoot,
+    mode: "downloaded",
+    downloaded: Boolean(result?.downloaded)
+  };
 }
 
 export {
