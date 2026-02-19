@@ -21,6 +21,7 @@ https://github.com/user-attachments/assets/cc1c5f4b-1461-4462-897a-75abc20d62a6
 - **Stdio MCP server**: Runs on stdio. Works with any MCP-capable client.
 - **Resource-efficient discovery**: Resources are discovered via tools (semantic RAG search with fuzzy fallback + resource links). Only a small pinned set is listed by default; heavy content is fetched on-demand with `resources/read`.
 - **Submodule-backed resources**: Samples and docs are pulled from official upstream repositories under `data/samples/` and `data/documentation/`.
+- **Dual-mode data loading**: local clone uses submodules; `npx simple-dynamsoft-mcp` auto-downloads pinned archives into a local cache when submodules are unavailable.
 - **Latest-major policy**: The server only serves the latest major versions; older major requests are refused with legacy links when available.
 
 ## Available Tools
@@ -35,6 +36,7 @@ https://github.com/user-attachments/assets/cc1c5f4b-1461-4462-897a-75abc20d62a6
 | `get_quickstart` | Opinionated quickstart for a target stack |
 | `generate_project` | Assemble a project structure from a sample (no AI generation) |
 
+`npx simple-dynamsoft-mcp` is supported. If bundled submodule data is missing, the server auto-downloads pinned data archives on first run (network required).
 
 ## MCP Client Configuration
 
@@ -317,10 +319,20 @@ scripts/
   - `npm run data:status`
 - Sync submodules to configured branches (fast-forward only):
   - `npm run data:sync`
+- Refresh lock manifest after submodule updates:
+  - `npm run data:lock`
+- Verify lock manifest matches submodule HEADs:
+  - `npm run data:verify-lock`
 
 Optional startup sync:
 - `DATA_SYNC_ON_START=true`
 - `DATA_SYNC_TIMEOUT_MS=30000`
+
+Optional runtime data bootstrap (mainly for npm/npx installs):
+- `MCP_DATA_DIR=<existing data root>`
+- `MCP_DATA_AUTO_DOWNLOAD=true`
+- `MCP_DATA_CACHE_DIR=<cache path>`
+- `MCP_DATA_REFRESH_ON_START=false`
 
 ## Using Search-Based Discovery (Recommended)
 

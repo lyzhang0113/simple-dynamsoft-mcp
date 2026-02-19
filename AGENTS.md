@@ -13,6 +13,7 @@ Supported products:
 - Resources are discovered via tools and read on demand with `resources/read`.
 - `resources/list` exposes only pinned resources to keep context small.
 - Resource indexing logic is split under `src/resource-index/` with `src/resource-index.js` as the composition layer.
+- Dual-mode data: use local submodules when available, otherwise bootstrap pinned archives for npm/npx usage.
 - Transport is stdio only. Do not add an HTTP wrapper in this repo.
 
 ## Version Policy
@@ -23,11 +24,16 @@ Supported products:
 
 ## Key Files and Data
 - `src/index.js`: server implementation, tools, resource routing, version policy.
+- `src/data-bootstrap.js`: runtime data resolver/downloader for npm/npx environments.
+- `src/data-root.js`: shared data-root resolution (`MCP_DATA_DIR` / resolved cache root / bundled data).
 - `src/resource-index.js`: resource index composition and exports used by the server and RAG layer.
 - `src/resource-index/*`: modularized resource-index implementation (`config`, `paths`, docs/sample discovery, URI parsing, version policy, builders).
 - `src/submodule-sync.js`: optional startup sync for submodules (`DATA_SYNC_ON_START`).
 - `scripts/sync-submodules.mjs`: script entry used by `npm run data:sync`.
+- `scripts/update-data-lock.mjs`: updates `data/metadata/data-manifest.json` from current submodule commits.
+- `scripts/verify-data-lock.mjs`: verifies lock manifest matches current submodule heads.
 - `data/metadata/dynamsoft_sdks.json`: product metadata and latest version info.
+- `data/metadata/data-manifest.json`: pinned commit lockfile used for runtime data bootstrap.
 - `data/samples/*`: sample repositories (git submodules).
 - `data/documentation/web-twain-docs`: DWT docs repository (git submodule).
 - `data/documentation/document-viewer-docs`: DDV docs repository (git submodule).
@@ -44,7 +50,10 @@ Avoid modifying `data/` submodule content unless explicitly requested.
 - Init submodules: `npm run data:bootstrap`
 - Sync submodules: `npm run data:sync`
 - Submodule status: `npm run data:status`
+- Update data lock manifest: `npm run data:lock`
+- Verify data lock manifest: `npm run data:verify-lock`
 - Optional startup sync env: `DATA_SYNC_ON_START=true`, `DATA_SYNC_TIMEOUT_MS=30000`
+- Optional runtime data env: `MCP_DATA_DIR`, `MCP_DATA_AUTO_DOWNLOAD`, `MCP_DATA_CACHE_DIR`, `MCP_DATA_REFRESH_ON_START`
 
 ## Contribution Notes
 - Prefer adding new content as resources (search + read) instead of new tools.

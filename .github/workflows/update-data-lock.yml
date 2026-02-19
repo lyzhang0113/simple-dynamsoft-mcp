@@ -1,0 +1,52 @@
+name: Update Data Lock
+
+on:
+  schedule:
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync submodules
+        run: npm run data:sync
+
+      - name: Update lock manifest
+        run: npm run data:lock
+
+      - name: Verify lock manifest
+        run: npm run data:verify-lock
+
+      - name: Run tests
+        run: npm test
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: update data lock manifest"
+          title: "chore: update data lock manifest"
+          body: |
+            Automated weekly refresh:
+            - Fast-forward data submodules to configured branches
+            - Update `data/metadata/data-manifest.json`
+          branch: "chore/update-data-lock"
+          delete-branch: true

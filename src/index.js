@@ -10,12 +10,14 @@ import {
   UnsubscribeRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { ensureDataReady } from "./data-bootstrap.js";
 import { maybeSyncSubmodulesOnStart } from "./submodule-sync.js";
 
 const pkgUrl = new URL("../package.json", import.meta.url);
 const pkg = JSON.parse(readFileSync(pkgUrl, "utf8"));
 
 await maybeSyncSubmodulesOnStart();
+await ensureDataReady();
 
 const {
   registry,
