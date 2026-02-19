@@ -266,7 +266,8 @@ After connecting the MCP server, you can ask your AI assistant:
 ```
 data/
 |-- metadata/
-|   `-- dynamsoft_sdks.json
+|   |-- dynamsoft_sdks.json
+|   `-- data-manifest.json               # Pinned repo commits for runtime bootstrap
 |-- samples/                             # Git submodules
 |   |-- dynamsoft-barcode-reader
 |   |-- dynamsoft-barcode-reader-mobile
@@ -291,6 +292,8 @@ data/
 ```
 src/
 |-- index.js                            # MCP server + tool handlers
+|-- data-bootstrap.js                   # Runtime data resolver/downloader (npx mode)
+|-- data-root.js                        # Shared resolved data root selection
 |-- rag.js                              # Search provider selection and retrieval
 |-- normalizers.js                      # Product/platform/edition normalization
 |-- submodule-sync.js                   # Optional startup fast-forward sync
@@ -304,7 +307,9 @@ src/
     |-- version-policy.js
     `-- builders.js
 scripts/
-`-- sync-submodules.mjs                 # CLI wrapper for data:sync
+|-- sync-submodules.mjs                 # CLI wrapper for data:sync
+|-- update-data-lock.mjs                # Generate data-manifest from submodule HEADs
+`-- verify-data-lock.mjs                # Verify manifest matches submodule HEADs
 ```
 
 `src/` contains runtime server code. `scripts/` contains operational helpers used by npm scripts.
@@ -337,6 +342,17 @@ Optional runtime data bootstrap (mainly for npm/npx installs):
 Default cache location when `MCP_DATA_CACHE_DIR` is not set:
 - Windows: `%LOCALAPPDATA%\simple-dynamsoft-mcp\data`
 - Linux/macOS: `~/.cache/simple-dynamsoft-mcp/data`
+
+At startup, the server logs data mode/path to stderr:
+- `[data] mode=downloaded ... source=fresh-download|cache`
+- `[data] mode=bundled ...`
+- `[data] mode=custom ...`
+
+## Automation
+
+- CI workflow: `.github/workflows/ci.yml`
+- Weekly data-lock refresh workflow: `.github/workflows/update-data-lock.yml`
+- Refresh schedule: every Monday at 08:00 UTC (`0 8 * * 1`) and manual trigger supported.
 
 ## Using Search-Based Discovery (Recommended)
 
@@ -372,6 +388,11 @@ For local dev, you can also use a `.env` file (see `.env.example`).
 - DBR legacy docs are linked for v9 and v10. Requests below v9 are refused.
 - DWT archived docs are available for v16.1.1+ (specific versions are hardcoded).
 - DDV has no legacy archive links in this server.
+
+## Roadmap
+
+- Deferred release automation plan and implementation notes are tracked in `TODO.md`.
+- If you are continuing release pipeline work, start with the checklist in `TODO.md`.
 
 ## Extending the Server
 

@@ -55,6 +55,29 @@ Avoid modifying `data/` submodule content unless explicitly requested.
 - Optional startup sync env: `DATA_SYNC_ON_START=true`, `DATA_SYNC_TIMEOUT_MS=30000`
 - Optional runtime data env: `MCP_DATA_DIR`, `MCP_DATA_AUTO_DOWNLOAD`, `MCP_DATA_CACHE_DIR`, `MCP_DATA_REFRESH_ON_START`
 
+## Roadmap Notes
+- Read `TODO.md` before making release automation changes.
+- `TODO.md` contains deferred release workflow plan, guardrails, and handoff checklist for future agents.
+
+## Agent Handoff Notes
+
+### Mistakes Observed During This Refactor
+
+- A readiness bug treated submodule stub folders (only `.git`) as valid data. This prevented runtime archive download in some clones.
+- Assuming changes to `npm start` would fix `npx` behavior was incorrect. `npx` executes the package `bin` (`src/index.js`), not npm scripts.
+- Lack of startup visibility slowed debugging. Data mode/path logging was added to stderr in startup.
+- Including volatile timestamps in `data-manifest.json` caused noisy automation PRs even without commit changes.
+- Packaging full `data/` content for npm was the wrong direction for this architecture; package now includes `data/metadata` only.
+
+### Important Notes For Future Agents
+
+- Do not edit `data/metadata/data-manifest.json` manually. Regenerate it with `npm run data:lock`.
+- Always run `npm run data:verify-lock` after lock updates and before proposing releases.
+- Keep dual-mode behavior intact: dev clone should use local submodules when available, and npm/npx mode should bootstrap from manifest-pinned archives into cache.
+- If users report "no download happened", first check startup stderr for the `[data] mode=...` log line.
+- Be careful with package contents: ensure npm package does not include full submodule payloads.
+- Avoid modifying submodule contents under `data/samples/*` and `data/documentation/*` unless explicitly requested.
+
 ## Contribution Notes
 - Prefer adding new content as resources (search + read) instead of new tools.
 - Keep edits ASCII-only unless the file already uses Unicode.
