@@ -17,13 +17,16 @@
   "files": [
     "src",
     "data",
-    "code-snippet",
+    "scripts",
     "README.md",
     ".env.example"
   ],
   "scripts": {
     "start": "node src/index.js",
-    "test": "node test/server.test.js"
+    "test": "node test/server.test.js",
+    "data:bootstrap": "git submodule update --init --recursive",
+    "data:sync": "node scripts/sync-submodules.mjs",
+    "data:status": "git submodule status --recursive"
   },
   "keywords": [
     "mcp",

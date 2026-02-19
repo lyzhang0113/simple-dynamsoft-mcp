@@ -194,6 +194,7 @@ function buildIndexSignature() {
     dwtDocCount: signatureData.dwtDocCount,
     ddvDocCount: signatureData.ddvDocCount,
     versions: signatureData.versions,
+    dataSources: signatureData.dataSources,
     chunkSize: ragConfig.chunkSize,
     chunkOverlap: ragConfig.chunkOverlap,
     maxChunksPerDoc: ragConfig.maxChunksPerDoc,

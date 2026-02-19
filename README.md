@@ -3,7 +3,7 @@
 MCP (Model Context Protocol) server that enables AI assistants to write correct code with Dynamsoft SDKs. It provides actual working code snippets, documentation links, and API guidance for:
 
 - **Dynamsoft Barcode Reader Mobile** - Android (Java/Kotlin) and iOS (Swift)
-- **Dynamsoft Barcode Reader Python** - Desktop/server barcode scanning
+- **Dynamsoft Barcode Reader Server/Desktop** - Python, .NET, Java, C/C++, Node.js
 - **Dynamsoft Barcode Reader Web** - JavaScript/TypeScript barcode scanning
 - **Dynamic Web TWAIN** - Document scanning from TWAIN/WIA/ICA/SANE scanners
 - **Dynamsoft Document Viewer** - Web document viewing and annotation
@@ -16,10 +16,11 @@ https://github.com/user-attachments/assets/cc1c5f4b-1461-4462-897a-75abc20d62a6
 
 - **Code Snippets**: Real, working source code from official Dynamsoft samples
 - **Trial License Included**: Ready-to-use trial license for quick testing
-- **Multiple SDKs**: Barcode Reader (Mobile/Python/Web) + Dynamic Web TWAIN + Document Viewer
+- **Multiple SDKs**: Barcode Reader (Mobile/Web/Server) + Dynamic Web TWAIN + Document Viewer
 - **Multiple API Levels**: High-level (simple) and low-level (advanced) options
 - **Stdio MCP server**: Runs on stdio. Works with any MCP-capable client.
 - **Resource-efficient discovery**: Resources are discovered via tools (semantic RAG search with fuzzy fallback + resource links). Only a small pinned set is listed by default; heavy content is fetched on-demand with `resources/read`.
+- **Submodule-backed resources**: Samples and docs are pulled from official upstream repositories under `data/samples/` and `data/documentation/`.
 - **Latest-major policy**: The server only serves the latest major versions; older major requests are refused with legacy links when available.
 
 ## Available Tools
@@ -175,13 +176,13 @@ If you prefer running from source:
 - ScanSingleBarcode, ScanMultipleBarcodes, ScanSingleBarcodeSwiftUI
 - DecodeWithCameraEnhancer, DecodeWithAVCaptureSession, DecodeFromAnImage
 
-### Dynamsoft Barcode Reader Python (v11.2.5000)
+### Dynamsoft Barcode Reader Server/Desktop (v11.2.5000)
 
-**Installation:** `pip install dynamsoft-barcode-reader-bundle`
+**Platforms:** Python, .NET, Java, C/C++, Node.js
 
-**Samples:**
-- `read_an_image` - Decode barcodes from image files
-- `video_decoding` - Real-time video decoding
+**Python installation:** `pip install dynamsoft-barcode-reader-bundle`
+
+**Server/Desktop samples:** Pulled from platform-specific sample repositories in `data/samples/`.
 
 ### Dynamsoft Barcode Reader Web (v11.2.4000)
 
@@ -231,9 +232,10 @@ After connecting the MCP server, you can ask your AI assistant:
 - "Get the Gradle configuration for Dynamsoft Barcode Reader"
 - "How do I initialize the Dynamsoft license in Kotlin?"
 
-### Python Barcode Reader
+### Server/Desktop Barcode Reader
 - "Show me how to read barcodes from an image in Python"
-- "Get the Python sample for video decoding"
+- "Get me a Node.js barcode reader sample"
+- "List DBR .NET samples and generate one project"
 
 ### Web Barcode Reader
 - "Create a web page that scans barcodes from a camera"
@@ -257,31 +259,68 @@ After connecting the MCP server, you can ask your AI assistant:
 - **Web JavaScript**: https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/user-guide/index.html
 - **Dynamic Web TWAIN**: https://www.dynamsoft.com/web-twain/docs/introduction/index.html
 
-## Code Snippet Structure
+## Data Repository Structure
 
 ```
-code-snippet/
-├── dynamsoft-barcode-reader/
-│   ├── android/
-│   │   ├── BarcodeScannerAPISamples/   # High-level API
-│   │   └── FoundationalAPISamples/      # Low-level API
-│   ├── ios/
-│   │   ├── BarcodeScannerAPISamples/
-│   │   └── FoundationalAPISamples/
-│   ├── python/
-│   │   └── Samples/
-│   └── web/
-└── dynamic-web-twain/
-    ├── scan/
-    ├── input-options/
-    ├── output-options/
-    ├── classification/
-    └── UI-customization/
-
 data/
-├── dynamsoft_sdks.json        # SDK registry with versions and docs
-└── web-twain-api-docs.json    # Full DWT API documentation (50+ articles)
+|-- metadata/
+|   `-- dynamsoft_sdks.json
+|-- samples/                             # Git submodules
+|   |-- dynamsoft-barcode-reader
+|   |-- dynamsoft-barcode-reader-mobile
+|   |-- dynamsoft-barcode-reader-maui
+|   |-- dynamsoft-barcode-reader-react-native
+|   |-- dynamsoft-barcode-reader-flutter
+|   |-- dynamsoft-barcode-reader-python
+|   |-- dynamsoft-barcode-reader-dotnet
+|   |-- dynamsoft-barcode-reader-java
+|   |-- dynamsoft-barcode-reader-c-cpp
+|   |-- dynamsoft-capture-vision-nodejs
+|   |-- dynamic-web-twain
+|   `-- dynamsoft-document-viewer
+|-- documentation/                       # Git submodules
+|   |-- web-twain-docs
+|   `-- document-viewer-docs
+`-- .rag-cache/
 ```
+
+## Source Code Structure
+
+```
+src/
+|-- index.js                            # MCP server + tool handlers
+|-- rag.js                              # Search provider selection and retrieval
+|-- normalizers.js                      # Product/platform/edition normalization
+|-- submodule-sync.js                   # Optional startup fast-forward sync
+|-- resource-index.js                   # Resource index composition layer
+`-- resource-index/                     # Split modules for maintainability
+    |-- config.js
+    |-- paths.js
+    |-- docs-loader.js
+    |-- samples.js
+    |-- uri.js
+    |-- version-policy.js
+    `-- builders.js
+scripts/
+`-- sync-submodules.mjs                 # CLI wrapper for data:sync
+```
+
+`src/` contains runtime server code. `scripts/` contains operational helpers used by npm scripts.
+
+## Submodule Setup
+
+- Clone with submodules:
+  - `git clone --recurse-submodules <repo-url>`
+- If already cloned:
+  - `npm run data:bootstrap`
+- Check status:
+  - `npm run data:status`
+- Sync submodules to configured branches (fast-forward only):
+  - `npm run data:sync`
+
+Optional startup sync:
+- `DATA_SYNC_ON_START=true`
+- `DATA_SYNC_TIMEOUT_MS=30000`
 
 ## Using Search-Based Discovery (Recommended)
 
@@ -313,19 +352,22 @@ For local dev, you can also use a `.env` file (see `.env.example`).
 
 ## Version Policy
 
-- This MCP server serves only the latest major versions (DBR v11, DWT v19).
-- Requests for older major versions are refused. For select legacy versions, the server returns official archived documentation links.
+- This MCP server serves only the latest major version for each product (DBR, DWT, DDV).
+- DBR legacy docs are linked for v9 and v10. Requests below v9 are refused.
+- DWT archived docs are available for v16.1.1+ (specific versions are hardcoded).
+- DDV has no legacy archive links in this server.
 
 ## Extending the Server
 
 ### Add New Samples
 
-Place new sample projects in the appropriate folder under `code-snippet/`.
+Update the corresponding submodule under `data/samples/`.
 
 ### Update SDK Info
 
-Edit `data/dynamsoft_sdks.json` to update versions, docs URLs, or add new platforms.
+Edit `data/metadata/dynamsoft_sdks.json` to update versions, docs URLs, or add new platforms.
 
 ## License
 
 MIT
+

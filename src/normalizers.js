@@ -63,13 +63,16 @@ const platformAliases = {
   ".net": "dotnet",
   "c#": "dotnet",
   csharp: "dotnet",
+  node: "nodejs",
+  nodejs: "nodejs",
+  "node.js": "nodejs",
   // Web
   web: "web",
   javascript: "web",
   js: "web",
   typescript: "web",
   ts: "web",
-  // Web frameworks (from code-snippet)
+  // Web frameworks (from sample repositories)
   angular: "angular",
   angularjs: "angular",
   react: "react",
@@ -93,7 +96,7 @@ const platformAliases = {
   webview: "webview"
 };
 
-const SERVER_PLATFORMS = new Set(["python", "cpp", "java", "dotnet"]);
+const SERVER_PLATFORMS = new Set(["python", "cpp", "java", "dotnet", "nodejs"]);
 const WEB_FRAMEWORK_TAG_ALIASES = {
   react: ["react", "react-vite"]
 };
@@ -210,7 +213,7 @@ function normalizeEdition(edition, platform, product) {
   const normalizedPlatform = normalizePlatform(platform);
 
   if (!edition) {
-    if (["android", "ios"].includes(normalizedPlatform)) return "mobile";
+    if (["android", "ios", "maui", "react-native", "flutter"].includes(normalizedPlatform)) return "mobile";
     if (isWebPlatform(normalizedPlatform)) return "web";
     if (isServerPlatform(normalizedPlatform)) return "server";
     return "";
@@ -218,10 +221,10 @@ function normalizeEdition(edition, platform, product) {
 
   const normalized = edition.trim().toLowerCase();
   const compact = normalized.replace(/\s+/g, "");
-  if (["mobile", "android", "ios"].includes(normalized)) return "mobile";
+  if (["mobile", "android", "ios", "maui", "react-native", "react native", "flutter"].includes(normalized)) return "mobile";
   if (["web", "javascript", "js", "typescript", "ts"].includes(normalized)) return "web";
   if (["server", "desktop", "server/desktop", "server-desktop", "serverdesktop"].includes(normalized) || compact === "serverdesktop") return "server";
-  if (["python", "py", "java", "c++", "cpp", "dotnet", ".net", "c#", "csharp"].includes(normalized)) return "server";
+  if (["python", "py", "java", "c++", "cpp", "dotnet", ".net", "c#", "csharp", "node", "nodejs", "node.js"].includes(normalized)) return "server";
   return normalized;
 }
 
