@@ -192,6 +192,9 @@ function buildIndexSignature() {
   return JSON.stringify({
     packageVersion: pkg.version,
     resourceCount: signatureData.resourceCount,
+    dbrWebDocCount: signatureData.dbrWebDocCount,
+    dbrMobileDocCount: signatureData.dbrMobileDocCount,
+    dbrServerDocCount: signatureData.dbrServerDocCount,
     dwtDocCount: signatureData.dwtDocCount,
     ddvDocCount: signatureData.ddvDocCount,
     versions: signatureData.versions,

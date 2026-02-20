@@ -60,6 +60,69 @@ import {
 
 const registry = JSON.parse(readFileSync(registryPath, "utf8"));
 
+function inferDbrMobilePlatform(articlePath) {
+  const normalized = String(articlePath || "").replace(/\\/g, "/").toLowerCase();
+  const match = normalized.match(/^programming\/([^/]+)\//);
+  if (!match) return "mobile";
+  const segment = match[1];
+  if (segment === "objectivec-swift") return "ios";
+  if (segment === "android" || segment === "ios" || segment === "maui" || segment === "react-native" || segment === "flutter") {
+    return segment;
+  }
+  return "mobile";
+}
+
+function inferDbrServerPlatform(articlePath) {
+  const normalized = String(articlePath || "").replace(/\\/g, "/").toLowerCase();
+  const match = normalized.match(/^programming\/([^/]+)\//);
+  if (!match) return "server";
+  const segment = match[1];
+  if (segment === "cplusplus") return "cpp";
+  if (segment === "python" || segment === "java" || segment === "dotnet" || segment === "cpp") return segment;
+  return "server";
+}
+
+function withDbrScope(articles, edition, platformResolver) {
+  return (articles || []).map((article) => ({
+    ...article,
+    edition,
+    platform: platformResolver ? platformResolver(article.path) : "web"
+  }));
+}
+
+const dbrWebDocs = withDbrScope(
+  loadMarkdownDocs({
+    rootDir: DOC_ROOTS.dbrWeb,
+    urlBase: DOCS_CONFIG.dbrWeb.urlBase,
+    excludeDirs: DOCS_CONFIG.dbrWeb.excludeDirs,
+    excludeFiles: DOCS_CONFIG.dbrWeb.excludeFiles
+  }).articles,
+  "web",
+  () => "web"
+);
+
+const dbrMobileDocs = withDbrScope(
+  loadMarkdownDocs({
+    rootDir: DOC_ROOTS.dbrMobile,
+    urlBase: DOCS_CONFIG.dbrMobile.urlBase,
+    excludeDirs: DOCS_CONFIG.dbrMobile.excludeDirs,
+    excludeFiles: DOCS_CONFIG.dbrMobile.excludeFiles
+  }).articles,
+  "mobile",
+  inferDbrMobilePlatform
+);
+
+const dbrServerDocs = withDbrScope(
+  loadMarkdownDocs({
+    rootDir: DOC_ROOTS.dbrServer,
+    urlBase: DOCS_CONFIG.dbrServer.urlBase,
+    excludeDirs: DOCS_CONFIG.dbrServer.excludeDirs,
+    excludeFiles: DOCS_CONFIG.dbrServer.excludeFiles
+  }).articles,
+  "server",
+  inferDbrServerPlatform
+);
+
 const dwtDocs = loadMarkdownDocs({
   rootDir: DOC_ROOTS.dwtArticles,
   urlBase: DOCS_CONFIG.dwt.urlBase,
@@ -116,6 +179,9 @@ function buildIndexData() {
   return buildIndexDataFromBuilders({
     LATEST_VERSIONS,
     LATEST_MAJOR,
+    dbrWebDocs,
+    dbrMobileDocs,
+    dbrServerDocs,
     dwtDocs,
     ddvDocs,
     discoverWebSamples,
@@ -137,6 +203,9 @@ function buildResourceIndex() {
     buildVersionPolicyText,
     LATEST_VERSIONS,
     LATEST_MAJOR,
+    dbrWebDocs,
+    dbrMobileDocs,
+    dbrServerDocs,
     dwtDocs,
     ddvDocs,
     discoverMobileSamples,
@@ -232,6 +301,9 @@ async function readResourceContent(uri) {
 function getRagSignatureData() {
   return {
     resourceCount: resourceIndex.length,
+    dbrWebDocCount: dbrWebDocs.length,
+    dbrMobileDocCount: dbrMobileDocs.length,
+    dbrServerDocCount: dbrServerDocs.length,
     dwtDocCount: dwtDocs.articles.length,
     ddvDocCount: ddvDocs.articles.length,
     versions: LATEST_VERSIONS,
@@ -248,6 +320,9 @@ function getRagSignatureData() {
       dbrNodejsSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dbrNodejs),
       dwtSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dwt),
       ddvSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.ddv),
+      dbrWebDocsHead: readSubmoduleHead(DOC_ROOTS.dbrWeb),
+      dbrMobileDocsHead: readSubmoduleHead(DOC_ROOTS.dbrMobile),
+      dbrServerDocsHead: readSubmoduleHead(DOC_ROOTS.dbrServer),
       dwtDocsHead: readSubmoduleHead(DOC_ROOTS.dwt),
       ddvDocsHead: readSubmoduleHead(DOC_ROOTS.ddv),
       registryPath

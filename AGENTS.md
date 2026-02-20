@@ -35,6 +35,9 @@ Supported products:
 - `data/metadata/dynamsoft_sdks.json`: product metadata and latest version info.
 - `data/metadata/data-manifest.json`: pinned commit lockfile used for runtime data bootstrap.
 - `data/samples/*`: sample repositories (git submodules).
+- `data/documentation/barcode-reader-docs-js`: DBR web docs repository (git submodule).
+- `data/documentation/barcode-reader-docs-mobile`: DBR mobile docs repository (git submodule).
+- `data/documentation/barcode-reader-docs-server`: DBR server docs repository (git submodule).
 - `data/documentation/web-twain-docs`: DWT docs repository (git submodule).
 - `data/documentation/document-viewer-docs`: DDV docs repository (git submodule).
 

@@ -30,6 +30,9 @@ const SAMPLE_ROOTS = {
 };
 
 const DOC_ROOTS = {
+  dbrWeb: join(docsRoot, DOC_DIRS.dbrWeb),
+  dbrMobile: join(docsRoot, DOC_DIRS.dbrMobile),
+  dbrServer: join(docsRoot, DOC_DIRS.dbrServer),
   dwt: join(docsRoot, DOC_DIRS.dwt),
   dwtArticles: join(docsRoot, DOC_DIRS.dwt, "_articles"),
   ddv: join(docsRoot, DOC_DIRS.ddv)

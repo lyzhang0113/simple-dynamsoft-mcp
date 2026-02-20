@@ -2,9 +2,72 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { DDV_PREFERRED_ENTRY_FILES } from "./config.js";
 
+function mapDocTitlesWithOptionalPlatform(articles, includePlatform = false) {
+  return articles.map((article) => ({
+    title: article.title,
+    category: article.breadcrumb || "",
+    ...(includePlatform && article.platform ? { platform: article.platform } : {})
+  }));
+}
+
+function addMarkdownDocResources({
+  addResourceToIndex,
+  docs,
+  idPrefix,
+  uriPrefix,
+  product,
+  edition,
+  version,
+  majorVersion,
+  defaultPlatform = "web",
+  defaultSummary,
+  baseTags
+}) {
+  for (let i = 0; i < docs.length; i++) {
+    const article = docs[i];
+    if (!article?.title) continue;
+    const slug = `${encodeURIComponent(article.title)}-${i}`;
+    const platform = article.platform || defaultPlatform;
+    const tags = [...baseTags, platform];
+    if (article.breadcrumb) tags.push(...article.breadcrumb.toLowerCase().split(/\s*>\s*/));
+
+    addResourceToIndex({
+      id: `${idPrefix}-${i}`,
+      uri: `${uriPrefix}/${platform}/${version}/${slug}`,
+      type: "doc",
+      product,
+      edition,
+      platform,
+      version,
+      majorVersion,
+      title: article.title,
+      summary: article.breadcrumb || defaultSummary,
+      embedText: article.content,
+      mimeType: "text/markdown",
+      tags,
+      loadContent: async () => ({
+        text: [
+          `# ${article.title}`,
+          "",
+          article.breadcrumb ? `**Category:** ${article.breadcrumb}` : "",
+          article.url ? `**URL:** ${article.url}` : "",
+          "",
+          "---",
+          "",
+          article.content
+        ].filter(Boolean).join("\n"),
+        mimeType: "text/markdown"
+      })
+    });
+  }
+}
+
 function buildIndexData({
   LATEST_VERSIONS,
   LATEST_MAJOR,
+  dbrWebDocs,
+  dbrMobileDocs,
+  dbrServerDocs,
   dwtDocs,
   ddvDocs,
   discoverWebSamples,
@@ -40,19 +103,25 @@ function buildIndexData({
             platforms: dbrMobilePlatforms,
             samples: Object.fromEntries(
               dbrMobilePlatforms.map((platform) => [platform, discoverMobileSamples(platform)])
-            )
+            ),
+            docCount: dbrMobileDocs.length,
+            docTitles: mapDocTitlesWithOptionalPlatform(dbrMobileDocs, true)
           },
           web: {
             version: dbrWebVersion,
             platforms: ["js", ...dbrWebFrameworks],
-            samples: dbrWebSamples
+            samples: dbrWebSamples,
+            docCount: dbrWebDocs.length,
+            docTitles: mapDocTitlesWithOptionalPlatform(dbrWebDocs)
           },
           server: {
             version: dbrServerVersion,
             platforms: dbrServerPlatforms,
             samples: Object.fromEntries(
               dbrServerPlatforms.map((platform) => [platform, discoverDbrServerSamples(platform)])
-            )
+            ),
+            docCount: dbrServerDocs.length,
+            docTitles: mapDocTitlesWithOptionalPlatform(dbrServerDocs, true)
           }
         }
       },
@@ -96,6 +165,9 @@ function buildResourceIndex({
   buildVersionPolicyText,
   LATEST_VERSIONS,
   LATEST_MAJOR,
+  dbrWebDocs,
+  dbrMobileDocs,
+  dbrServerDocs,
   dwtDocs,
   ddvDocs,
   discoverMobileSamples,
@@ -150,6 +222,48 @@ function buildResourceIndex({
   const dbrServerVersion = LATEST_VERSIONS.dbr.server;
   const dwtVersion = LATEST_VERSIONS.dwt.web;
   const ddvVersion = LATEST_VERSIONS.ddv.web;
+
+  addMarkdownDocResources({
+    addResourceToIndex,
+    docs: dbrWebDocs,
+    idPrefix: "dbr-web-doc",
+    uriPrefix: "doc://dbr/web",
+    product: "dbr",
+    edition: "web",
+    version: dbrWebVersion,
+    majorVersion: LATEST_MAJOR.dbr,
+    defaultPlatform: "web",
+    defaultSummary: "Dynamsoft Barcode Reader Web documentation",
+    baseTags: ["doc", "dbr", "web"]
+  });
+
+  addMarkdownDocResources({
+    addResourceToIndex,
+    docs: dbrMobileDocs,
+    idPrefix: "dbr-mobile-doc",
+    uriPrefix: "doc://dbr/mobile",
+    product: "dbr",
+    edition: "mobile",
+    version: dbrMobileVersion,
+    majorVersion: LATEST_MAJOR.dbr,
+    defaultPlatform: "mobile",
+    defaultSummary: "Dynamsoft Barcode Reader Mobile documentation",
+    baseTags: ["doc", "dbr", "mobile"]
+  });
+
+  addMarkdownDocResources({
+    addResourceToIndex,
+    docs: dbrServerDocs,
+    idPrefix: "dbr-server-doc",
+    uriPrefix: "doc://dbr/server",
+    product: "dbr",
+    edition: "server",
+    version: dbrServerVersion,
+    majorVersion: LATEST_MAJOR.dbr,
+    defaultPlatform: "server",
+    defaultSummary: "Dynamsoft Barcode Reader Server/Desktop documentation",
+    baseTags: ["doc", "dbr", "server"]
+  });
 
   for (const platform of getDbrMobilePlatforms()) {
     const samples = discoverMobileSamples(platform);
@@ -258,40 +372,19 @@ function buildResourceIndex({
     }
   }
 
-  for (let i = 0; i < dwtDocs.articles.length; i++) {
-    const article = dwtDocs.articles[i];
-    const slug = `${encodeURIComponent(article.title)}-${i}`;
-    const tags = ["doc", "dwt"];
-    if (article.breadcrumb) tags.push(...article.breadcrumb.toLowerCase().split(/\s*>\s*/));
-    addResourceToIndex({
-      id: `dwt-doc-${i}`,
-      uri: `doc://dwt/web/web/${dwtVersion}/${slug}`,
-      type: "doc",
-      product: "dwt",
-      edition: "web",
-      platform: "web",
-      version: dwtVersion,
-      majorVersion: LATEST_MAJOR.dwt,
-      title: article.title,
-      summary: article.breadcrumb || "Dynamic Web TWAIN documentation",
-      embedText: article.content,
-      mimeType: "text/markdown",
-      tags,
-      loadContent: async () => ({
-        text: [
-          `# ${article.title}`,
-          "",
-          article.breadcrumb ? `**Category:** ${article.breadcrumb}` : "",
-          article.url ? `**URL:** ${article.url}` : "",
-          "",
-          "---",
-          "",
-          article.content
-        ].filter(Boolean).join("\n"),
-        mimeType: "text/markdown"
-      })
-    });
-  }
+  addMarkdownDocResources({
+    addResourceToIndex,
+    docs: dwtDocs.articles,
+    idPrefix: "dwt-doc",
+    uriPrefix: "doc://dwt/web",
+    product: "dwt",
+    edition: "web",
+    version: dwtVersion,
+    majorVersion: LATEST_MAJOR.dwt,
+    defaultPlatform: "web",
+    defaultSummary: "Dynamic Web TWAIN documentation",
+    baseTags: ["doc", "dwt"]
+  });
 
   for (const sampleName of discoverDdvSamples()) {
     addResourceToIndex({
@@ -336,41 +429,19 @@ function buildResourceIndex({
     });
   }
 
-  for (let i = 0; i < ddvDocs.articles.length; i++) {
-    const article = ddvDocs.articles[i];
-    if (!article.title) continue;
-    const slug = `${encodeURIComponent(article.title)}-${i}`;
-    const tags = ["doc", "ddv"];
-    if (article.breadcrumb) tags.push(...article.breadcrumb.toLowerCase().split(/\s*>\s*/));
-    addResourceToIndex({
-      id: `ddv-doc-${i}`,
-      uri: `doc://ddv/web/web/${ddvVersion}/${slug}`,
-      type: "doc",
-      product: "ddv",
-      edition: "web",
-      platform: "web",
-      version: ddvVersion,
-      majorVersion: LATEST_MAJOR.ddv,
-      title: article.title,
-      summary: article.breadcrumb || "Dynamsoft Document Viewer documentation",
-      embedText: article.content,
-      mimeType: "text/markdown",
-      tags,
-      loadContent: async () => ({
-        text: [
-          `# ${article.title}`,
-          "",
-          article.breadcrumb ? `**Category:** ${article.breadcrumb}` : "",
-          article.url ? `**URL:** ${article.url}` : "",
-          "",
-          "---",
-          "",
-          article.content
-        ].filter(Boolean).join("\n"),
-        mimeType: "text/markdown"
-      })
-    });
-  }
+  addMarkdownDocResources({
+    addResourceToIndex,
+    docs: ddvDocs.articles,
+    idPrefix: "ddv-doc",
+    uriPrefix: "doc://ddv/web",
+    product: "ddv",
+    edition: "web",
+    version: ddvVersion,
+    majorVersion: LATEST_MAJOR.ddv,
+    defaultPlatform: "web",
+    defaultSummary: "Dynamsoft Document Viewer documentation",
+    baseTags: ["doc", "ddv"]
+  });
 }
 
 export {

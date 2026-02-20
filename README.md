@@ -282,6 +282,9 @@ data/
 |   |-- dynamic-web-twain
 |   `-- dynamsoft-document-viewer
 |-- documentation/                       # Git submodules
+|   |-- barcode-reader-docs-js
+|   |-- barcode-reader-docs-mobile
+|   |-- barcode-reader-docs-server
 |   |-- web-twain-docs
 |   `-- document-viewer-docs
 `-- .rag-cache/

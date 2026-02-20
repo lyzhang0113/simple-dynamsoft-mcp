@@ -14,11 +14,29 @@ const SAMPLE_DIRS = {
 };
 
 const DOC_DIRS = {
+  dbrWeb: "barcode-reader-docs-js",
+  dbrMobile: "barcode-reader-docs-mobile",
+  dbrServer: "barcode-reader-docs-server",
   dwt: "web-twain-docs",
   ddv: "document-viewer-docs"
 };
 
 const DOCS_CONFIG = {
+  dbrWeb: {
+    urlBase: "https://www.dynamsoft.com/barcode-reader/docs/web/",
+    excludeDirs: [".git", ".github", ".vscode", ".vs", "_data", "_includes", "_layouts", "assets"],
+    excludeFiles: ["README.md", "search.md", "error.md"]
+  },
+  dbrMobile: {
+    urlBase: "https://www.dynamsoft.com/barcode-reader/docs/mobile/",
+    excludeDirs: [".git", ".github", ".vscode", ".vs", "_data", "_includes", "_layouts", "assets"],
+    excludeFiles: ["README.md", "search.md", "error.md"]
+  },
+  dbrServer: {
+    urlBase: "https://www.dynamsoft.com/barcode-reader/docs/server/",
+    excludeDirs: [".git", ".github", ".vscode", ".vs", "_data", "_includes", "_layouts", "assets"],
+    excludeFiles: ["README.md", "search.md", "error.md"]
+  },
   dwt: {
     urlBase: "https://www.dynamsoft.com/web-twain/docs/",
     includeDirNames: ["_articles"]

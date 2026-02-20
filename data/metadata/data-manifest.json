@@ -2,6 +2,36 @@
   "version": 1,
   "repos": [
     {
+      "name": "data/documentation/barcode-reader-docs-js",
+      "path": "documentation/barcode-reader-docs-js",
+      "url": "https://github.com/dynamsoft-docs/barcode-reader-docs-js.git",
+      "branch": "main",
+      "owner": "dynamsoft-docs",
+      "repo": "barcode-reader-docs-js",
+      "commit": "10c2fc25201f89eb5a6a412bce5fe2fb7e4b3f5f",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/barcode-reader-docs-js/zip/10c2fc25201f89eb5a6a412bce5fe2fb7e4b3f5f"
+    },
+    {
+      "name": "data/documentation/barcode-reader-docs-mobile",
+      "path": "documentation/barcode-reader-docs-mobile",
+      "url": "https://github.com/dynamsoft-docs/barcode-reader-docs-mobile.git",
+      "branch": "main",
+      "owner": "dynamsoft-docs",
+      "repo": "barcode-reader-docs-mobile",
+      "commit": "597f0da48bee7fc5fb955d90ebef536433eeb9f6",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/barcode-reader-docs-mobile/zip/597f0da48bee7fc5fb955d90ebef536433eeb9f6"
+    },
+    {
+      "name": "data/documentation/barcode-reader-docs-server",
+      "path": "documentation/barcode-reader-docs-server",
+      "url": "https://github.com/dynamsoft-docs/barcode-reader-docs-server.git",
+      "branch": "main",
+      "owner": "dynamsoft-docs",
+      "repo": "barcode-reader-docs-server",
+      "commit": "6c5404429140195bd8f18f48fbc3f2d3f2524e74",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/barcode-reader-docs-server/zip/6c5404429140195bd8f18f48fbc3f2d3f2524e74"
+    },
+    {
       "name": "data/documentation/document-viewer-docs",
       "path": "documentation/document-viewer-docs",
       "url": "https://github.com/dynamsoft-docs/document-viewer-docs.git",
