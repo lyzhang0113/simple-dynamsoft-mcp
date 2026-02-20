@@ -159,6 +159,40 @@ If you prefer running from source:
 }
 ```
 
+## Environment Variables in MCP Clients
+
+When using `npx`, you can still configure the server by passing environment variables in your MCP client config.
+
+Example:
+
+```json
+{
+  "mcpServers": {
+    "dynamsoft": {
+      "command": "npx",
+      "args": ["-y", "simple-dynamsoft-mcp"],
+      "env": {
+        "RAG_PROVIDER": "auto",
+        "MCP_DATA_AUTO_DOWNLOAD": "true",
+        "MCP_DATA_REFRESH_ON_START": "false"
+      }
+    }
+  }
+}
+```
+
+Commonly used settings:
+- `RAG_PROVIDER`: `auto` | `gemini` | `local` | `fuse`
+- `RAG_FALLBACK`: `fuse` | `local` | `none`
+- `MCP_DATA_DIR`: use a preloaded local data folder (`metadata/`, `samples/`, `documentation/`)
+- `MCP_DATA_AUTO_DOWNLOAD`: allow startup archive download when bundled data is unavailable
+- `MCP_DATA_REFRESH_ON_START`: force re-download of pinned archives on startup
+- `MCP_DATA_CACHE_DIR`: customize downloaded data cache location
+
+If you want no embedding/model/network dependency for search, set `RAG_PROVIDER=fuse`.
+
+For the complete list and defaults, see `.env.example` and the sections `Submodule Setup` and `RAG Configuration` below.
+
 ## Supported SDKs
 
 ### Dynamsoft Barcode Reader Mobile (v11.2.5000)
