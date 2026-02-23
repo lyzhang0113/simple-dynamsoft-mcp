@@ -9,6 +9,10 @@ const projectRoot = join(__dirname, "..");
 const gitmodulesPath = join(projectRoot, ".gitmodules");
 const outputPath = join(projectRoot, "data", "metadata", "data-manifest.json");
 
+function logDataLock(message) {
+  console.log(`[data-lock] ${message}`);
+}
+
 function parseGitmodules(path) {
   if (!existsSync(path)) return [];
   const lines = readFileSync(path, "utf8").split(/\r?\n/);
@@ -77,6 +81,7 @@ if (submodules.length === 0) {
   console.error("No submodules found in .gitmodules.");
   process.exit(1);
 }
+logDataLock(`loaded submodules count=${submodules.length}`);
 
 const repos = [];
 
@@ -93,6 +98,7 @@ for (const entry of submodules) {
     if (head.stderr) console.error(head.stderr);
     process.exit(1);
   }
+  logDataLock(`resolved path=${entry.path} branch=${entry.branch || "main"} head=${head.stdout}`);
 
   const relativePath = toDataRelativePath(entry.path);
   repos.push({
@@ -115,4 +121,4 @@ const manifest = {
 };
 
 writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`);
-console.log(`Updated ${outputPath} with ${repos.length} entries.`);
+logDataLock(`updated file=${outputPath} entries=${repos.length}`);
