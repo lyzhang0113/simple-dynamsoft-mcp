@@ -16,6 +16,10 @@ import { bundledDataRoot } from "./data-root.js";
 const manifestPath = join(bundledDataRoot, "metadata", "data-manifest.json");
 const sdkRegistryPath = join(bundledDataRoot, "metadata", "dynamsoft_sdks.json");
 
+function logData(message) {
+  console.error(`[data] ${message}`);
+}
+
 function readBoolEnv(key, fallback = false) {
   const value = process.env[key];
   if (value === undefined || value === "") return fallback;
@@ -79,6 +83,7 @@ function parseGithubSlug(repo) {
 }
 
 async function downloadFile(url, outputPath, timeoutMs) {
+  const startedAt = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -88,6 +93,8 @@ async function downloadFile(url, outputPath, timeoutMs) {
     }
     const arrayBuffer = await response.arrayBuffer();
     writeFileSync(outputPath, Buffer.from(arrayBuffer));
+    const elapsedMs = Date.now() - startedAt;
+    logData(`downloaded file=${basename(outputPath)} size=${arrayBuffer.byteLength}B elapsed_ms=${elapsedMs}`);
   } finally {
     clearTimeout(timer);
   }
@@ -103,6 +110,7 @@ function copyBundledMetadata(targetRoot) {
 async function populateFromManifest(targetRoot, manifest, timeoutMs) {
   const tempZipRoot = join(tmpdir(), `simple-dynamsoft-mcp-zips-${Date.now()}`);
   mkdirSync(tempZipRoot, { recursive: true });
+  logData(`populate start repos=${manifest.repos.length} timeout_ms=${timeoutMs} staging=${targetRoot}`);
 
   try {
     for (const repo of manifest.repos) {
@@ -117,6 +125,7 @@ async function populateFromManifest(targetRoot, manifest, timeoutMs) {
       const targetPath = join(targetRoot, repo.path);
       const targetParent = dirname(targetPath);
 
+      logData(`repo start path=${repo.path} commit=${String(repo.commit || "").slice(0, 12)} host=codeload.github.com`);
       mkdirSync(targetParent, { recursive: true });
       await downloadFile(archiveUrl, zipPath, timeoutMs);
       await extractZip(zipPath, { dir: extractRoot });
@@ -136,7 +145,9 @@ async function populateFromManifest(targetRoot, manifest, timeoutMs) {
 
       if (existsSync(targetPath)) rmSync(targetPath, { recursive: true, force: true });
       renameSync(extractedFolder, targetPath);
+      logData(`repo ready path=${repo.path}`);
     }
+    logData(`populate done repos=${manifest.repos.length}`);
   } finally {
     rmSync(tempZipRoot, { recursive: true, force: true });
   }
@@ -163,46 +174,63 @@ async function ensureDownloadedData(cacheRoot) {
   const signature = getManifestSignature(manifest);
   const signaturePath = join(cacheRoot, ".manifest-signature");
   const refresh = readBoolEnv("MCP_DATA_REFRESH_ON_START", false);
+  logData(
+    `download plan repos=${manifest.repos.length} cache_root=${cacheRoot} refresh=${refresh} signature=${signature.slice(0, 12)}`
+  );
 
   if (!refresh && existsSync(signaturePath)) {
     const existingSignature = readFileSync(signaturePath, "utf8").trim();
     if (existingSignature === signature && isDataRootReady(cacheRoot)) {
+      logData(`cache hit signature=${signature.slice(0, 12)} root=${cacheRoot}`);
       return { downloaded: false };
     }
+    logData(`cache refresh required reason=signature_or_readiness_mismatch root=${cacheRoot}`);
+  } else if (refresh) {
+    logData(`cache refresh forced by MCP_DATA_REFRESH_ON_START root=${cacheRoot}`);
+  } else {
+    logData(`cache miss signature_file=${signaturePath}`);
   }
 
   const timeoutMs = readIntEnv("MCP_DATA_DOWNLOAD_TIMEOUT_MS", 180000);
   const stagingRoot = join(dirname(cacheRoot), `.tmp-data-${Date.now()}`);
   rmSync(stagingRoot, { recursive: true, force: true });
   mkdirSync(stagingRoot, { recursive: true });
+  logData(`download start staging_root=${stagingRoot} timeout_ms=${timeoutMs}`);
 
   try {
     copyBundledMetadata(stagingRoot);
     await populateFromManifest(stagingRoot, manifest, timeoutMs);
     finalizeCacheRoot(cacheRoot, stagingRoot, signature);
+    logData(`download complete root=${cacheRoot} repos=${manifest.repos.length}`);
     return { downloaded: true };
   } catch (error) {
     rmSync(stagingRoot, { recursive: true, force: true });
+    logData(`download failed root=${cacheRoot} error=${error.message}`);
     throw error;
   }
 }
 
 async function ensureDataReady() {
   const explicitRoot = process.env.MCP_DATA_DIR ? resolve(process.env.MCP_DATA_DIR) : "";
+  logData(`resolve start explicit_root=${explicitRoot || "(none)"} bundled_root=${bundledDataRoot}`);
   if (explicitRoot) {
     if (!isDataRootReady(explicitRoot)) {
+      logData(`custom data root invalid root=${explicitRoot}`);
       throw new Error(`MCP_DATA_DIR is set but data is incomplete: ${explicitRoot}`);
     }
     process.env.MCP_RESOLVED_DATA_DIR = explicitRoot;
+    logData(`resolve done mode=custom root=${explicitRoot}`);
     return { dataRoot: explicitRoot, mode: "custom", downloaded: false };
   }
 
   if (isDataRootReady(bundledDataRoot)) {
     process.env.MCP_RESOLVED_DATA_DIR = bundledDataRoot;
+    logData(`resolve done mode=bundled root=${bundledDataRoot}`);
     return { dataRoot: bundledDataRoot, mode: "bundled", downloaded: false };
   }
 
   const autoDownload = readBoolEnv("MCP_DATA_AUTO_DOWNLOAD", true);
+  logData(`bundled data not ready auto_download=${autoDownload}`);
   if (!autoDownload) {
     throw new Error(
       "Bundled data is not available and MCP_DATA_AUTO_DOWNLOAD is disabled. " +
@@ -214,6 +242,7 @@ async function ensureDataReady() {
   const cacheRoot = resolve(process.env.MCP_DATA_CACHE_DIR || defaultCacheRoot);
   const result = await ensureDownloadedData(cacheRoot);
   process.env.MCP_RESOLVED_DATA_DIR = cacheRoot;
+  logData(`resolve done mode=downloaded root=${cacheRoot} source=${result?.downloaded ? "fresh-download" : "cache"}`);
   return {
     dataRoot: cacheRoot,
     mode: "downloaded",

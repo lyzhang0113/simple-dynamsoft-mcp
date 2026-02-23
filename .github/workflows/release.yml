@@ -69,12 +69,25 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
+          echo "[release] force=$force"
+          echo "[release] previous_version=${previous_version:-"(unknown)"}"
+          echo "[release] current_version=${version}"
+          echo "[release] release_needed=${release_needed} reason=${reason} tag=${tag}"
+
       - name: Summary
         run: |
           echo "release_needed=${{ steps.detect.outputs.release_needed }}"
           echo "reason=${{ steps.detect.outputs.reason }}"
           echo "version=${{ steps.detect.outputs.version }}"
           echo "tag=${{ steps.detect.outputs.tag }}"
+          {
+            echo "## Release Detect Summary"
+            echo ""
+            echo "- release_needed: \`${{ steps.detect.outputs.release_needed }}\`"
+            echo "- reason: \`${{ steps.detect.outputs.reason }}\`"
+            echo "- version: \`${{ steps.detect.outputs.version }}\`"
+            echo "- tag: \`${{ steps.detect.outputs.tag }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   verify_release:
     needs: detect
@@ -125,6 +138,8 @@ jobs:
           mkdir -p release-assets/npm
           npm pack --pack-destination release-assets/npm
           ls -lah release-assets/npm
+          echo "[release] npm pack artifacts:"
+          find release-assets/npm -maxdepth 1 -type f -name "*.tgz" -print
 
       - name: Upload npm package artifact
         uses: actions/upload-artifact@v4
@@ -170,6 +185,17 @@ jobs:
       - name: Prebuild local RAG index
         run: npm run rag:prebuild
 
+      - name: Show prebuilt RAG output
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[release] prebuilt rag cache dir: $RAG_CACHE_DIR"
+          if [[ -d "$RAG_CACHE_DIR" ]]; then
+            find "$RAG_CACHE_DIR" -maxdepth 2 -type f -print
+          else
+            echo "[release] cache dir missing"
+          fi
+
       - name: Upload prebuilt RAG artifact
         uses: actions/upload-artifact@v4
         with:
@@ -203,6 +229,7 @@ jobs:
           tar -czf "release-assets/prebuilt-rag-index-${version}.tar.gz" -C release-assets prebuilt-rag
           ls -lah release-assets
           ls -lah release-assets/npm
+          echo "[release] prebuilt archive ready release-assets/prebuilt-rag-index-${version}.tar.gz"
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
@@ -213,6 +240,18 @@ jobs:
           files: |
             release-assets/npm/*.tgz
             release-assets/prebuilt-rag-index-${{ needs.detect.outputs.version }}.tar.gz
+
+      - name: Release summary
+        shell: bash
+        run: |
+          {
+            echo "## Release Summary"
+            echo ""
+            echo "- tag: \`${{ needs.detect.outputs.tag }}\`"
+            echo "- version: \`${{ needs.detect.outputs.version }}\`"
+            echo "- npm_artifacts: \`release-assets/npm/*.tgz\`"
+            echo "- prebuilt_rag: \`release-assets/prebuilt-rag-index-${{ needs.detect.outputs.version }}.tar.gz\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: npm publish intentionally skipped
         run: echo "npm publish is intentionally skipped for now (registry not ready)."

@@ -193,6 +193,53 @@ If you want no embedding/model/network dependency for search, set `RAG_PROVIDER=
 
 For the complete list and defaults, see `.env.example` and the sections `Submodule Setup` and `RAG Configuration` below.
 
+## Use Release Assets In A Local Project
+
+Use this when you want to run from a built `.tgz` package and reuse a prebuilt local RAG index.
+
+1. Download release assets from GitHub Releases for the same version:
+- `simple-dynamsoft-mcp-<version>.tgz`
+- `prebuilt-rag-index-<version>.tar.gz`
+2. In your project folder, create a local tools folder, for example:
+- `<project>/.tools/simple-dynamsoft-mcp/`
+3. Copy assets into that folder and extract the prebuilt index:
+- Keep `simple-dynamsoft-mcp-<version>.tgz` as-is for `npx --package`.
+- Extract `prebuilt-rag-index-<version>.tar.gz`.
+- Expected cache output path: `<project>/.tools/simple-dynamsoft-mcp/prebuilt-rag/cache/*.json`.
+4. Configure project-local `.vscode/mcp.json` to use the local package and cache path.
+
+Example (`.vscode/mcp.json`):
+
+```json
+{
+  "servers": {
+    "dynamsoft": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "--package",
+        ".tools/simple-dynamsoft-mcp/simple-dynamsoft-mcp-6.1.0.tgz",
+        "simple-dynamsoft-mcp"
+      ],
+      "env": {
+        "RAG_PROVIDER": "auto",
+        "RAG_FALLBACK": "local",
+        "RAG_REBUILD": "false",
+        "RAG_LOCAL_MODEL": "Xenova/all-MiniLM-L6-v2",
+        "RAG_LOCAL_QUANTIZED": "true",
+        "RAG_CACHE_DIR": ".tools/simple-dynamsoft-mcp/prebuilt-rag/cache"
+      }
+    }
+  }
+}
+```
+
+Notes:
+- Use absolute paths if your MCP client does not resolve relative paths from workspace root.
+- `RAG_REBUILD` must stay `false` to reuse prebuilt cache files.
+- Current runtime does not auto-download prebuilt index from release yet; you must place/extract it locally.
+- Prebuilt cache is used whenever provider execution resolves to local embeddings (primary or fallback).
+
 ## Supported SDKs
 
 ### Dynamsoft Barcode Reader Mobile (v11.2.5000)
@@ -346,7 +393,14 @@ src/
 scripts/
 |-- sync-submodules.mjs                 # CLI wrapper for data:sync
 |-- update-data-lock.mjs                # Generate data-manifest from submodule HEADs
-`-- verify-data-lock.mjs                # Verify manifest matches submodule HEADs
+|-- verify-data-lock.mjs                # Verify manifest matches submodule HEADs
+`-- prebuild-rag-index.mjs              # Build local RAG index cache artifacts
+test/
+`-- integration/
+    |-- helpers.js                      # Shared MCP client/process helpers
+    |-- stdio.test.js                   # stdio integration tests
+    |-- http-gateway.test.js            # supergateway streamable HTTP integration tests
+    `-- package-runtime.test.js         # npm pack + package runtime integration test
 ```
 
 `src/` contains runtime server code. `scripts/` contains operational helpers used by npm scripts.
@@ -388,6 +442,9 @@ At startup, the server logs data mode/path to stderr:
 ## Automation
 
 - CI workflow: `.github/workflows/ci.yml`
+- CI jobs:
+- `test_fuse` on `ubuntu-latest` runs `npm run test:fuse` (stdio + HTTP gateway + package-runtime with fuse provider)
+- `test_local_provider` on `self-hosted` restores RAG caches, runs `npm run rag:prebuild`, then `npm run test:local`
 - Daily data-lock refresh workflow: `.github/workflows/update-data-lock.yml`
 - Refresh schedule: daily at 08:00 UTC (`0 8 * * *`) and manual trigger supported.
 - Release workflow: `.github/workflows/release.yml`
@@ -395,6 +452,18 @@ At startup, the server logs data mode/path to stderr:
 - Creates GitHub release when `package.json` version changes on `main`
 - Attaches `npm pack` artifact and prebuilt local RAG index artifact
 - npm publish is intentionally skipped for now
+
+## Testing
+
+- `npm test`: default test entry (currently `npm run test:fuse`)
+- `npm run test:fuse`: integration coverage for fuse provider
+- `npm run test:local`: integration coverage for local provider (designed for self-hosted runner)
+- `npm run test:stdio`: stdio transport integration tests
+- `npm run test:http`: streamable HTTP (supergateway) integration tests
+- `npm run test:package`: `npm pack` + `npm exec --package` runtime test
+- Optional env toggles:
+- `RUN_FUSE_PROVIDER_TESTS=true|false`
+- `RUN_LOCAL_PROVIDER_TESTS=true|false`
 
 ## Using Search-Based Discovery (Recommended)
 

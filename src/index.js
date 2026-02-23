@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, relative, dirname, extname } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

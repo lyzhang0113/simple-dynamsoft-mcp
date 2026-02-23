@@ -2,3 +2,4 @@ node_modules
 simple-dynamsoft-mcp.sln
 .env
 data/.rag-cache/
+.cache/

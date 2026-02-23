@@ -9,6 +9,10 @@ const projectRoot = join(__dirname, "..");
 const manifestPath = join(projectRoot, "data", "metadata", "data-manifest.json");
 const gitmodulesPath = join(projectRoot, ".gitmodules");
 
+function logDataVerify(message) {
+  console.log(`[data-verify] ${message}`);
+}
+
 function runGit(args) {
   const result = spawnSync("git", args, {
     cwd: projectRoot,
@@ -77,8 +81,10 @@ if (!manifest || !Array.isArray(manifest.repos)) {
   console.error(`Invalid manifest format: ${manifestPath}`);
   process.exit(1);
 }
+logDataVerify(`loaded manifest repos=${manifest.repos.length}`);
 
 const submodulesByPath = parseGitmodules(gitmodulesPath);
+logDataVerify(`loaded gitmodules entries=${submodulesByPath.size}`);
 const errors = [];
 
 for (const repo of manifest.repos) {
@@ -113,4 +119,4 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log("data-manifest verification passed.");
+logDataVerify(`verification passed repos=${manifest.repos.length}`);
