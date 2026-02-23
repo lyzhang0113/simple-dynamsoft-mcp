@@ -2,86 +2,77 @@
 
 ## Purpose
 
-This file tracks deferred release automation work.
+This file tracks open release/data automation work.
+
 Current state:
-- `update-data-lock.yml` updates submodules and `data/metadata/data-manifest.json` on a schedule and opens PRs.
-- Release version bump and npm publish are still manual.
+- `update-data-lock.yml` fast-forwards submodules, updates `data/metadata/data-manifest.json`, runs tests, and opens a PR.
+- Version bumping and npm publishing are still manual.
+- DBR server/desktop refactor and DBR docs integration are complete.
+- Release orchestration decision: custom workflows only.
+- Patch bump scope decision: automated data-refresh PRs only.
+- Human-driven minor version bumps (e.g., `5.0.2 -> 5.1.0`) should publish a release.
+- Human-driven major version bumps (e.g., `5.x.y -> 6.0.0`) should publish a release.
+- Prebuilt index default decision: `RAG_PREBUILT_INDEX_AUTO_DOWNLOAD=true`.
+- Prebuilt index profile decision: single model profile for now (`Xenova/all-MiniLM-L6-v2`).
 
-## Release Automation Roadmap
+## Workstream 1: Data Refresh PR Automation
 
-### 1. Choose release orchestration tool
+Goal: turn data-refresh PRs into automatic patch release candidates.
 
-- [ ] Decide between `changesets` and `release-please`.
-- [ ] Document decision criteria in this file after selection.
-- [ ] Keep setup minimal and avoid introducing multiple overlapping release tools.
+- [ ] Change `update-data-lock.yml` schedule from weekly to daily.
+- [ ] In the workflow, detect whether data changed (`.gitmodules`, submodule SHAs, `data/metadata/data-manifest.json`).
+- [ ] When data changed, auto-bump patch version in `package.json` and `package-lock.json`.
+- [ ] Ensure patch bumps are monotonic from `main` (e.g., `5.0.0 -> 5.0.1 -> 5.0.2`).
+- [ ] Skip version bump if no data change is detected.
+- [ ] Add clear PR title/label convention for auto data-release PRs.
+- [ ] Keep `npm run data:verify-lock` and `npm test` as required checks in the PR workflow.
 
-Preferred direction with current repo structure:
-- `changesets` is usually easier when commits include mixed code + data updates and you want explicit semver control.
+## Workstream 2: Release Pipeline (GitHub Release + npm Publish)
 
-### 2. Define version bump policy
+Goal: publish releases automatically when version changes land on `main`.
 
-- [ ] Formalize semver rules for this project.
-- [ ] Mark data-only refreshes (`submodule pointers` + `data-manifest`) as patch releases.
-- [ ] Mark feature/tool behavior changes as minor releases.
-- [ ] Mark breaking MCP behavior changes as major releases.
+- [ ] Add a release workflow triggered by version changes (or semver tags) on `main`.
+- [ ] Ensure release workflow runs for:
+- [ ] automated patch bumps from data-refresh PRs
+- [ ] manual minor bumps committed by maintainers
+- [ ] manual major bumps committed by maintainers
+- [ ] Require CI-green status before release steps.
+- [ ] Build package artifact with `npm pack` and attach `.tgz` to the GitHub Release.
+- [ ] Publish package to npm from the release workflow.
+- [ ] Generate release notes including data/source changes.
+- [ ] Add workflow concurrency guard to prevent parallel releases.
 
-### 3. Implement release workflow
+## Workstream 3: Prebuilt Local RAG Index Distribution
 
-- [ ] Add workflow triggered on merge to `main` (or manual dispatch) that creates/releases version.
-- [ ] Ensure workflow runs after CI and only on clean green checks.
-- [ ] Ensure workflow updates `package.json` and lockfile consistently.
-- [ ] Ensure workflow creates git tag and GitHub release notes.
-- [ ] Ensure workflow publishes to npm with provenance if supported.
+Goal: avoid long local index build time for `RAG_PROVIDER=local`.
 
-### 4. Guardrails and safety
+- [ ] Add a GPU runner job to prebuild local embedding index for release.
+- [ ] Attach prebuilt index artifact(s) to GitHub Release.
+- [ ] Define artifact naming convention including compatibility keys:
+- [ ] package version
+- [ ] RAG model id
+- [ ] index signature/cache key
+- [ ] Add runtime logic: when `RAG_PROVIDER=local`, try downloading matching prebuilt index before local build.
+- [ ] Validate downloaded index signature before use.
+- [ ] Fallback to existing local-build flow when prebuilt index is missing/incompatible/download fails.
+- [ ] Add env controls:
+- [ ] `RAG_PREBUILT_INDEX_AUTO_DOWNLOAD` (default `true`)
+- [ ] `RAG_PREBUILT_INDEX_URL`
+- [ ] `RAG_PREBUILT_INDEX_TIMEOUT_MS`
+- [ ] Document this behavior in `README.md`, `AGENTS.md`, and `.env.example`.
 
-- [ ] Require `npm test` pass before versioning/publish.
-- [ ] Require `npm run data:verify-lock` pass before versioning/publish.
-- [ ] Block publish when working tree is dirty in workflow steps.
-- [ ] Add concurrency control for release workflow to prevent parallel publishes.
-- [ ] Add branch protection checks so release workflow is not bypassed.
+## Post-Release Validation
 
-### 5. Changelog strategy
-
-- [ ] Define changelog sections: `Data Updates`, `Features`, `Fixes`, `Breaking`.
-- [ ] Ensure data-lock PR merges are summarized in release notes.
-- [ ] Ensure user-facing notes mention any changed sample/doc sources.
-
-### 6. Post-release validation
-
-- [ ] Add smoke test that runs package in npm-like mode (`npm pack` + run from tarball context).
-- [ ] Validate runtime bootstrap path for `npx` users after publish.
-- [ ] Validate first-run cache download path on Windows and Linux/macOS.
+- [ ] Add smoke test for npm-like install/run (`npm pack` then execute from tarball context).
+- [ ] Validate `npx` first-run bootstrap path on Windows and Linux/macOS.
+- [ ] Validate prebuilt-index download path and fallback behavior.
 
 ## Key Points For Future Agents
 
-- Do not treat `data/metadata/data-manifest.json` as manual source-of-truth.
-- Always regenerate manifest from real submodule heads via `npm run data:lock`.
-- Always verify consistency via `npm run data:verify-lock`.
-- Keep `npx` support in mind: release artifacts should include metadata and runtime bootstrap logic, not full submodule payloads.
-- Preserve dual-mode behavior for data access in all release changes.
-- Dev mode should use local `data/` submodules when present.
-- npm/npx mode should auto-download pinned archives into cache.
-- Avoid modifying submodule content directly under `data/samples/*` or `data/documentation/*` unless explicitly intended.
-- Prefer small, reviewable release-automation PRs over one large migration.
-
-## Handoff Checklist (When Starting Release Automation Work)
-
-- [ ] Read `AGENTS.md` and `README.md` release/data sections first.
-- [ ] Run `npm run data:bootstrap`.
-- [ ] Run `npm run data:sync`.
-- [ ] Run `npm run data:lock`.
-- [ ] Run `npm run data:verify-lock`.
-- [ ] Run `npm test`.
-- [ ] Confirm `npm pack --dry-run` does not include full submodule data.
-
-## Completed Work
-
-- [x] DBR Server/Desktop metadata refactor is complete.
-- [x] Canonical key is now `sdks["dbr-server"]` in `data/metadata/dynamsoft_sdks.json`.
-- [x] Platform metadata includes Python, .NET, Java, C++, and Node.js.
-- [x] Runtime/index consumers were migrated to server/desktop naming.
-- [x] Samples and docs coverage for DBR web/mobile/server has been integrated into resource indexing.
-
-Follow-up note:
-- Temporary alias handling for `dbr-python` has been removed.
+- Do not manually edit `data/metadata/data-manifest.json`; regenerate via `npm run data:lock`.
+- Always run `npm run data:verify-lock` and `npm test` for release/data changes.
+- Keep npm package payload minimal (`data/metadata` + runtime code), not full submodule contents.
+- Preserve dual-mode data behavior:
+- dev/local clone uses submodules
+- npm/npx mode downloads pinned archives into cache
+- Avoid direct edits inside submodule trees under `data/samples/*` and `data/documentation/*` unless explicitly requested.
