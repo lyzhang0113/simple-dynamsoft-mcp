@@ -33,6 +33,11 @@ Supported products:
 - `scripts/update-data-lock.mjs`: updates `data/metadata/data-manifest.json` from current submodule commits.
 - `scripts/verify-data-lock.mjs`: verifies lock manifest matches current submodule heads.
 - `scripts/prebuild-rag-index.mjs`: builds and writes local RAG cache artifacts for release distribution.
+- `test/integration/helpers.js`: shared integration test helpers for stdio, streamable HTTP gateway, and package runtime.
+- `test/integration/stdio.test.js`: stdio integration tests using MCP SDK client transport.
+- `test/integration/http-gateway.test.js`: HTTP integration tests through `supergateway`.
+- `test/integration/package-runtime.test.js`: packaged runtime test via `npm pack` + `npm exec --package`.
+- `.github/workflows/ci.yml`: CI test matrix (`test_fuse` on ubuntu + `test_local_provider` on self-hosted).
 - `.github/workflows/release.yml`: release pipeline for GitHub releases and attached artifacts.
 - `data/metadata/dynamsoft_sdks.json`: product metadata and latest version info.
 - `data/metadata/data-manifest.json`: pinned commit lockfile used for runtime data bootstrap.
@@ -52,13 +57,25 @@ Avoid modifying `data/` submodule content unless explicitly requested.
 ## Tests and Commands
 - Run server: `npm start`
 - Run tests: `npm test`
+- Run fuse integration suite: `npm run test:fuse`
+- Run local-provider integration suite: `npm run test:local`
+- Run stdio integration only: `npm run test:stdio`
+- Run streamable HTTP gateway integration only: `npm run test:http`
+- Run packaged runtime integration only: `npm run test:package`
 - Init submodules: `npm run data:bootstrap`
 - Sync submodules: `npm run data:sync`
 - Submodule status: `npm run data:status`
 - Update data lock manifest: `npm run data:lock`
 - Verify data lock manifest: `npm run data:verify-lock`
+- Build prebuilt local RAG index cache: `npm run rag:prebuild`
 - Optional startup sync env: `DATA_SYNC_ON_START=true`, `DATA_SYNC_TIMEOUT_MS=30000`
 - Optional runtime data env: `MCP_DATA_DIR`, `MCP_DATA_AUTO_DOWNLOAD`, `MCP_DATA_CACHE_DIR`, `MCP_DATA_REFRESH_ON_START`
+- Optional test toggles: `RUN_FUSE_PROVIDER_TESTS=true|false`, `RUN_LOCAL_PROVIDER_TESTS=true|false`
+
+CI notes:
+- `test_fuse` runs on `ubuntu-latest` for every PR/push.
+- `test_local_provider` runs on `self-hosted` for every PR/push.
+- `rag:prebuild` is run only on the self-hosted local-provider CI job.
 
 ## Roadmap Notes
 - Read `TODO.md` before making release automation changes.
@@ -82,6 +99,7 @@ Avoid modifying `data/` submodule content unless explicitly requested.
 - If users report "no download happened", first check startup stderr for the `[data] mode=...` log line.
 - Be careful with package contents: ensure npm package does not include full submodule payloads.
 - Avoid modifying submodule contents under `data/samples/*` and `data/documentation/*` unless explicitly requested.
+- Local-provider tests create `.cache/` under repo root unless overridden by env; do not commit that directory.
 
 ## Contribution Notes
 - Prefer adding new content as resources (search + read) instead of new tools.

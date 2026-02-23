@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  test:
+  test_fuse:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,5 +27,53 @@ jobs:
       - name: Bootstrap data
         run: npm run data:bootstrap
 
-      - name: Test
-        run: npm run test
+      - name: Test (fuse + package runtime)
+        run: npm run test:fuse
+
+  test_local_provider:
+    runs-on: self-hosted
+    env:
+      RAG_PROVIDER: local
+      RAG_FALLBACK: none
+      RAG_REBUILD: "false"
+      RAG_PREWARM: "true"
+      RAG_PREWARM_BLOCK: "true"
+      RAG_LOCAL_MODEL: Xenova/all-MiniLM-L6-v2
+      RAG_LOCAL_QUANTIZED: "true"
+      RAG_CACHE_DIR: ${{ github.workspace }}/.cache/rag-index
+      RAG_MODEL_CACHE_DIR: ${{ github.workspace }}/.cache/rag-models
+      RUN_FUSE_PROVIDER_TESTS: "false"
+      RUN_LOCAL_PROVIDER_TESTS: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Restore local RAG caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/rag-index
+            .cache/rag-models
+          key: rag-local-${{ runner.os }}-xenova-all-minilm-l6-v2-${{ hashFiles('package-lock.json', 'data/metadata/data-manifest.json') }}
+          restore-keys: |
+            rag-local-${{ runner.os }}-xenova-all-minilm-l6-v2-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bootstrap data
+        run: npm run data:bootstrap
+
+      - name: Prebuild local RAG index (self-hosted only)
+        run: npm run rag:prebuild
+
+      - name: Test (local provider)
+        run: npm run test:local
