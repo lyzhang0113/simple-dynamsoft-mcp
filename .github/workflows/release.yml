@@ -1,0 +1,218 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force release even if package version did not change on the latest push"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      release_needed: ${{ steps.detect.outputs.release_needed }}
+      reason: ${{ steps.detect.outputs.reason }}
+      version: ${{ steps.detect.outputs.version }}
+      tag: ${{ steps.detect.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect release trigger
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          tag="v${version}"
+          release_needed="false"
+          reason="version_unchanged"
+          force="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true' }}"
+
+          if [[ "$force" == "true" ]]; then
+            release_needed="true"
+            reason="manual_force"
+          else
+            before_sha="${{ github.event.before }}"
+            previous_version=""
+            if [[ -n "$before_sha" ]] && git cat-file -e "${before_sha}:package.json" 2>/dev/null; then
+              previous_version="$(git show "${before_sha}:package.json" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(s).version||'')}catch{process.stdout.write('')}})")"
+            fi
+
+            if [[ -z "$previous_version" || "$previous_version" != "$version" ]]; then
+              release_needed="true"
+              reason="version_changed"
+            fi
+          fi
+
+          if git rev-parse "$tag" >/dev/null 2>&1 && [[ "$force" != "true" ]]; then
+            release_needed="false"
+            reason="tag_exists"
+          fi
+
+          echo "release_needed=${release_needed}" >> "$GITHUB_OUTPUT"
+          echo "reason=${reason}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        run: |
+          echo "release_needed=${{ steps.detect.outputs.release_needed }}"
+          echo "reason=${{ steps.detect.outputs.reason }}"
+          echo "version=${{ steps.detect.outputs.version }}"
+          echo "tag=${{ steps.detect.outputs.tag }}"
+
+  verify_release:
+    needs: detect
+    if: needs.detect.outputs.release_needed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify lock manifest
+        run: npm run data:verify-lock
+
+      - name: Run tests
+        run: npm test
+
+  build_package:
+    needs: [detect, verify_release]
+    if: needs.detect.outputs.release_needed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build npm package tarball
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets/npm
+          npm pack --pack-destination release-assets/npm
+          ls -lah release-assets/npm
+
+      - name: Upload npm package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-pack
+          path: release-assets/npm/*.tgz
+          if-no-files-found: error
+          retention-days: 14
+
+  build_prebuilt_rag:
+    needs: [detect, verify_release]
+    if: needs.detect.outputs.release_needed == 'true'
+    runs-on: self-hosted
+    timeout-minutes: 180
+    env:
+      RAG_PROVIDER: local
+      RAG_FALLBACK: none
+      RAG_PREWARM: "true"
+      RAG_PREWARM_BLOCK: "true"
+      RAG_REBUILD: "true"
+      RAG_LOCAL_MODEL: Xenova/all-MiniLM-L6-v2
+      RAG_LOCAL_QUANTIZED: "true"
+      RAG_CACHE_DIR: ${{ github.workspace }}/release-assets/prebuilt-rag/cache
+      RAG_MODEL_CACHE_DIR: ${{ github.workspace }}/release-assets/prebuilt-rag/model-cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bootstrap data
+        run: npm run data:bootstrap
+
+      - name: Prebuild local RAG index
+        run: npm run rag:prebuild
+
+      - name: Upload prebuilt RAG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prebuilt-rag-index
+          path: ${{ env.RAG_CACHE_DIR }}/**
+          if-no-files-found: error
+          retention-days: 14
+
+  create_release:
+    needs: [detect, build_package, build_prebuilt_rag]
+    if: needs.detect.outputs.release_needed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download npm package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-pack
+          path: release-assets/npm
+
+      - name: Download prebuilt RAG artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: prebuilt-rag-index
+          path: release-assets/prebuilt-rag
+
+      - name: Create release asset archive for prebuilt RAG index
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.detect.outputs.version }}"
+          tar -czf "release-assets/prebuilt-rag-index-${version}.tar.gz" -C release-assets prebuilt-rag
+          ls -lah release-assets
+          ls -lah release-assets/npm
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.detect.outputs.tag }}
+          name: ${{ needs.detect.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            release-assets/npm/*.tgz
+            release-assets/prebuilt-rag-index-${{ needs.detect.outputs.version }}.tar.gz
+
+      - name: npm publish intentionally skipped
+        run: echo "npm publish is intentionally skipped for now (registry not ready)."

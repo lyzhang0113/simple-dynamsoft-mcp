@@ -28,7 +28,8 @@
     "data:sync": "node scripts/sync-submodules.mjs",
     "data:status": "git submodule status --recursive",
     "data:lock": "node scripts/update-data-lock.mjs",
-    "data:verify-lock": "node scripts/verify-data-lock.mjs"
+    "data:verify-lock": "node scripts/verify-data-lock.mjs",
+    "rag:prebuild": "node scripts/prebuild-rag-index.mjs"
   },
   "keywords": [
     "mcp",
