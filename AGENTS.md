@@ -32,6 +32,8 @@ Supported products:
 - `scripts/sync-submodules.mjs`: script entry used by `npm run data:sync`.
 - `scripts/update-data-lock.mjs`: updates `data/metadata/data-manifest.json` from current submodule commits.
 - `scripts/verify-data-lock.mjs`: verifies lock manifest matches current submodule heads.
+- `scripts/prebuild-rag-index.mjs`: builds and writes local RAG cache artifacts for release distribution.
+- `.github/workflows/release.yml`: release pipeline for GitHub releases and attached artifacts.
 - `data/metadata/dynamsoft_sdks.json`: product metadata and latest version info.
 - `data/metadata/data-manifest.json`: pinned commit lockfile used for runtime data bootstrap.
 - `data/samples/*`: sample repositories (git submodules).

@@ -388,8 +388,13 @@ At startup, the server logs data mode/path to stderr:
 ## Automation
 
 - CI workflow: `.github/workflows/ci.yml`
-- Weekly data-lock refresh workflow: `.github/workflows/update-data-lock.yml`
-- Refresh schedule: every Monday at 08:00 UTC (`0 8 * * 1`) and manual trigger supported.
+- Daily data-lock refresh workflow: `.github/workflows/update-data-lock.yml`
+- Refresh schedule: daily at 08:00 UTC (`0 8 * * *`) and manual trigger supported.
+- Release workflow: `.github/workflows/release.yml`
+- Release behavior:
+- Creates GitHub release when `package.json` version changes on `main`
+- Attaches `npm pack` artifact and prebuilt local RAG index artifact
+- npm publish is intentionally skipped for now
 
 ## Using Search-Based Discovery (Recommended)
 

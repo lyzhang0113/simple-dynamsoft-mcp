@@ -6,7 +6,9 @@ This file tracks open release/data automation work.
 
 Current state:
 - `update-data-lock.yml` fast-forwards submodules, updates `data/metadata/data-manifest.json`, runs tests, and opens a PR.
-- Version bumping and npm publishing are still manual.
+- `release.yml` exists and creates GitHub releases on version changes to `main`, with attached artifacts.
+- `release.yml` uses `runs-on: self-hosted` for the prebuilt local RAG index job.
+- npm publishing is intentionally skipped for now.
 - DBR server/desktop refactor and DBR docs integration are complete.
 - Release orchestration decision: custom workflows only.
 - Patch bump scope decision: automated data-refresh PRs only.
@@ -19,40 +21,40 @@ Current state:
 
 Goal: turn data-refresh PRs into automatic patch release candidates.
 
-- [ ] Change `update-data-lock.yml` schedule from weekly to daily.
-- [ ] In the workflow, detect whether data changed (`.gitmodules`, submodule SHAs, `data/metadata/data-manifest.json`).
-- [ ] When data changed, auto-bump patch version in `package.json` and `package-lock.json`.
-- [ ] Ensure patch bumps are monotonic from `main` (e.g., `5.0.0 -> 5.0.1 -> 5.0.2`).
-- [ ] Skip version bump if no data change is detected.
-- [ ] Add clear PR title/label convention for auto data-release PRs.
-- [ ] Keep `npm run data:verify-lock` and `npm test` as required checks in the PR workflow.
+- [x] Change `update-data-lock.yml` schedule from weekly to daily.
+- [x] In the workflow, detect whether data changed (`.gitmodules`, submodule SHAs, `data/metadata/data-manifest.json`).
+- [x] When data changed, auto-bump patch version in `package.json` and `package-lock.json`.
+- [x] Ensure patch bumps are monotonic from `main` (e.g., `5.0.0 -> 5.0.1 -> 5.0.2`).
+- [x] Skip version bump if no data change is detected.
+- [x] Add clear PR title/label convention for auto data-release PRs.
+- [x] Keep `npm run data:verify-lock` and `npm test` as required checks in the PR workflow.
 
 ## Workstream 2: Release Pipeline (GitHub Release + npm Publish)
 
 Goal: publish releases automatically when version changes land on `main`.
 
-- [ ] Add a release workflow triggered by version changes (or semver tags) on `main`.
-- [ ] Ensure release workflow runs for:
-- [ ] automated patch bumps from data-refresh PRs
-- [ ] manual minor bumps committed by maintainers
-- [ ] manual major bumps committed by maintainers
-- [ ] Require CI-green status before release steps.
-- [ ] Build package artifact with `npm pack` and attach `.tgz` to the GitHub Release.
+- [x] Add a release workflow triggered by version changes (or semver tags) on `main`.
+- [x] Ensure release workflow runs for:
+- [x] automated patch bumps from data-refresh PRs
+- [x] manual minor bumps committed by maintainers
+- [x] manual major bumps committed by maintainers
+- [x] Require CI-green status before release steps.
+- [x] Build package artifact with `npm pack` and attach `.tgz` to the GitHub Release.
 - [ ] Publish package to npm from the release workflow.
-- [ ] Generate release notes including data/source changes.
-- [ ] Add workflow concurrency guard to prevent parallel releases.
+- [x] Generate release notes including data/source changes.
+- [x] Add workflow concurrency guard to prevent parallel releases.
 
 ## Workstream 3: Prebuilt Local RAG Index Distribution
 
-Goal: avoid long local index build time for `RAG_PROVIDER=local`.
+Goal: avoid long local index build time whenever local embeddings are used (primary provider or fallback path).
 
-- [ ] Add a GPU runner job to prebuild local embedding index for release.
-- [ ] Attach prebuilt index artifact(s) to GitHub Release.
-- [ ] Define artifact naming convention including compatibility keys:
-- [ ] package version
-- [ ] RAG model id
+- [x] Add a self-hosted runner job to prebuild local embedding index for release.
+- [x] Attach prebuilt index artifact(s) to GitHub Release.
+- [x] Define artifact naming convention including compatibility keys:
+- [x] package version
+- [x] RAG model id
 - [ ] index signature/cache key
-- [ ] Add runtime logic: when `RAG_PROVIDER=local`, try downloading matching prebuilt index before local build.
+- [ ] Add runtime logic: whenever execution resolves to local embeddings (primary or fallback), try downloading matching prebuilt index before local build.
 - [ ] Validate downloaded index signature before use.
 - [ ] Fallback to existing local-build flow when prebuilt index is missing/incompatible/download fails.
 - [ ] Add env controls:
@@ -65,7 +67,8 @@ Goal: avoid long local index build time for `RAG_PROVIDER=local`.
 
 - [ ] Add smoke test for npm-like install/run (`npm pack` then execute from tarball context).
 - [ ] Validate `npx` first-run bootstrap path on Windows and Linux/macOS.
-- [ ] Validate prebuilt-index download path and fallback behavior.
+- [x] Validate prebuilt-index build + release-attachment path in workflow.
+- [ ] Validate runtime prebuilt-index download path and fallback behavior.
 
 ## Key Points For Future Agents
 
