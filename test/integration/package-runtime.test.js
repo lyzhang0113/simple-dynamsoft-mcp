@@ -7,6 +7,7 @@ import {
   cleanupDir,
   createStdioClient,
   dataRoot,
+  npxCommand,
   npmCommand,
   packProjectToTempDir,
   runCoreAssertions
@@ -25,20 +26,35 @@ test("[fuse] packaged tgz runs via npx --package with custom MCP_DATA_DIR", asyn
     RAG_FALLBACK: "none"
   };
 
+  const commandCandidates = [
+    {
+      command: npmCommand(),
+      args: ["exec", "--yes", "--package", packed.tgzPath, "--", "simple-dynamsoft-mcp"]
+    },
+    {
+      command: npxCommand(),
+      args: ["-y", "--package", packed.tgzPath, "simple-dynamsoft-mcp"]
+    }
+  ];
+
   let bundle = null;
   let lastError = null;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    try {
-      bundle = await createStdioClient({
-        command: npmCommand(),
-        args: ["exec", "--yes", "--package", packed.tgzPath, "simple-dynamsoft-mcp"],
-        cwd: workspaceDir,
-        env,
-        name: `integration-package-fuse-${attempt}`
-      });
-      break;
-    } catch (error) {
-      lastError = error;
+  for (let attempt = 1; attempt <= 3 && !bundle; attempt += 1) {
+    for (const candidate of commandCandidates) {
+      try {
+        bundle = await createStdioClient({
+          command: candidate.command,
+          args: candidate.args,
+          cwd: workspaceDir,
+          env,
+          name: `integration-package-fuse-${attempt}`
+        });
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!bundle) {
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 1200));
     }
   }

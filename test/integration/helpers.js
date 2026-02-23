@@ -90,7 +90,16 @@ async function createStdioClient({
   }
 
   const client = makeClient(name);
-  await client.connect(transport);
+  try {
+    await client.connect(transport);
+  } catch (error) {
+    const detail = stderrOutput.trim();
+    const wrapped = new Error(
+      `Failed to connect stdio client (${name}). ${detail ? `stderr: ${detail}` : "No stderr output."}`
+    );
+    wrapped.cause = error;
+    throw wrapped;
+  }
 
   return {
     client,
