@@ -637,7 +637,7 @@ server.registerTool(
     }
 
     if (normalizedProduct === "dbr" && normalizedEdition === "server") {
-      const sdkEntry = registry.sdks["dbr-server"] || registry.sdks["dbr-python"];
+      const sdkEntry = registry.sdks["dbr-server"];
       const scenarioLower = (scenario || "").toLowerCase();
       const sampleName = scenarioLower.includes("video") ? "video_decoding" : "read_an_image";
       const samplePath = getDbrServerSamplePath("python", sampleName);

@@ -75,59 +75,13 @@ Preferred direction with current repo structure:
 - [ ] Run `npm test`.
 - [ ] Confirm `npm pack --dry-run` does not include full submodule data.
 
-## DBR Server/Desktop Metadata Refactor
+## Completed Work
 
-### Goal
+- [x] DBR Server/Desktop metadata refactor is complete.
+- [x] Canonical key is now `sdks["dbr-server"]` in `data/metadata/dynamsoft_sdks.json`.
+- [x] Platform metadata includes Python, .NET, Java, C++, and Node.js.
+- [x] Runtime/index consumers were migrated to server/desktop naming.
+- [x] Samples and docs coverage for DBR web/mobile/server has been integrated into resource indexing.
 
-Replace `sdks["dbr-python"]` in `data/metadata/dynamsoft_sdks.json` with a server/desktop-oriented SDK model that covers:
-- Python
-- .NET
-- Java
-- C++
-- Node.js
-
-### Why
-
-- Current naming (`dbr-python`) is misleading because runtime/server samples and support now include multiple server/desktop platforms.
-- Metadata should match current product scope and repository layout under `data/samples/`.
-
-### Proposed target shape
-
-- Introduce `sdks["dbr-server"]` as the canonical key.
-- Put platform-specific docs/samples/install info under:
-- `sdks["dbr-server"].platforms.python`
-- `sdks["dbr-server"].platforms.dotnet`
-- `sdks["dbr-server"].platforms.java`
-- `sdks["dbr-server"].platforms.cpp`
-- `sdks["dbr-server"].platforms.nodejs`
-- Keep version aligned with server SDK release used across these platforms.
-
-### Implementation plan
-
-- [ ] Update `data/metadata/dynamsoft_sdks.json` schema to add `dbr-server`.
-- [ ] Update `src/resource-index.js` and any consumers currently reading `registry.sdks["dbr-python"]`.
-- [ ] Update quickstart/version resolution logic in `src/index.js` to use the new key and platform mapping.
-- [ ] Update docs (`README.md`, `AGENTS.md`) to reference `dbr-server` naming.
-- [ ] Decide whether to keep temporary alias support for `dbr-python` key during transition.
-- [ ] Add/adjust tests in `test/server.test.js` for server platform behaviors (python/dotnet/java/cpp/nodejs).
-
-### Links/data still needed (please provide/confirm)
-
-For each server platform (python, dotnet, java, cpp, nodejs), we should have:
-- [ ] Official user-guide URL
-- [ ] Official API reference URL
-- [ ] Official samples landing URL (or repo path URL)
-- [ ] Installation command/package info
-
-Current known sample repos already mapped in submodules:
-- `data/samples/dynamsoft-barcode-reader-python`
-- `data/samples/dynamsoft-barcode-reader-dotnet`
-- `data/samples/dynamsoft-barcode-reader-java`
-- `data/samples/dynamsoft-barcode-reader-c-cpp`
-- `data/samples/dynamsoft-capture-vision-nodejs`
-
-### Risks and watchouts
-
-- Renaming metadata key without updating code paths will break startup/indexing.
-- Mixed naming (`server` vs `python`) can create filtering/version-policy inconsistencies if not normalized consistently.
-- Quickstart output may show wrong install/doc links if platform-specific entries are incomplete.
+Follow-up note:
+- Temporary alias handling for `dbr-python` has been removed.

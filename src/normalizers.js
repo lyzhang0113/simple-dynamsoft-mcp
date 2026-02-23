@@ -14,7 +14,6 @@ const sdkAliases = {
   "mobile barcode": "dbr-mobile",
   // DBR Server/Desktop
   "dbr-server": "dbr-server",
-  "dbr-python": "dbr-server",
   "python barcode": "dbr-server",
   "barcode python": "dbr-server",
   "barcode reader python": "dbr-server",
