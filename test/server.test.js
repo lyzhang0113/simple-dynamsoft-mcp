@@ -209,6 +209,46 @@ await test('list_samples returns sample URIs and JSON payload', async () => {
     assert(parsed.samples.length > 0, 'Should return at least one sample');
 });
 
+await test('list_samples returns DBR nodejs server samples', async () => {
+    const response = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+            name: 'list_samples',
+            arguments: { product: 'dbr', edition: 'server', platform: 'nodejs' }
+        }
+    });
+
+    assert(response.result, 'Should have result');
+    const text = response.result.content[0].text;
+    const jsonIndex = text.indexOf('JSON:');
+    assert(jsonIndex !== -1, 'Should include JSON section');
+    const parsed = JSON.parse(text.slice(jsonIndex + 5).trim());
+    assert(parsed.samples.length > 0, 'Should return nodejs samples');
+    assert(parsed.samples.every(s => s.platform === 'nodejs'), 'All samples should be nodejs platform');
+});
+
+await test('list_samples returns DBR maui mobile samples', async () => {
+    const response = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+            name: 'list_samples',
+            arguments: { product: 'dbr', edition: 'mobile', platform: 'maui' }
+        }
+    });
+
+    assert(response.result, 'Should have result');
+    const text = response.result.content[0].text;
+    const jsonIndex = text.indexOf('JSON:');
+    assert(jsonIndex !== -1, 'Should include JSON section');
+    const parsed = JSON.parse(text.slice(jsonIndex + 5).trim());
+    assert(parsed.samples.length > 0, 'Should return maui samples');
+    assert(parsed.samples.every(s => s.platform === 'maui'), 'All samples should be maui platform');
+});
+
 await test('resolve_sample returns a matching DWT sample', async () => {
     const response = await sendRequest({
         jsonrpc: '2.0',

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import "dotenv/config";
 import Fuse from "fuse.js";
+import { getResolvedDataRoot } from "./data-root.js";
 import {
   resourceIndex,
   resourceIndexByUri,
@@ -17,7 +18,7 @@ import {
 } from "./resource-index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = join(__dirname, "..");
+const dataRoot = getResolvedDataRoot();
 
 const pkgUrl = new URL("../package.json", import.meta.url);
 const pkg = JSON.parse(readFileSync(pkgUrl, "utf8"));
@@ -61,8 +62,8 @@ function normalizeGeminiModel(model) {
 const ragConfig = {
   provider: readEnvValue("RAG_PROVIDER", "auto").toLowerCase(),
   fallback: readEnvValue("RAG_FALLBACK", "fuse").toLowerCase(),
-  cacheDir: readEnvValue("RAG_CACHE_DIR", join(projectRoot, "data", ".rag-cache")),
-  modelCacheDir: readEnvValue("RAG_MODEL_CACHE_DIR", join(projectRoot, "data", ".rag-cache", "models")),
+  cacheDir: readEnvValue("RAG_CACHE_DIR", join(dataRoot, ".rag-cache")),
+  modelCacheDir: readEnvValue("RAG_MODEL_CACHE_DIR", join(dataRoot, ".rag-cache", "models")),
   localModel: readEnvValue("RAG_LOCAL_MODEL", "Xenova/all-MiniLM-L6-v2"),
   localQuantized: readBoolEnv("RAG_LOCAL_QUANTIZED", true),
   chunkSize: readIntEnv("RAG_CHUNK_SIZE", 1200),
@@ -191,9 +192,13 @@ function buildIndexSignature() {
   return JSON.stringify({
     packageVersion: pkg.version,
     resourceCount: signatureData.resourceCount,
+    dbrWebDocCount: signatureData.dbrWebDocCount,
+    dbrMobileDocCount: signatureData.dbrMobileDocCount,
+    dbrServerDocCount: signatureData.dbrServerDocCount,
     dwtDocCount: signatureData.dwtDocCount,
     ddvDocCount: signatureData.ddvDocCount,
     versions: signatureData.versions,
+    dataSources: signatureData.dataSources,
     chunkSize: ragConfig.chunkSize,
     chunkOverlap: ragConfig.chunkOverlap,
     maxChunksPerDoc: ragConfig.maxChunksPerDoc,

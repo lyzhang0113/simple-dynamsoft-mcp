@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Use Node 20
         uses: actions/setup-node@v4
@@ -20,7 +22,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Bootstrap data
+        run: npm run data:bootstrap
 
       - name: Test
         run: npm run test
