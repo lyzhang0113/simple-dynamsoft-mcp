@@ -451,7 +451,7 @@ At startup, the server logs data mode/path to stderr:
 - Release behavior:
 - Creates GitHub release when `package.json` version changes on `main`
 - Attaches `npm pack` artifact and prebuilt local RAG index artifact
-- npm publish is intentionally skipped for now
+- Publishes the package to npm from the release workflow (OIDC trusted publishing)
 
 ## Testing
 

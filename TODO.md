@@ -8,7 +8,7 @@ Current state:
 - `update-data-lock.yml` fast-forwards submodules, updates `data/metadata/data-manifest.json`, runs tests, and opens a PR.
 - `release.yml` exists and creates GitHub releases on version changes to `main`, with attached artifacts.
 - `release.yml` uses `runs-on: self-hosted` for the prebuilt local RAG index job.
-- npm publishing is intentionally skipped for now.
+- `release.yml` publishes to npm using OIDC trusted publishing after creating the GitHub Release.
 - DBR server/desktop refactor and DBR docs integration are complete.
 - Release orchestration decision: custom workflows only.
 - Patch bump scope decision: automated data-refresh PRs only.
@@ -40,7 +40,7 @@ Goal: publish releases automatically when version changes land on `main`.
 - [x] manual major bumps committed by maintainers
 - [x] Require CI-green status before release steps.
 - [x] Build package artifact with `npm pack` and attach `.tgz` to the GitHub Release.
-- [ ] Publish package to npm from the release workflow.
+- [x] Publish package to npm from the release workflow.
 - [x] Generate release notes including data/source changes.
 - [x] Add workflow concurrency guard to prevent parallel releases.
 

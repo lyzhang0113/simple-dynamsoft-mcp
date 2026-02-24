@@ -253,5 +253,66 @@ jobs:
             echo "- prebuilt_rag: \`release-assets/prebuilt-rag-index-${{ needs.detect.outputs.version }}.tar.gz\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: npm publish intentionally skipped
-        run: echo "npm publish is intentionally skipped for now (registry not ready)."
+  publish_npm:
+    needs: [detect, create_release]
+    if: needs.detect.outputs.release_needed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Download npm package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-pack
+          path: release-assets/npm
+
+      - name: Check npm publish status
+        id: npm_status
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_name="$(node -p "require('./package.json').name")"
+          version="${{ needs.detect.outputs.version }}"
+
+          echo "package_name=$package_name" >> "$GITHUB_OUTPUT"
+          if npm view "${package_name}@${version}" version >/dev/null 2>&1; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "[release] npm already has ${package_name}@${version}; skipping publish"
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+            echo "[release] npm publish required for ${package_name}@${version}"
+          fi
+
+      - name: Publish package to npm
+        if: steps.npm_status.outputs.already_published != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tgz="$(ls release-assets/npm/*.tgz | head -n 1)"
+          if [[ -z "$tgz" ]]; then
+            echo "No .tgz artifact found under release-assets/npm"
+            exit 1
+          fi
+          echo "[release] publishing artifact $tgz"
+          npm publish "$tgz" --provenance --access public
+
+      - name: npm summary
+        shell: bash
+        run: |
+          {
+            echo "## npm Publish Summary"
+            echo ""
+            echo "- package: \`${{ steps.npm_status.outputs.package_name }}\`"
+            echo "- version: \`${{ needs.detect.outputs.version }}\`"
+            echo "- already_published: \`${{ steps.npm_status.outputs.already_published }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
