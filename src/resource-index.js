@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import {
   normalizeSdkId,
   normalizePlatform,
@@ -59,6 +60,7 @@ import {
 } from "./resource-index/builders.js";
 
 const registry = JSON.parse(readFileSync(registryPath, "utf8"));
+const registrySha256 = createHash("sha256").update(readFileSync(registryPath)).digest("hex");
 
 function inferDbrMobilePlatform(articlePath) {
   const normalized = String(articlePath || "").replace(/\\/g, "/").toLowerCase();
@@ -325,7 +327,7 @@ function getRagSignatureData() {
       dbrServerDocsHead: readSubmoduleHead(DOC_ROOTS.dbrServer),
       dwtDocsHead: readSubmoduleHead(DOC_ROOTS.dwt),
       ddvDocsHead: readSubmoduleHead(DOC_ROOTS.ddv),
-      registryPath
+      registrySha256
     }
   };
 }
