@@ -20,6 +20,7 @@ Supported products:
 ## Version Policy
 - Only the latest major version is served.
 - DBR legacy docs are available only for v9 and v10; versions prior to v9 are refused.
+- DCV has no legacy archive links in this server.
 - DWT archived docs are available for v16.1.1+ (specific versions listed in code).
 - DDV has no legacy archive links in this server.
 
@@ -31,6 +32,7 @@ Supported products:
 - `src/resource-index/*`: modularized resource-index implementation (`config`, `paths`, docs/sample discovery, URI parsing, version policy, builders).
 - `src/submodule-sync.js`: optional startup sync for submodules (`DATA_SYNC_ON_START`).
 - `scripts/sync-submodules.mjs`: script entry used by `npm run data:sync`.
+- `scripts/update-sdk-versions.mjs`: syncs latest SDK versions from docs repositories (supports strict mode for source-structure drift detection).
 - `scripts/update-data-lock.mjs`: updates `data/metadata/data-manifest.json` from current submodule commits.
 - `scripts/verify-data-lock.mjs`: verifies lock manifest matches current submodule heads.
 - `scripts/prebuild-rag-index.mjs`: builds and writes local RAG cache artifacts for release distribution.
@@ -46,6 +48,10 @@ Supported products:
 - `data/documentation/barcode-reader-docs-js`: DBR web docs repository (git submodule).
 - `data/documentation/barcode-reader-docs-mobile`: DBR mobile docs repository (git submodule).
 - `data/documentation/barcode-reader-docs-server`: DBR server docs repository (git submodule).
+- `data/documentation/capture-vision-docs`: DCV core docs repository (git submodule).
+- `data/documentation/capture-vision-docs-js`: DCV web docs repository (git submodule).
+- `data/documentation/capture-vision-docs-server`: DCV server docs repository (git submodule).
+- `data/documentation/capture-vision-docs-mobile`: DCV mobile docs repository (git submodule).
 - `data/documentation/web-twain-docs`: DWT docs repository (git submodule).
 - `data/documentation/document-viewer-docs`: DDV docs repository (git submodule).
 
@@ -83,9 +89,11 @@ Avoid modifying `data/` submodule content unless explicitly requested.
 
 CI notes:
 - `test_fuse` runs on `ubuntu-latest` for every PR/push.
+- `test_fuse` includes strict source-wiring validation via `npm run data:verify-versions:strict`.
 - `test_local_provider` runs on `ubuntu-latest` for every PR/push.
 - `test_gemini_provider` runs on `ubuntu-latest` when `GEMINI_API_KEY` secret is configured.
 - `rag:prebuild` is run in the local-provider CI job before local-provider integration tests.
+- `update-data-lock.yml` enables auto-merge for refresh PRs when repository settings allow auto-merge and required checks pass.
 
 ## Roadmap Notes
 - Read `TODO.md` before making release automation changes.
@@ -106,7 +114,7 @@ CI notes:
 - Do not edit `data/metadata/data-manifest.json` manually. Regenerate it with `npm run data:lock`.
 - Do not edit `data/metadata/dynamsoft_sdks.json` manually for "latest" updates when docs can be used. Use `npm run data:versions`.
 - Always run `npm run data:verify-lock` after lock updates and before proposing releases.
-- Always run `npm run data:verify-versions` when changing docs submodules, version extraction logic, or metadata workflow.
+- Always run `npm run data:verify-versions:strict` when changing docs submodules, version extraction logic, or metadata workflow.
 - Keep dual-mode behavior intact: dev clone should use local submodules when available, and npm/npx mode should bootstrap from manifest-pinned archives into cache.
 - If users report "no download happened", first check startup stderr for the `[data] mode=...` log line.
 - Be careful with package contents: ensure npm package does not include full submodule payloads.
@@ -146,8 +154,8 @@ Use this sequence when onboarding a new product family or edition docs/samples.
    - `test/server.test.js`
    - `test/integration/helpers.js`
 9. Refresh lock and versions:
-   - `npm run data:versions`
-   - `npm run data:verify-versions`
+   - `npm run data:versions:strict`
+   - `npm run data:verify-versions:strict`
    - `npm run data:lock`
    - `npm run data:verify-lock`
 10. Run validation suites:

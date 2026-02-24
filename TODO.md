@@ -5,15 +5,15 @@
 This file tracks open release/data automation work.
 
 Current state:
-- `update-data-lock.yml` fast-forwards submodules, updates `data/metadata/data-manifest.json`, runs tests, and opens a PR.
+- `update-data-lock.yml` fast-forwards submodules, runs strict source checks, updates metadata/lock, runs tests, opens/updates a PR, and enables PR auto-merge.
 - `release.yml` exists and creates GitHub releases on version changes to `main`, with attached artifacts.
-- `release.yml` uses `runs-on: self-hosted` for the prebuilt local RAG index job.
+- `release.yml` builds prebuilt local+gemini RAG artifacts on `ubuntu-latest` (requires `GEMINI_API_KEY`).
 - `release.yml` publishes to npm using OIDC trusted publishing after creating the GitHub Release.
 - DBR server/desktop refactor and DBR docs integration are complete.
 - Release orchestration decision: custom workflows only.
 - Patch bump scope decision: automated data-refresh PRs only.
-- Human-driven minor version bumps (e.g., `5.0.2 -> 5.1.0`) should publish a release.
-- Human-driven major version bumps (e.g., `5.x.y -> 6.0.0`) should publish a release.
+- Human-driven minor version bumps (e.g., `x.y.z -> x.(y+1).0`) should publish a release.
+- Human-driven major version bumps (e.g., `x.y.z -> (x+1).0.0`) should publish a release.
 - Prebuilt index default decision: `RAG_PREBUILT_INDEX_AUTO_DOWNLOAD=true`.
 - Prebuilt index profile decision: single model profile for now (`Xenova/all-MiniLM-L6-v2`).
 
@@ -24,10 +24,12 @@ Goal: turn data-refresh PRs into automatic patch release candidates.
 - [x] Change `update-data-lock.yml` schedule from weekly to daily.
 - [x] In the workflow, detect whether data changed (`.gitmodules`, submodule SHAs, `data/metadata/data-manifest.json`).
 - [x] When data changed, auto-bump patch version in `package.json` and `package-lock.json`.
-- [x] Ensure patch bumps are monotonic from `main` (e.g., `5.0.0 -> 5.0.1 -> 5.0.2`).
+- [x] Ensure patch bumps are monotonic from `main` (e.g., `x.y.0 -> x.y.1 -> x.y.2`).
 - [x] Skip version bump if no data change is detected.
 - [x] Add clear PR title/label convention for auto data-release PRs.
 - [x] Keep `npm run data:verify-lock` and `npm test` as required checks in the PR workflow.
+- [x] Add strict source-structure checks (`data:versions:strict` + `data:verify-versions:strict`) so upstream directory drift fails the refresh job.
+- [x] Enable auto-merge for refresh PRs (subject to repository settings and required checks).
 
 ## Workstream 2: Release Pipeline (GitHub Release + npm Publish)
 
@@ -48,7 +50,7 @@ Goal: publish releases automatically when version changes land on `main`.
 
 Goal: avoid long local index build time whenever local embeddings are used (primary provider or fallback path).
 
-- [x] Add a self-hosted runner job to prebuild local embedding index for release.
+- [x] Add a release job to prebuild local embedding index for release.
 - [x] Attach prebuilt index artifact(s) to GitHub Release.
 - [x] Define artifact naming convention including compatibility keys:
 - [x] package version
@@ -65,7 +67,7 @@ Goal: avoid long local index build time whenever local embeddings are used (prim
 
 ## Post-Release Validation
 
-- [ ] Add smoke test for npm-like install/run (`npm pack` then execute from tarball context).
+- [x] Add smoke test for npm-like install/run (`npm pack` then execute from tarball context).
 - [ ] Validate `npx` first-run bootstrap path on Windows and Linux/macOS.
 - [x] Validate prebuilt-index build + release-attachment path in workflow.
 - [ ] Validate runtime prebuilt-index download path and fallback behavior.
@@ -99,7 +101,7 @@ Goal: prevent prewarm failures when embedding large corpora with Gemini API quot
 ## Key Points For Future Agents
 
 - Do not manually edit `data/metadata/data-manifest.json`; regenerate via `npm run data:lock`.
-- Always run `npm run data:verify-lock` and `npm test` for release/data changes.
+- Always run `npm run data:verify-versions:strict`, `npm run data:verify-lock`, and `npm test` for release/data changes.
 - Keep npm package payload minimal (`data/metadata` + runtime code), not full submodule contents.
 - Preserve dual-mode data behavior:
 - dev/local clone uses submodules

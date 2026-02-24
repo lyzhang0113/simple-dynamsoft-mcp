@@ -222,7 +222,7 @@ Example (`.vscode/mcp.json`):
       "args": [
         "-y",
         "--package",
-        ".tools/simple-dynamsoft-mcp/simple-dynamsoft-mcp-6.1.0.tgz",
+        ".tools/simple-dynamsoft-mcp/simple-dynamsoft-mcp-<version>.tgz",
         "simple-dynamsoft-mcp"
       ],
       "env": {
@@ -261,7 +261,7 @@ Use **DCV** when your workflow includes VIN, MRZ/passport/ID, driver license par
 - **Server/Desktop** - Python, .NET, Java, C++, Node.js
 - **Mobile** - Android, iOS, Flutter, React Native, .NET MAUI (+ SPM package sample)
 
-### Dynamsoft Barcode Reader Mobile (v11.2.5000)
+### Dynamsoft Barcode Reader Mobile (latest)
 
 **Platforms:** Android, iOS, Flutter, React Native, .NET MAUI
 
@@ -278,7 +278,7 @@ Use **DCV** when your workflow includes VIN, MRZ/passport/ID, driver license par
 - ScanSingleBarcode, ScanMultipleBarcodes, ScanSingleBarcodeSwiftUI
 - DecodeWithCameraEnhancer, DecodeWithAVCaptureSession, DecodeFromAnImage
 
-### Dynamsoft Barcode Reader Server/Desktop (v11.2.5000)
+### Dynamsoft Barcode Reader Server/Desktop (latest)
 
 **Platforms:** Python, .NET, Java, C++, Node.js
 
@@ -286,11 +286,11 @@ Use **DCV** when your workflow includes VIN, MRZ/passport/ID, driver license par
 
 **Server/Desktop samples:** Pulled from platform-specific sample repositories in `data/samples/`.
 
-### Dynamsoft Barcode Reader Web (v11.2.4000)
+### Dynamsoft Barcode Reader Web (latest)
 
 **Installation:** `npm install dynamsoft-barcode-reader-bundle`
 
-**CDN:** `https://cdn.jsdelivr.net/npm/dynamsoft-barcode-reader-bundle@11.2.4000/dist/dbr.bundle.min.js`
+**CDN:** `https://cdn.jsdelivr.net/npm/dynamsoft-barcode-reader-bundle@latest/dist/dbr.bundle.min.js`
 
 **Samples:**
 - **hello-world** - Basic barcode scanning from camera
@@ -298,7 +298,7 @@ Use **DCV** when your workflow includes VIN, MRZ/passport/ID, driver license par
 - **frameworks/** - React, Vue, Angular, Next.js, PWA samples
 - **scenarios/** - Multi-image reading, localize an item, driver license parsing
 
-### Dynamic Web TWAIN (v19.3)
+### Dynamic Web TWAIN (latest)
 
 **Installation:** `npm install dwt`
 
@@ -311,7 +311,7 @@ Use **DCV** when your workflow includes VIN, MRZ/passport/ID, driver license par
 - **classification** - Document classification and tagging
 - **UI-customization** - Customize viewer and scan UI
 
-### Dynamsoft Document Viewer (v3.x)
+### Dynamsoft Document Viewer (latest)
 
 **Installation:** `npm install dynamsoft-document-viewer`
 
@@ -436,6 +436,7 @@ src/
     `-- builders.js
 scripts/
 |-- sync-submodules.mjs                 # CLI wrapper for data:sync
+|-- update-sdk-versions.mjs             # Sync SDK versions from docs structures
 |-- update-data-lock.mjs                # Generate data-manifest from submodule HEADs
 |-- verify-data-lock.mjs                # Verify manifest matches submodule HEADs
 `-- prebuild-rag-index.mjs              # Build local RAG index cache artifacts
@@ -463,6 +464,10 @@ test/
   - `npm run data:lock`
 - Verify lock manifest matches submodule HEADs:
   - `npm run data:verify-lock`
+- Sync SDK versions from docs sources:
+  - `npm run data:versions`
+- Strict source-structure verification (fail on unresolved sources):
+  - `npm run data:verify-versions:strict`
 
 Optional startup sync:
 - `DATA_SYNC_ON_START=true`
@@ -492,10 +497,12 @@ At startup, the server logs data mode/path to stderr:
 - `test_gemini_provider` on `ubuntu-latest` (when `GEMINI_API_KEY` secret exists) prebuilds gemini RAG cache, then runs `npm run test:gemini`
 - Daily data-lock refresh workflow: `.github/workflows/update-data-lock.yml`
 - Refresh schedule: daily at 08:00 UTC (`0 8 * * *`) and manual trigger supported.
+- Refresh workflow runs strict source checks (`data:versions:strict`, `data:verify-versions:strict`) to fail fast when external docs/sample structures drift.
+- Refresh workflow creates/updates PR `chore/daily-data-refresh` and enables auto-merge when checks pass (requires repo settings support).
 - Release workflow: `.github/workflows/release.yml`
 - Release behavior:
 - Creates GitHub release when `package.json` version changes on `main`
-- Attaches `npm pack` artifact and prebuilt RAG index artifact (local + gemini when `GEMINI_API_KEY` is configured)
+- Attaches `npm pack` artifact and prebuilt RAG index artifact (release workflow requires `GEMINI_API_KEY` for gemini prebuild path)
 - Publishes the package to npm from the release workflow (OIDC trusted publishing)
 
 ## Testing
@@ -576,7 +583,8 @@ Update the corresponding submodule under `data/samples/`.
 
 ### Update SDK Info
 
-Edit `data/metadata/dynamsoft_sdks.json` to update versions, docs URLs, or add new platforms.
+Use `npm run data:versions` (or `npm run data:versions:strict`) to refresh SDK versions from docs sources.
+Edit `data/metadata/dynamsoft_sdks.json` manually only for non-version metadata updates (for example docs URLs, installation commands, or platform definitions).
 
 ## License
 
