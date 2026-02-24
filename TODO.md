@@ -86,15 +86,15 @@ Goal: replace fuse-only fallback with lexical hybrid retrieval for no-model scen
 
 Goal: prevent prewarm failures when embedding large corpora with Gemini API quotas/rate limits.
 
-- [ ] Add exponential backoff with jitter for Gemini embedding requests during prewarm/index build.
-- [ ] Add retry policy for retryable errors (`429`, `503`, transient `5xx`) with max-attempt cap.
-- [ ] Add configurable throttling between Gemini requests/batches to reduce burst pressure.
-- [ ] Add env controls for retry/backoff/throttle settings (for example `GEMINI_RETRY_MAX_ATTEMPTS`, `GEMINI_RETRY_BASE_DELAY_MS`, `GEMINI_RETRY_MAX_DELAY_MS`, `GEMINI_REQUEST_THROTTLE_MS`).
-- [ ] Add adaptive batch downgrade on repeated rate-limit responses (reduce `GEMINI_EMBED_BATCH_SIZE` progressively).
-- [ ] Persist partial progress/checkpoints during prewarm so retries can resume instead of restarting full corpus embedding.
-- [ ] Add graceful fallback behavior when prewarm fails (continue startup and use fallback provider/search mode).
-- [ ] Add structured logs/metrics for retry attempts, backoff delay, throttle events, and final prewarm outcome.
-- [ ] Add tests for retry/backoff behavior and config parsing, and update docs in `README.md`, `AGENTS.md`, and `.env.example`.
+- [x] Add exponential backoff with jitter for Gemini embedding requests during prewarm/index build.
+- [x] Add retry policy for retryable errors (`429`, `503`, transient `5xx`) with max-attempt cap.
+- [x] Add configurable throttling between Gemini requests/batches to reduce burst pressure.
+- [x] Add env controls for retry/backoff/throttle settings (for example `GEMINI_RETRY_MAX_ATTEMPTS`, `GEMINI_RETRY_BASE_DELAY_MS`, `GEMINI_RETRY_MAX_DELAY_MS`, `GEMINI_REQUEST_THROTTLE_MS`).
+- [x] Add adaptive batch downgrade on repeated rate-limit responses (reduce `GEMINI_EMBED_BATCH_SIZE` progressively).
+- [x] Persist partial progress/checkpoints during prewarm so retries can resume instead of restarting full corpus embedding.
+- [x] Add graceful fallback behavior when prewarm fails (continue startup and use fallback provider/search mode).
+- [x] Add structured logs/metrics for retry attempts, backoff delay, throttle events, and final prewarm outcome.
+- [x] Add tests for retry/backoff behavior and config parsing, and update docs in `README.md`, `AGENTS.md`, and `.env.example`.
 
 ## Key Points For Future Agents
 

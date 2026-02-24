@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 function toPosixPath(path) {
   return path.replace(/\\/g, "/");
@@ -35,7 +35,13 @@ if (!existsSync(cacheDir)) {
 const cacheFiles = readdirSync(cacheDir, { withFileTypes: true })
   .filter((entry) => entry.isFile())
   .map((entry) => join(cacheDir, entry.name))
-  .filter((path) => path.toLowerCase().endsWith(".json"))
+  .filter((path) => {
+    const name = basename(path).toLowerCase();
+    if (!name.endsWith(".json")) return false;
+    if (!name.startsWith("rag-")) return false;
+    if (name.endsWith(".checkpoint.json")) return false;
+    return true;
+  })
   .sort();
 
 if (cacheFiles.length === 0) {
@@ -46,7 +52,7 @@ const manifest = {
   packageVersion: pkg.version,
   generatedAt: new Date().toISOString(),
   ragProvider: ragConfig.provider,
-  ragModel: ragConfig.localModel,
+  ragModel: ragConfig.provider === "gemini" ? ragConfig.geminiModel : ragConfig.localModel,
   cacheDir: toPosixPath(cacheDir),
   files: cacheFiles.map((path) => {
     const stats = statSync(path);

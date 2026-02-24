@@ -445,25 +445,29 @@ At startup, the server logs data mode/path to stderr:
 - CI jobs:
 - `test_fuse` on `ubuntu-latest` runs `npm run test:fuse` (stdio + HTTP gateway + package-runtime with fuse provider)
 - `test_local_provider` on `ubuntu-latest` restores RAG caches, runs `npm run rag:prebuild`, then `npm run test:local`
+- `test_gemini_provider` on `ubuntu-latest` (when `GEMINI_API_KEY` secret exists) prebuilds gemini RAG cache, then runs `npm run test:gemini`
 - Daily data-lock refresh workflow: `.github/workflows/update-data-lock.yml`
 - Refresh schedule: daily at 08:00 UTC (`0 8 * * *`) and manual trigger supported.
 - Release workflow: `.github/workflows/release.yml`
 - Release behavior:
 - Creates GitHub release when `package.json` version changes on `main`
-- Attaches `npm pack` artifact and prebuilt local RAG index artifact
+- Attaches `npm pack` artifact and prebuilt RAG index artifact (local + gemini when `GEMINI_API_KEY` is configured)
 - Publishes the package to npm from the release workflow (OIDC trusted publishing)
 
 ## Testing
 
 - `npm test`: default test entry (currently `npm run test:fuse`)
+- `npm run test:unit`: unit tests (retry/backoff/config helpers)
 - `npm run test:fuse`: integration coverage for fuse provider
 - `npm run test:local`: integration coverage for local provider
+- `npm run test:gemini`: integration coverage for gemini provider (requires `GEMINI_API_KEY`)
 - `npm run test:stdio`: stdio transport integration tests
 - `npm run test:http`: streamable HTTP (supergateway) integration tests
 - `npm run test:package`: `npm pack` + `npm exec --package` runtime test
 - Optional env toggles:
 - `RUN_FUSE_PROVIDER_TESTS=true|false`
 - `RUN_LOCAL_PROVIDER_TESTS=true|false`
+- `RUN_GEMINI_PROVIDER_TESTS=true|false`
 
 ## Using Search-Based Discovery (Recommended)
 
@@ -483,6 +487,10 @@ Key env vars:
 - `RAG_FALLBACK`: `fuse` | `local` | `none`
 - `GEMINI_API_KEY`: required for remote embeddings
 - `GEMINI_EMBED_MODEL`: e.g. `models/embedding-001` or `models/gemini-embedding-001`
+- `GEMINI_RETRY_MAX_ATTEMPTS`: max retry attempts for retryable errors (default `5`)
+- `GEMINI_RETRY_BASE_DELAY_MS`: exponential backoff base delay (default `500`)
+- `GEMINI_RETRY_MAX_DELAY_MS`: exponential backoff max delay cap (default `10000`)
+- `GEMINI_REQUEST_THROTTLE_MS`: fixed delay between Gemini requests (default `0`)
 - `RAG_LOCAL_MODEL`: default `Xenova/all-MiniLM-L6-v2`
 - `RAG_CACHE_DIR`: default `data/.rag-cache`
 
@@ -490,6 +498,12 @@ Local embeddings download the model on first run and cache under `data/.rag-cach
 Advanced tuning:
 - `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP`, `RAG_MAX_CHUNKS_PER_DOC`, `RAG_MAX_TEXT_CHARS`
 - `RAG_MIN_SCORE`, `RAG_INCLUDE_SCORE`, `RAG_REBUILD`, `RAG_PREWARM`, `RAG_PREWARM_BLOCK`, `RAG_LOCAL_QUANTIZED`, `GEMINI_EMBED_BATCH_SIZE`, `RAG_MODEL_CACHE_DIR`
+
+Gemini hardening behavior:
+- Retryable responses (`429`, `503`, transient `5xx`) use exponential backoff with jitter.
+- Optional throttling can pace request bursts with `GEMINI_REQUEST_THROTTLE_MS`.
+- Batch embedding adaptively downgrades batch size on repeated rate-limit responses.
+- Index build progress is checkpointed to disk and resumes from checkpoints after failures.
 
 For local dev, you can also use a `.env` file (see `.env.example`).
 
