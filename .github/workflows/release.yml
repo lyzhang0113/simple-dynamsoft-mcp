@@ -152,7 +152,7 @@ jobs:
   build_prebuilt_rag:
     needs: [detect, verify_release]
     if: needs.detect.outputs.release_needed == 'true'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
       RAG_PROVIDER: local

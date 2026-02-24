@@ -444,7 +444,7 @@ At startup, the server logs data mode/path to stderr:
 - CI workflow: `.github/workflows/ci.yml`
 - CI jobs:
 - `test_fuse` on `ubuntu-latest` runs `npm run test:fuse` (stdio + HTTP gateway + package-runtime with fuse provider)
-- `test_local_provider` on `self-hosted` restores RAG caches, runs `npm run rag:prebuild`, then `npm run test:local`
+- `test_local_provider` on `ubuntu-latest` restores RAG caches, runs `npm run rag:prebuild`, then `npm run test:local`
 - Daily data-lock refresh workflow: `.github/workflows/update-data-lock.yml`
 - Refresh schedule: daily at 08:00 UTC (`0 8 * * *`) and manual trigger supported.
 - Release workflow: `.github/workflows/release.yml`
@@ -457,7 +457,7 @@ At startup, the server logs data mode/path to stderr:
 
 - `npm test`: default test entry (currently `npm run test:fuse`)
 - `npm run test:fuse`: integration coverage for fuse provider
-- `npm run test:local`: integration coverage for local provider (designed for self-hosted runner)
+- `npm run test:local`: integration coverage for local provider
 - `npm run test:stdio`: stdio transport integration tests
 - `npm run test:http`: streamable HTTP (supergateway) integration tests
 - `npm run test:package`: `npm pack` + `npm exec --package` runtime test

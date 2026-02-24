@@ -37,7 +37,7 @@ Supported products:
 - `test/integration/stdio.test.js`: stdio integration tests using MCP SDK client transport.
 - `test/integration/http-gateway.test.js`: HTTP integration tests through `supergateway`.
 - `test/integration/package-runtime.test.js`: packaged runtime test via `npm pack` + `npm exec --package`.
-- `.github/workflows/ci.yml`: CI test matrix (`test_fuse` on ubuntu + `test_local_provider` on self-hosted).
+- `.github/workflows/ci.yml`: CI test matrix (`test_fuse` + `test_local_provider` on `ubuntu-latest`).
 - `.github/workflows/release.yml`: release pipeline for GitHub releases and attached artifacts.
 - `data/metadata/dynamsoft_sdks.json`: product metadata and latest version info.
 - `data/metadata/data-manifest.json`: pinned commit lockfile used for runtime data bootstrap.
@@ -74,8 +74,8 @@ Avoid modifying `data/` submodule content unless explicitly requested.
 
 CI notes:
 - `test_fuse` runs on `ubuntu-latest` for every PR/push.
-- `test_local_provider` runs on `self-hosted` for every PR/push.
-- `rag:prebuild` is run only on the self-hosted local-provider CI job.
+- `test_local_provider` runs on `ubuntu-latest` for every PR/push.
+- `rag:prebuild` is run in the local-provider CI job before local-provider integration tests.
 
 ## Roadmap Notes
 - Read `TODO.md` before making release automation changes.

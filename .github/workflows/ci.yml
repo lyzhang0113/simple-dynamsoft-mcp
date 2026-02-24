@@ -31,7 +31,7 @@ jobs:
         run: npm run test:fuse
 
   test_local_provider:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     env:
       RAG_PROVIDER: local
       RAG_FALLBACK: none
@@ -72,7 +72,7 @@ jobs:
       - name: Bootstrap data
         run: npm run data:bootstrap
 
-      - name: Prebuild local RAG index (self-hosted only)
+      - name: Prebuild local RAG index
         run: npm run rag:prebuild
 
       - name: Test (local provider)
