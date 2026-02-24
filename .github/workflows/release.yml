@@ -264,16 +264,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Use Node 20
+      - name: Use Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
 
-      - name: Download npm package artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: npm-pack
-          path: release-assets/npm
+      - name: Install dependencies
+        run: npm ci
 
       - name: Check npm publish status
         id: npm_status
@@ -294,16 +292,7 @@ jobs:
 
       - name: Publish package to npm
         if: steps.npm_status.outputs.already_published != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          tgz="$(ls release-assets/npm/*.tgz | head -n 1)"
-          if [[ -z "$tgz" ]]; then
-            echo "No .tgz artifact found under release-assets/npm"
-            exit 1
-          fi
-          echo "[release] publishing artifact $tgz"
-          npm publish "$tgz" --provenance --access public
+        run: npm publish --access public
 
       - name: npm summary
         shell: bash
