@@ -1,4 +1,17 @@
 const sdkAliases = {
+  // DCV
+  "dcv": "dcv-mobile",
+  "dcv-mobile": "dcv-mobile",
+  "dcv-server": "dcv-server",
+  "dcv-web": "dcv-web",
+  "capture vision": "dcv-mobile",
+  "capture-vision": "dcv-mobile",
+  "dynamsoft capture vision": "dcv-mobile",
+  "mrz scanner": "dcv-mobile",
+  "vin scanner": "dcv-mobile",
+  "driver license scanner": "dcv-mobile",
+  "document normalization": "dcv-mobile",
+  "document normalizer": "dcv-mobile",
   // DDV
   "ddv": "ddv",
   "document-viewer": "ddv",
@@ -31,10 +44,7 @@ const sdkAliases = {
   "web twain": "dwt",
   "webtwain": "dwt",
   "dynamic web twain": "dwt",
-  "document scanner": "dwt",
-  "document scanning": "dwt",
-  "twain": "dwt",
-  "scanner": "dwt"
+  "twain": "dwt"
 };
 
 const platformAliases = {
@@ -54,6 +64,9 @@ const platformAliases = {
   maui: "maui",
   "dotnet maui": "maui",
   ".net maui": "maui",
+  spm: "spm",
+  "swift package manager": "spm",
+  "swiftpm": "spm",
   // Desktop/Server
   python: "python",
   py: "python",
@@ -147,6 +160,29 @@ const sampleAliases = {
   "upload": "upload"
 };
 
+const dcvFeatureTerms = [
+  "capture vision",
+  "mrz",
+  "machine readable zone",
+  "vin",
+  "vehicle identification",
+  "driver license",
+  "drivers license",
+  "id card",
+  "passport",
+  "document normalization",
+  "document normalizer",
+  "document scanner",
+  "document scanning",
+  "document scan",
+  "auto capture",
+  "auto-capture",
+  "cropping",
+  "crop"
+];
+
+const dwtFeatureTerms = ["dwt", "web twain", "webtwain", "twain", "wia", "ica", "sane"];
+
 let webFrameworkPlatformsGetter = null;
 
 function getWebFrameworkPlatformsInternal() {
@@ -198,6 +234,23 @@ function normalizeSampleName(name) {
 function normalizeProduct(product) {
   if (!product) return "";
   const normalized = product.trim().toLowerCase();
+  if (
+    [
+      "dcv",
+      "capture vision",
+      "capture-vision",
+      "dynamsoft capture vision",
+      "dynamsoft capture vision sdk",
+      "capture vision bundle",
+      "mrz scanner",
+      "vin scanner",
+      "driver license scanner",
+      "document scanner",
+      "document normalization"
+    ].includes(normalized)
+  ) {
+    return "dcv";
+  }
   if (["ddv", "document viewer", "document-viewer", "dynamsoft document viewer", "doc viewer", "pdf viewer"].includes(normalized)) {
     return "ddv";
   }
@@ -215,7 +268,8 @@ function normalizeEdition(edition, platform, product) {
   const normalizedPlatform = normalizePlatform(platform);
 
   if (!edition) {
-    if (["android", "ios", "maui", "react-native", "flutter"].includes(normalizedPlatform)) return "mobile";
+    if (product === "dcv" && normalizedPlatform === "core") return "core";
+    if (["android", "ios", "maui", "react-native", "flutter", "spm"].includes(normalizedPlatform)) return "mobile";
     if (isWebPlatform(normalizedPlatform)) return "web";
     if (isServerPlatform(normalizedPlatform)) return "server";
     return "";
@@ -223,8 +277,9 @@ function normalizeEdition(edition, platform, product) {
 
   const normalized = edition.trim().toLowerCase();
   const compact = normalized.replace(/\s+/g, "");
-  if (["mobile", "android", "ios", "maui", "react-native", "react native", "flutter"].includes(normalized)) return "mobile";
+  if (["mobile", "android", "ios", "maui", "react-native", "react native", "flutter", "spm"].includes(normalized)) return "mobile";
   if (["web", "javascript", "js", "typescript", "ts"].includes(normalized)) return "web";
+  if (normalized === "core") return "core";
   if (["server", "desktop", "server/desktop", "server-desktop", "serverdesktop"].includes(normalized) || compact === "serverdesktop") return "server";
   if (["python", "py", "java", "c++", "cpp", "dotnet", ".net", "c#", "csharp", "node", "nodejs", "node.js"].includes(normalized)) return "server";
   return normalized;
@@ -245,11 +300,15 @@ function isWebPlatform(platform) {
 function inferProductFromQuery(query) {
   if (!query) return "";
   const normalized = query.toLowerCase();
+  const isDwtQuery = dwtFeatureTerms.some((term) => normalized.includes(term));
+  if (isDwtQuery) return "dwt";
+  const isDcvQuery = dcvFeatureTerms.some((term) => normalized.includes(term));
+  if (isDcvQuery) return "dcv";
   if (normalized.includes("ddv") || normalized.includes("document viewer") || normalized.includes("pdf viewer") || normalized.includes("edit viewer")) {
     return "ddv";
   }
-  if (normalized.includes("dwt") || normalized.includes("web twain") || normalized.includes("webtwain")) {
-    return "dwt";
+  if (normalized.includes("dcv") || normalized.includes("capture vision") || normalized.includes("capture-vision")) {
+    return "dcv";
   }
   if (normalized.includes("dbr") || normalized.includes("barcode reader") || normalized.includes("barcode")) {
     return "dbr";

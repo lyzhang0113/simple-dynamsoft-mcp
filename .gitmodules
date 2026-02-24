@@ -66,3 +66,59 @@
 	path = data/documentation/barcode-reader-docs-server
 	url = https://github.com/dynamsoft-docs/barcode-reader-docs-server.git
 	branch = main
+[submodule "data/samples/dynamsoft-capture-vision-c-cpp"]
+	path = data/samples/dynamsoft-capture-vision-c-cpp
+	url = https://github.com/Dynamsoft/capture-vision-cpp-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-capture-vision-java"]
+	path = data/samples/dynamsoft-capture-vision-java
+	url = https://github.com/Dynamsoft/capture-vision-java-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-capture-vision-dotnet"]
+	path = data/samples/dynamsoft-capture-vision-dotnet
+	url = https://github.com/Dynamsoft/capture-vision-dotnet-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-capture-vision-python"]
+	path = data/samples/dynamsoft-capture-vision-python
+	url = https://github.com/Dynamsoft/capture-vision-python-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-capture-vision-mobile"]
+	path = data/samples/dynamsoft-capture-vision-mobile
+	url = https://github.com/Dynamsoft/capture-vision-mobile-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-capture-vision-spm"]
+	path = data/samples/dynamsoft-capture-vision-spm
+	url = https://github.com/Dynamsoft/capture-vision-spm.git
+	branch = main
+[submodule "data/samples/dynamsoft-capture-vision-javascript"]
+	path = data/samples/dynamsoft-capture-vision-javascript
+	url = https://github.com/Dynamsoft/capture-vision-javascript-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-capture-vision-react-native"]
+	path = data/samples/dynamsoft-capture-vision-react-native
+	url = https://github.com/Dynamsoft/capture-vision-react-native-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-capture-vision-maui"]
+	path = data/samples/dynamsoft-capture-vision-maui
+	url = https://github.com/Dynamsoft/capture-vision-maui-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-capture-vision-flutter"]
+	path = data/samples/dynamsoft-capture-vision-flutter
+	url = https://github.com/Dynamsoft/capture-vision-flutter-samples.git
+	branch = main
+[submodule "data/documentation/capture-vision-docs-js"]
+	path = data/documentation/capture-vision-docs-js
+	url = https://github.com/dynamsoft-docs/capture-vision-docs-js.git
+	branch = main
+[submodule "data/documentation/capture-vision-docs-server"]
+	path = data/documentation/capture-vision-docs-server
+	url = https://github.com/dynamsoft-docs/capture-vision-docs-server.git
+	branch = main
+[submodule "data/documentation/capture-vision-docs"]
+	path = data/documentation/capture-vision-docs
+	url = https://github.com/dynamsoft-docs/capture-vision-docs.git
+	branch = main
+[submodule "data/documentation/capture-vision-docs-mobile"]
+	path = data/documentation/capture-vision-docs-mobile
+	url = https://github.com/dynamsoft-docs/capture-vision-docs-mobile.git
+	branch = main

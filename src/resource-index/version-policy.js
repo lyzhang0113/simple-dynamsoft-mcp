@@ -12,7 +12,7 @@ function detectMajorFromQuery(query) {
   if (!query) return null;
   const text = String(query);
   const explicit = text.match(/(?:\bv|\bversion\s*)(\d{1,2})(?:\.\d+)?/i);
-  const productScoped = text.match(/(?:dbr|dwt|ddv)[^0-9]*(\d{1,2})(?:\.\d+)?/i);
+  const productScoped = text.match(/(?:dbr|dcv|dwt|ddv)[^0-9]*(\d{1,2})(?:\.\d+)?/i);
   const match = explicit || productScoped;
   if (!match) return null;
   const major = Number.parseInt(match[1], 10);
@@ -83,6 +83,13 @@ function ensureLatestMajor({ product, version, query, edition, platform, latestM
     };
   }
 
+  if (inferredProduct === "dcv") {
+    return {
+      ok: false,
+      message: `This MCP server only serves the latest major version of DCV (v${currentMajor}).`
+    };
+  }
+
   if (inferredProduct === "dbr" && requestedMajor < 9) {
     return {
       ok: false,
@@ -133,12 +140,15 @@ function buildVersionPolicyText(latestMajor) {
     "This MCP server only serves the latest major versions of each product.",
     "",
     `- DBR latest major: v${latestMajor.dbr}`,
+    `- DCV latest major: v${latestMajor.dcv}`,
     `- DWT latest major: v${latestMajor.dwt}`,
     `- DDV latest major: v${latestMajor.ddv}`,
     "",
     "Legacy support:",
     "- DBR v9 and v10 docs are linked when requested.",
+    "- DCV has no legacy archive links in this server.",
     `- DWT archived docs available: ${dwtLegacyVersions || "none"}.`,
+    "- DDV has no legacy archive links in this server.",
     "",
     "Requests for older major versions are refused with a helpful message."
   ].join("\n");

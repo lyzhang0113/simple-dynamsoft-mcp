@@ -32,6 +32,46 @@
       "archiveUrl": "https://codeload.github.com/dynamsoft-docs/barcode-reader-docs-server/zip/6c5404429140195bd8f18f48fbc3f2d3f2524e74"
     },
     {
+      "name": "data/documentation/capture-vision-docs",
+      "path": "documentation/capture-vision-docs",
+      "url": "https://github.com/dynamsoft-docs/capture-vision-docs.git",
+      "branch": "main",
+      "owner": "dynamsoft-docs",
+      "repo": "capture-vision-docs",
+      "commit": "8c49a13548f2beb0152dd3497993edb80ed7f53a",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/capture-vision-docs/zip/8c49a13548f2beb0152dd3497993edb80ed7f53a"
+    },
+    {
+      "name": "data/documentation/capture-vision-docs-js",
+      "path": "documentation/capture-vision-docs-js",
+      "url": "https://github.com/dynamsoft-docs/capture-vision-docs-js.git",
+      "branch": "main",
+      "owner": "dynamsoft-docs",
+      "repo": "capture-vision-docs-js",
+      "commit": "3137b83d966e795190a9681e544045a5e526c083",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/capture-vision-docs-js/zip/3137b83d966e795190a9681e544045a5e526c083"
+    },
+    {
+      "name": "data/documentation/capture-vision-docs-mobile",
+      "path": "documentation/capture-vision-docs-mobile",
+      "url": "https://github.com/dynamsoft-docs/capture-vision-docs-mobile.git",
+      "branch": "main",
+      "owner": "dynamsoft-docs",
+      "repo": "capture-vision-docs-mobile",
+      "commit": "618991bac7908e65aeb4669bcd2dd0f57c84bca3",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/capture-vision-docs-mobile/zip/618991bac7908e65aeb4669bcd2dd0f57c84bca3"
+    },
+    {
+      "name": "data/documentation/capture-vision-docs-server",
+      "path": "documentation/capture-vision-docs-server",
+      "url": "https://github.com/dynamsoft-docs/capture-vision-docs-server.git",
+      "branch": "main",
+      "owner": "dynamsoft-docs",
+      "repo": "capture-vision-docs-server",
+      "commit": "4c37a5f6c816a1e90aee4cb03267529c7d7b307e",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/capture-vision-docs-server/zip/4c37a5f6c816a1e90aee4cb03267529c7d7b307e"
+    },
+    {
       "name": "data/documentation/document-viewer-docs",
       "path": "documentation/document-viewer-docs",
       "url": "https://github.com/dynamsoft-docs/document-viewer-docs.git",
@@ -152,6 +192,76 @@
       "archiveUrl": "https://codeload.github.com/Dynamsoft/barcode-reader-react-native-samples/zip/acb3ac877853f1543ff086fb15df30335b0d4cbe"
     },
     {
+      "name": "data/samples/dynamsoft-capture-vision-c-cpp",
+      "path": "samples/dynamsoft-capture-vision-c-cpp",
+      "url": "https://github.com/Dynamsoft/capture-vision-cpp-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "capture-vision-cpp-samples",
+      "commit": "6d37fa7f16bc84cbd2b78651549cb900cf222571",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/capture-vision-cpp-samples/zip/6d37fa7f16bc84cbd2b78651549cb900cf222571"
+    },
+    {
+      "name": "data/samples/dynamsoft-capture-vision-dotnet",
+      "path": "samples/dynamsoft-capture-vision-dotnet",
+      "url": "https://github.com/Dynamsoft/capture-vision-dotnet-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "capture-vision-dotnet-samples",
+      "commit": "1ac2d63ea45d63ee7421725e351936ca5c321ce2",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/capture-vision-dotnet-samples/zip/1ac2d63ea45d63ee7421725e351936ca5c321ce2"
+    },
+    {
+      "name": "data/samples/dynamsoft-capture-vision-flutter",
+      "path": "samples/dynamsoft-capture-vision-flutter",
+      "url": "https://github.com/Dynamsoft/capture-vision-flutter-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "capture-vision-flutter-samples",
+      "commit": "7e85ffddaaf2a9b75c21538d60f64fbe733f3227",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/capture-vision-flutter-samples/zip/7e85ffddaaf2a9b75c21538d60f64fbe733f3227"
+    },
+    {
+      "name": "data/samples/dynamsoft-capture-vision-java",
+      "path": "samples/dynamsoft-capture-vision-java",
+      "url": "https://github.com/Dynamsoft/capture-vision-java-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "capture-vision-java-samples",
+      "commit": "974c436210232a8579fc68b98f610c9d46e86979",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/capture-vision-java-samples/zip/974c436210232a8579fc68b98f610c9d46e86979"
+    },
+    {
+      "name": "data/samples/dynamsoft-capture-vision-javascript",
+      "path": "samples/dynamsoft-capture-vision-javascript",
+      "url": "https://github.com/Dynamsoft/capture-vision-javascript-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "capture-vision-javascript-samples",
+      "commit": "13f8885356247a7d369fd290f0b81b81e976a144",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/capture-vision-javascript-samples/zip/13f8885356247a7d369fd290f0b81b81e976a144"
+    },
+    {
+      "name": "data/samples/dynamsoft-capture-vision-maui",
+      "path": "samples/dynamsoft-capture-vision-maui",
+      "url": "https://github.com/Dynamsoft/capture-vision-maui-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "capture-vision-maui-samples",
+      "commit": "5b715da9f65569171d830a12c0ba0a68c536176c",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/capture-vision-maui-samples/zip/5b715da9f65569171d830a12c0ba0a68c536176c"
+    },
+    {
+      "name": "data/samples/dynamsoft-capture-vision-mobile",
+      "path": "samples/dynamsoft-capture-vision-mobile",
+      "url": "https://github.com/Dynamsoft/capture-vision-mobile-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "capture-vision-mobile-samples",
+      "commit": "d1232caf8738560ed11f911add57ad6b84c5531b",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/capture-vision-mobile-samples/zip/d1232caf8738560ed11f911add57ad6b84c5531b"
+    },
+    {
       "name": "data/samples/dynamsoft-capture-vision-nodejs",
       "path": "samples/dynamsoft-capture-vision-nodejs",
       "url": "https://github.com/Dynamsoft/capture-vision-nodejs-samples.git",
@@ -160,6 +270,36 @@
       "repo": "capture-vision-nodejs-samples",
       "commit": "380fe5f0bc10c8776958353cd349beaec6962fcb",
       "archiveUrl": "https://codeload.github.com/Dynamsoft/capture-vision-nodejs-samples/zip/380fe5f0bc10c8776958353cd349beaec6962fcb"
+    },
+    {
+      "name": "data/samples/dynamsoft-capture-vision-python",
+      "path": "samples/dynamsoft-capture-vision-python",
+      "url": "https://github.com/Dynamsoft/capture-vision-python-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "capture-vision-python-samples",
+      "commit": "8fdf4c63d5e35bdcc4993a068ba4bcade30e91a2",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/capture-vision-python-samples/zip/8fdf4c63d5e35bdcc4993a068ba4bcade30e91a2"
+    },
+    {
+      "name": "data/samples/dynamsoft-capture-vision-react-native",
+      "path": "samples/dynamsoft-capture-vision-react-native",
+      "url": "https://github.com/Dynamsoft/capture-vision-react-native-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "capture-vision-react-native-samples",
+      "commit": "c00158c5f3be2716a391d2f6f1412f9c8a2ac52f",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/capture-vision-react-native-samples/zip/c00158c5f3be2716a391d2f6f1412f9c8a2ac52f"
+    },
+    {
+      "name": "data/samples/dynamsoft-capture-vision-spm",
+      "path": "samples/dynamsoft-capture-vision-spm",
+      "url": "https://github.com/Dynamsoft/capture-vision-spm.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "capture-vision-spm",
+      "commit": "40b45edde33020d23e18a90e5ddc306ef7390ab7",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/capture-vision-spm/zip/40b45edde33020d23e18a90e5ddc306ef7390ab7"
     },
     {
       "name": "data/samples/dynamsoft-document-viewer",

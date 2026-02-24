@@ -226,6 +226,10 @@ function buildIndexSignature() {
   return JSON.stringify({
     packageVersion: pkg.version,
     resourceCount: signatureData.resourceCount,
+    dcvCoreDocCount: signatureData.dcvCoreDocCount,
+    dcvWebDocCount: signatureData.dcvWebDocCount,
+    dcvMobileDocCount: signatureData.dcvMobileDocCount,
+    dcvServerDocCount: signatureData.dcvServerDocCount,
     dbrWebDocCount: signatureData.dbrWebDocCount,
     dbrMobileDocCount: signatureData.dbrMobileDocCount,
     dbrServerDocCount: signatureData.dbrServerDocCount,
@@ -1153,6 +1157,30 @@ async function getSampleSuggestions({ query, product, edition, platform, limit =
   let candidates = resourceIndex.filter(matchesScope);
   if (candidates.length === 0 && normalizedProduct) {
     candidates = resourceIndex.filter((entry) => entry.type === "sample" && entry.product === normalizedProduct);
+  }
+
+  if (searchQuery && candidates.length > 1) {
+    const terms = normalizeText(searchQuery.toLowerCase()).split(/\s+/).filter(Boolean);
+    const scoreEntry = (entry) => {
+      const tags = Array.isArray(entry.tags) ? entry.tags.map((tag) => String(tag).toLowerCase()) : [];
+      const haystack = [
+        String(entry.title || "").toLowerCase(),
+        String(entry.summary || "").toLowerCase(),
+        tags.join(" ")
+      ].join(" ");
+      let score = 0;
+      for (const term of terms) {
+        if (!term) continue;
+        if (tags.some((tag) => tag === term || tag.includes(term))) score += 3;
+        if (haystack.includes(term)) score += 1;
+      }
+      return score;
+    };
+    candidates = [...candidates].sort((a, b) => {
+      const delta = scoreEntry(b) - scoreEntry(a);
+      if (delta !== 0) return delta;
+      return String(a.title || "").localeCompare(String(b.title || ""));
+    });
   }
 
   const seen = new Set();

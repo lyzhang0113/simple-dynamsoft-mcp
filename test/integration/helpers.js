@@ -143,6 +143,8 @@ async function runCoreAssertions(client, { requestTimeoutMs = 60000 } = {}) {
 
   const resources = await client.listResources(undefined, requestOptions);
   assert.ok(resources.resources.length > 0, "resources/list should return pinned resources");
+  const resourceUris = resources.resources.map((resource) => resource.uri);
+  assert.ok(resourceUris.includes("doc://product-selection"), "resources/list should expose product-selection guidance");
   const read = await client.readResource({ uri: link.uri }, requestOptions);
   assert.ok(read.contents.length > 0, "resources/read should return non-empty contents");
 }

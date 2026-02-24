@@ -2,6 +2,7 @@
 
 MCP (Model Context Protocol) server that enables AI assistants to write correct code with Dynamsoft SDKs. It provides actual working code snippets, documentation links, and API guidance for:
 
+- **Dynamsoft Capture Vision (DCV)** - Unified workflows for VIN, MRZ, document normalization, driver license parsing, and more
 - **Dynamsoft Barcode Reader Mobile** - Android (Java/Kotlin) and iOS (Swift)
 - **Dynamsoft Barcode Reader Server/Desktop** - Python, .NET, Java, C++, Node.js
 - **Dynamsoft Barcode Reader Web** - JavaScript/TypeScript barcode scanning
@@ -16,7 +17,7 @@ https://github.com/user-attachments/assets/cc1c5f4b-1461-4462-897a-75abc20d62a6
 
 - **Code Snippets**: Real, working source code from official Dynamsoft samples
 - **Trial License Included**: Ready-to-use trial license for quick testing
-- **Multiple SDKs**: Barcode Reader (Mobile/Web/Server) + Dynamic Web TWAIN + Document Viewer
+- **Multiple SDKs**: Capture Vision + Barcode Reader (Mobile/Web/Server) + Dynamic Web TWAIN + Document Viewer
 - **Multiple API Levels**: High-level (simple) and low-level (advanced) options
 - **Stdio MCP server**: Runs on stdio. Works with any MCP-capable client.
 - **Resource-efficient discovery**: Resources are discovered via tools (semantic RAG search with fuzzy fallback + resource links). Only a small pinned set is listed by default; heavy content is fetched on-demand with `resources/read`.
@@ -247,6 +248,19 @@ Notes:
 
 ## Supported SDKs
 
+### Dynamsoft Capture Vision (DCV)
+
+DCV is a superset architecture that aggregates DBR, DLR, DDN, DCP, and DCE into one pluggable pipeline.
+
+Use **DBR** when you only need barcode decoding.
+Use **DCV** when your workflow includes VIN, MRZ/passport/ID, driver license parsing, document detection/normalization/auto-capture/cropping, or multi-task capture-vision pipelines.
+
+**DCV editions covered in this MCP server:**
+- **Core docs** - architecture and cross-product concepts
+- **Web (JavaScript)**
+- **Server/Desktop** - Python, .NET, Java, C++, Node.js
+- **Mobile** - Android, iOS, Flutter, React Native, .NET MAUI (+ SPM package sample)
+
 ### Dynamsoft Barcode Reader Mobile (v11.2.5000)
 
 **Platforms:** Android, iOS, Flutter, React Native, .NET MAUI
@@ -331,6 +345,13 @@ After connecting the MCP server, you can ask your AI assistant:
 - "Get the React sample for web barcode scanning"
 - "How do I decode barcodes from an image in JavaScript?"
 
+### Capture Vision (DCV)
+- "Find a DCV sample for MRZ scanning in Python"
+- "Get a VIN scanning sample for Java or C++"
+- "Show me DCV document normalization samples for mobile"
+- "I need driver license parsing; should I use DBR or DCV?"
+- "List DCV server samples and generate a project from MRZScanner"
+
 ### Dynamic Web TWAIN
 - "Create a web page that scans documents from a TWAIN scanner"
 - "Show me how to save scanned documents as PDF"
@@ -341,6 +362,10 @@ After connecting the MCP server, you can ask your AI assistant:
 
 ## SDK Documentation
 
+- **DCV Core**: https://www.dynamsoft.com/capture-vision/docs/core/
+- **DCV Mobile**: https://www.dynamsoft.com/capture-vision/docs/mobile/
+- **DCV Server/Desktop**: https://www.dynamsoft.com/capture-vision/docs/server/
+- **DCV Web**: https://www.dynamsoft.com/capture-vision/docs/web/
 - **Mobile Android**: https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/android/user-guide.html
 - **Mobile iOS**: https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/objectivec-swift/user-guide.html
 - **Python**: https://www.dynamsoft.com/barcode-reader/docs/server/programming/python/user-guide.html
@@ -365,12 +390,26 @@ data/
 |   |-- dynamsoft-barcode-reader-java
 |   |-- dynamsoft-barcode-reader-c-cpp
 |   |-- dynamsoft-capture-vision-nodejs
+|   |-- dynamsoft-capture-vision-c-cpp
+|   |-- dynamsoft-capture-vision-dotnet
+|   |-- dynamsoft-capture-vision-java
+|   |-- dynamsoft-capture-vision-python
+|   |-- dynamsoft-capture-vision-mobile
+|   |-- dynamsoft-capture-vision-javascript
+|   |-- dynamsoft-capture-vision-react-native
+|   |-- dynamsoft-capture-vision-maui
+|   |-- dynamsoft-capture-vision-flutter
+|   |-- dynamsoft-capture-vision-spm
 |   |-- dynamic-web-twain
 |   `-- dynamsoft-document-viewer
 |-- documentation/                       # Git submodules
 |   |-- barcode-reader-docs-js
 |   |-- barcode-reader-docs-mobile
 |   |-- barcode-reader-docs-server
+|   |-- capture-vision-docs
+|   |-- capture-vision-docs-js
+|   |-- capture-vision-docs-server
+|   |-- capture-vision-docs-mobile
 |   |-- web-twain-docs
 |   `-- document-viewer-docs
 `-- .rag-cache/
@@ -477,6 +516,7 @@ At startup, the server logs data mode/path to stderr:
 ## Using Search-Based Discovery (Recommended)
 
 - On session start, let your client call `tools/list` and `resources/list` (pinned only, not exhaustive).
+- Read pinned `doc://product-selection` first to choose DBR vs DCV correctly for the scenario.
 - For any query, call `search`; it uses semantic RAG retrieval (with fuzzy fallback) and returns `resource_link` entries.
 - Read only the links you need via `resources/read` to avoid bloating the context window.
 - If unsure what to search, call `get_index` first to see what is available.
@@ -517,8 +557,9 @@ For local dev, you can also use a `.env` file (see `.env.example`).
 
 ## Version Policy
 
-- This MCP server serves only the latest major version for each product (DBR, DWT, DDV).
+- This MCP server serves only the latest major version for each product (DCV, DBR, DWT, DDV).
 - DBR legacy docs are linked for v9 and v10. Requests below v9 are refused.
+- DCV has no legacy archive links in this server.
 - DWT archived docs are available for v16.1.1+ (specific versions are hardcoded).
 - DDV has no legacy archive links in this server.
 

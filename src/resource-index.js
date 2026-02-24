@@ -24,26 +24,36 @@ import {
   discoverMobileSamples,
   discoverDbrServerSamples,
   discoverPythonSamples,
+  discoverDcvMobileSamples,
+  discoverDcvServerSamples,
+  discoverDcvWebSamples,
   discoverWebSamples,
   getWebSamplePath,
   discoverDwtSamples,
   discoverDdvSamples,
   mapDdvSampleToFramework,
   getDbrWebFrameworkPlatforms,
+  getDcvWebFrameworkPlatforms,
   getDdvWebFrameworkPlatforms,
   getWebFrameworkPlatforms,
   findCodeFilesInSample,
   getDbrMobilePlatforms,
   getDbrServerPlatforms,
+  getDcvMobilePlatforms,
+  getDcvServerPlatforms,
   getMobileSamplePath,
   getPythonSamplePath,
   getDbrServerSamplePath,
+  getDcvMobileSamplePath,
+  getDcvServerSamplePath,
+  getDcvWebSamplePath,
   getDwtSamplePath,
   getDdvSamplePath,
   readCodeFile,
   getMainCodeFile,
   getMimeTypeForExtension,
-  getDbrServerSampleContent
+  getDbrServerSampleContent,
+  getDcvServerSampleContent
 } from "./resource-index/samples.js";
 import { parseResourceUri, parseSampleUri, getSampleIdFromUri } from "./resource-index/uri.js";
 import {
@@ -84,7 +94,7 @@ function inferDbrServerPlatform(articlePath) {
   return "server";
 }
 
-function withDbrScope(articles, edition, platformResolver) {
+function withEditionScope(articles, edition, platformResolver) {
   return (articles || []).map((article) => ({
     ...article,
     edition,
@@ -92,7 +102,31 @@ function withDbrScope(articles, edition, platformResolver) {
   }));
 }
 
-const dbrWebDocs = withDbrScope(
+function inferDcvMobilePlatform(articlePath) {
+  const normalized = String(articlePath || "").replace(/\\/g, "/").toLowerCase();
+  const match = normalized.match(/^programming\/([^/]+)\//);
+  if (!match) return "mobile";
+  const segment = match[1];
+  if (segment === "objectivec-swift") return "ios";
+  if (segment === "android" || segment === "ios" || segment === "maui" || segment === "react-native" || segment === "flutter") {
+    return segment;
+  }
+  return "mobile";
+}
+
+function inferDcvServerPlatform(articlePath) {
+  const normalized = String(articlePath || "").replace(/\\/g, "/").toLowerCase();
+  const match = normalized.match(/^programming\/([^/]+)\//);
+  if (!match) return "server";
+  const segment = match[1];
+  if (segment === "cplusplus") return "cpp";
+  if (segment === "python" || segment === "java" || segment === "dotnet" || segment === "cpp" || segment === "nodejs") {
+    return segment;
+  }
+  return "server";
+}
+
+const dbrWebDocs = withEditionScope(
   loadMarkdownDocs({
     rootDir: DOC_ROOTS.dbrWeb,
     urlBase: DOCS_CONFIG.dbrWeb.urlBase,
@@ -103,7 +137,7 @@ const dbrWebDocs = withDbrScope(
   () => "web"
 );
 
-const dbrMobileDocs = withDbrScope(
+const dbrMobileDocs = withEditionScope(
   loadMarkdownDocs({
     rootDir: DOC_ROOTS.dbrMobile,
     urlBase: DOCS_CONFIG.dbrMobile.urlBase,
@@ -114,7 +148,7 @@ const dbrMobileDocs = withDbrScope(
   inferDbrMobilePlatform
 );
 
-const dbrServerDocs = withDbrScope(
+const dbrServerDocs = withEditionScope(
   loadMarkdownDocs({
     rootDir: DOC_ROOTS.dbrServer,
     urlBase: DOCS_CONFIG.dbrServer.urlBase,
@@ -123,6 +157,50 @@ const dbrServerDocs = withDbrScope(
   }).articles,
   "server",
   inferDbrServerPlatform
+);
+
+const dcvCoreDocs = withEditionScope(
+  loadMarkdownDocs({
+    rootDir: DOC_ROOTS.dcvCore,
+    urlBase: DOCS_CONFIG.dcvCore.urlBase,
+    excludeDirs: DOCS_CONFIG.dcvCore.excludeDirs,
+    excludeFiles: DOCS_CONFIG.dcvCore.excludeFiles
+  }).articles,
+  "core",
+  () => "core"
+);
+
+const dcvWebDocs = withEditionScope(
+  loadMarkdownDocs({
+    rootDir: DOC_ROOTS.dcvWeb,
+    urlBase: DOCS_CONFIG.dcvWeb.urlBase,
+    excludeDirs: DOCS_CONFIG.dcvWeb.excludeDirs,
+    excludeFiles: DOCS_CONFIG.dcvWeb.excludeFiles
+  }).articles,
+  "web",
+  () => "web"
+);
+
+const dcvMobileDocs = withEditionScope(
+  loadMarkdownDocs({
+    rootDir: DOC_ROOTS.dcvMobile,
+    urlBase: DOCS_CONFIG.dcvMobile.urlBase,
+    excludeDirs: DOCS_CONFIG.dcvMobile.excludeDirs,
+    excludeFiles: DOCS_CONFIG.dcvMobile.excludeFiles
+  }).articles,
+  "mobile",
+  inferDcvMobilePlatform
+);
+
+const dcvServerDocs = withEditionScope(
+  loadMarkdownDocs({
+    rootDir: DOC_ROOTS.dcvServer,
+    urlBase: DOCS_CONFIG.dcvServer.urlBase,
+    excludeDirs: DOCS_CONFIG.dcvServer.excludeDirs,
+    excludeFiles: DOCS_CONFIG.dcvServer.excludeFiles
+  }).articles,
+  "server",
+  inferDcvServerPlatform
 );
 
 const dwtDocs = loadMarkdownDocs({
@@ -139,6 +217,10 @@ const ddvDocs = loadMarkdownDocs({
 });
 
 const dbrServerSdk = registry.sdks["dbr-server"];
+const dcvMobileSdk = registry.sdks["dcv-mobile"];
+const dcvWebSdk = registry.sdks["dcv-web"];
+const dcvServerSdk = registry.sdks["dcv-server"];
+const dcvCoreSdk = registry.sdks["dcv-core"];
 
 const LATEST_VERSIONS = {
   dbr: {
@@ -146,6 +228,12 @@ const LATEST_VERSIONS = {
     web: registry.sdks["dbr-web"].version,
     server: dbrServerSdk.version,
     python: dbrServerSdk.version
+  },
+  dcv: {
+    core: dcvCoreSdk.version,
+    web: dcvWebSdk.version,
+    mobile: dcvMobileSdk.version,
+    server: dcvServerSdk.version
   },
   dwt: {
     web: registry.sdks.dwt.version
@@ -157,6 +245,7 @@ const LATEST_VERSIONS = {
 
 const LATEST_MAJOR = {
   dbr: parseMajorVersion(registry.sdks["dbr-mobile"].version),
+  dcv: parseMajorVersion(dcvMobileSdk.version),
   dwt: parseMajorVersion(registry.sdks.dwt.version),
   ddv: parseMajorVersion(registry.sdks.ddv.version)
 };
@@ -181,11 +270,21 @@ function buildIndexData() {
   return buildIndexDataFromBuilders({
     LATEST_VERSIONS,
     LATEST_MAJOR,
+    dcvCoreDocs,
+    dcvWebDocs,
+    dcvMobileDocs,
+    dcvServerDocs,
     dbrWebDocs,
     dbrMobileDocs,
     dbrServerDocs,
     dwtDocs,
     ddvDocs,
+    discoverDcvWebSamples,
+    getDcvWebFrameworkPlatforms,
+    getDcvMobilePlatforms,
+    getDcvServerPlatforms,
+    discoverDcvMobileSamples,
+    discoverDcvServerSamples,
     discoverWebSamples,
     getDbrWebFrameworkPlatforms,
     getDbrMobilePlatforms,
@@ -205,11 +304,23 @@ function buildResourceIndex() {
     buildVersionPolicyText,
     LATEST_VERSIONS,
     LATEST_MAJOR,
+    dcvCoreDocs,
+    dcvWebDocs,
+    dcvMobileDocs,
+    dcvServerDocs,
     dbrWebDocs,
     dbrMobileDocs,
     dbrServerDocs,
     dwtDocs,
     ddvDocs,
+    discoverDcvMobileSamples,
+    getDcvMobilePlatforms,
+    getDcvMobileSamplePath,
+    getDcvServerPlatforms,
+    discoverDcvServerSamples,
+    getDcvServerSampleContent,
+    discoverDcvWebSamples,
+    getDcvWebSamplePath,
     discoverMobileSamples,
     getDbrMobilePlatforms,
     getMobileSamplePath,
@@ -303,6 +414,10 @@ async function readResourceContent(uri) {
 function getRagSignatureData() {
   return {
     resourceCount: resourceIndex.length,
+    dcvCoreDocCount: dcvCoreDocs.length,
+    dcvWebDocCount: dcvWebDocs.length,
+    dcvMobileDocCount: dcvMobileDocs.length,
+    dcvServerDocCount: dcvServerDocs.length,
     dbrWebDocCount: dbrWebDocs.length,
     dbrMobileDocCount: dbrMobileDocs.length,
     dbrServerDocCount: dbrServerDocs.length,
@@ -320,11 +435,26 @@ function getRagSignatureData() {
       dbrReactNativeSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dbrReactNative),
       dbrFlutterSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dbrFlutter),
       dbrNodejsSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dbrNodejs),
+      dcvWebSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dcvWeb),
+      dcvMobileSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dcvMobile),
+      dcvPythonSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dcvPython),
+      dcvDotnetSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dcvDotnet),
+      dcvJavaSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dcvJava),
+      dcvCppSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dcvCpp),
+      dcvMauiSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dcvMaui),
+      dcvReactNativeSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dcvReactNative),
+      dcvFlutterSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dcvFlutter),
+      dcvNodejsSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dcvNodejs),
+      dcvSpmSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dcvSpm),
       dwtSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.dwt),
       ddvSamplesHead: readSubmoduleHead(SAMPLE_ROOTS.ddv),
       dbrWebDocsHead: readSubmoduleHead(DOC_ROOTS.dbrWeb),
       dbrMobileDocsHead: readSubmoduleHead(DOC_ROOTS.dbrMobile),
       dbrServerDocsHead: readSubmoduleHead(DOC_ROOTS.dbrServer),
+      dcvCoreDocsHead: readSubmoduleHead(DOC_ROOTS.dcvCore),
+      dcvWebDocsHead: readSubmoduleHead(DOC_ROOTS.dcvWeb),
+      dcvMobileDocsHead: readSubmoduleHead(DOC_ROOTS.dcvMobile),
+      dcvServerDocsHead: readSubmoduleHead(DOC_ROOTS.dcvServer),
       dwtDocsHead: readSubmoduleHead(DOC_ROOTS.dwt),
       ddvDocsHead: readSubmoduleHead(DOC_ROOTS.ddv),
       registrySha256
@@ -344,20 +474,29 @@ export {
   discoverMobileSamples,
   discoverDbrServerSamples,
   discoverPythonSamples,
+  discoverDcvMobileSamples,
+  discoverDcvServerSamples,
+  discoverDcvWebSamples,
   discoverWebSamples,
   getWebSamplePath,
   discoverDwtSamples,
   discoverDdvSamples,
   mapDdvSampleToFramework,
   getDbrWebFrameworkPlatforms,
+  getDcvWebFrameworkPlatforms,
   getDdvWebFrameworkPlatforms,
   getWebFrameworkPlatforms,
   findCodeFilesInSample,
   getDbrServerSamplePath,
   getDbrMobilePlatforms,
   getDbrServerPlatforms,
+  getDcvMobilePlatforms,
+  getDcvServerPlatforms,
   getMobileSamplePath,
   getPythonSamplePath,
+  getDcvMobileSamplePath,
+  getDcvServerSamplePath,
+  getDcvWebSamplePath,
   getDwtSamplePath,
   getDdvSamplePath,
   readCodeFile,
