@@ -10,14 +10,30 @@ import {
   UnsubscribeRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import {
+import { ensureDataReady } from "./data-bootstrap.js";
+import { maybeSyncSubmodulesOnStart } from "./submodule-sync.js";
+
+const pkgUrl = new URL("../package.json", import.meta.url);
+const pkg = JSON.parse(readFileSync(pkgUrl, "utf8"));
+
+await maybeSyncSubmodulesOnStart();
+const dataStatus = await ensureDataReady();
+if (dataStatus.mode === "downloaded") {
+  console.error(
+    `[data] mode=downloaded path=${dataStatus.dataRoot} source=${dataStatus.downloaded ? "fresh-download" : "cache"}`
+  );
+} else {
+  console.error(`[data] mode=${dataStatus.mode} path=${dataStatus.dataRoot}`);
+}
+
+const {
   registry,
   LATEST_VERSIONS,
   LATEST_MAJOR,
   discoverDwtSamples,
   findCodeFilesInSample,
   getMobileSamplePath,
-  getPythonSamplePath,
+  getDbrServerSamplePath,
   getDwtSamplePath,
   getDdvSamplePath,
   readCodeFile,
@@ -40,11 +56,14 @@ import {
   normalizeEdition,
   resourceIndex,
   getWebSamplePath
-} from "./resource-index.js";
-import { searchResources, getSampleSuggestions, prewarmRagIndex, ragConfig } from "./rag.js";
+} = await import("./resource-index.js");
 
-const pkgUrl = new URL("../package.json", import.meta.url);
-const pkg = JSON.parse(readFileSync(pkgUrl, "utf8"));
+const {
+  searchResources,
+  getSampleSuggestions,
+  prewarmRagIndex,
+  ragConfig
+} = await import("./rag.js");
 
 // ============================================================================
 // MCP Server
@@ -95,7 +114,7 @@ server.registerTool(
       query: z.string().describe("Keywords to search across docs and samples."),
       product: z.string().optional().describe("Product: dbr, dwt, ddv"),
       edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
-      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       version: z.string().optional().describe("Version constraint (major or full version)"),
       type: z.enum(["doc", "sample", "index", "policy", "any"]).optional(),
       limit: z.number().int().min(1).max(10).optional().describe("Max results (default 5)")
@@ -194,7 +213,7 @@ server.registerTool(
     inputSchema: {
       product: z.string().optional().describe("Product: dbr, dwt, ddv"),
       edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
-      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       limit: z.number().int().min(1).max(200).optional().describe("Max results (default 50)")
     }
   },
@@ -274,7 +293,7 @@ server.registerTool(
       sample_id: z.string().describe("Sample identifier or sample:// URI"),
       product: z.string().optional().describe("Product: dbr, dwt, ddv"),
       edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
-      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       limit: z.number().int().min(1).max(10).optional().describe("Max results (default 5)")
     }
   },
@@ -500,7 +519,7 @@ server.registerTool(
     inputSchema: {
       product: z.string().describe("Product: dbr, dwt, or ddv"),
       edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
-      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       constraint: z.string().optional().describe("Version constraint, e.g., latest, 11.x, 10"),
       feature: z.string().optional().describe("Optional feature hint")
     }
@@ -594,7 +613,7 @@ server.registerTool(
     inputSchema: {
       product: z.string().describe("Product: dbr, dwt, or ddv"),
       edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
-      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       language: z.string().optional().describe("Language hint: kotlin, java, swift, js, ts, python, cpp, csharp, react, vue, angular"),
       version: z.string().optional().describe("Version constraint"),
       api_level: z.string().optional().describe("API level: high-level or low-level (mobile only)"),
@@ -618,10 +637,10 @@ server.registerTool(
     }
 
     if (normalizedProduct === "dbr" && normalizedEdition === "server") {
-      const sdkEntry = registry.sdks["dbr-python"];
+      const sdkEntry = registry.sdks["dbr-server"];
       const scenarioLower = (scenario || "").toLowerCase();
       const sampleName = scenarioLower.includes("video") ? "video_decoding" : "read_an_image";
-      const samplePath = getPythonSamplePath(sampleName);
+      const samplePath = getDbrServerSamplePath("python", sampleName);
 
       if (!existsSync(samplePath)) {
         return { isError: true, content: [{ type: "text", text: `Sample not found: ${sampleName}.` }] };
@@ -633,7 +652,7 @@ server.registerTool(
         content: [{
           type: "text",
           text: [
-            "# Quick Start: DBR Python",
+            "# Quick Start: DBR Server (Python)",
             "",
             `**SDK Version:** ${sdkEntry.version}`,
             `**Trial License:** \`${registry.trial_license}\``,
@@ -929,7 +948,7 @@ server.registerTool(
     inputSchema: {
       product: z.string().describe("Product: dbr, dwt, or ddv"),
       edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
-      platform: z.string().optional().describe("Platform: android, ios, js, python, cpp, java, dotnet, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       version: z.string().optional().describe("Version constraint"),
       sample_id: z.string().optional().describe("Sample identifier (name or path)"),
       resource_uri: z.string().optional().describe("Resource URI returned by search"),
@@ -998,7 +1017,7 @@ server.registerTool(
       } else if (sampleInfo.product === "dbr" && sampleInfo.edition === "web") {
         samplePath = getWebSamplePath(sampleInfo.category, sampleInfo.sampleName);
       } else if (sampleInfo.product === "dbr" && (sampleInfo.edition === "python" || sampleInfo.edition === "server")) {
-        samplePath = getPythonSamplePath(sampleInfo.sampleName);
+        samplePath = getDbrServerSamplePath(sampleInfo.platform, sampleInfo.sampleName);
       } else if (sampleInfo.product === "dwt") {
         samplePath = getDwtSamplePath(sampleInfo.category, sampleInfo.sampleName);
       } else if (sampleInfo.product === "ddv") {
@@ -1029,7 +1048,7 @@ server.registerTool(
       } else if (normalizedProduct === "dbr" && normalizedEdition === "web") {
         samplePath = getWebSamplePath(undefined, sampleName);
       } else if (normalizedProduct === "dbr" && normalizedEdition === "server") {
-        samplePath = getPythonSamplePath(sampleName);
+        samplePath = getDbrServerSamplePath(normalizedPlatform || "python", sampleName);
       } else if (normalizedProduct === "dwt") {
         const categories = discoverDwtSamples();
         let foundCategory = "";
@@ -1228,3 +1247,4 @@ if (ragConfig.prewarm) {
     void prewarmRagIndex();
   }
 }
+

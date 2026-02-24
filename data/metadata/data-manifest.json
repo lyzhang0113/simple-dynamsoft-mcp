@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "repos": [
+    {
+      "name": "data/documentation/barcode-reader-docs-js",
+      "path": "documentation/barcode-reader-docs-js",
+      "url": "https://github.com/dynamsoft-docs/barcode-reader-docs-js.git",
+      "branch": "main",
+      "owner": "dynamsoft-docs",
+      "repo": "barcode-reader-docs-js",
+      "commit": "10c2fc25201f89eb5a6a412bce5fe2fb7e4b3f5f",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/barcode-reader-docs-js/zip/10c2fc25201f89eb5a6a412bce5fe2fb7e4b3f5f"
+    },
+    {
+      "name": "data/documentation/barcode-reader-docs-mobile",
+      "path": "documentation/barcode-reader-docs-mobile",
+      "url": "https://github.com/dynamsoft-docs/barcode-reader-docs-mobile.git",
+      "branch": "main",
+      "owner": "dynamsoft-docs",
+      "repo": "barcode-reader-docs-mobile",
+      "commit": "597f0da48bee7fc5fb955d90ebef536433eeb9f6",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/barcode-reader-docs-mobile/zip/597f0da48bee7fc5fb955d90ebef536433eeb9f6"
+    },
+    {
+      "name": "data/documentation/barcode-reader-docs-server",
+      "path": "documentation/barcode-reader-docs-server",
+      "url": "https://github.com/dynamsoft-docs/barcode-reader-docs-server.git",
+      "branch": "main",
+      "owner": "dynamsoft-docs",
+      "repo": "barcode-reader-docs-server",
+      "commit": "6c5404429140195bd8f18f48fbc3f2d3f2524e74",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/barcode-reader-docs-server/zip/6c5404429140195bd8f18f48fbc3f2d3f2524e74"
+    },
+    {
+      "name": "data/documentation/document-viewer-docs",
+      "path": "documentation/document-viewer-docs",
+      "url": "https://github.com/dynamsoft-docs/document-viewer-docs.git",
+      "branch": "main",
+      "owner": "dynamsoft-docs",
+      "repo": "document-viewer-docs",
+      "commit": "26ea218ada436b1bbae04a224ebe2d42a08fef5b",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/document-viewer-docs/zip/26ea218ada436b1bbae04a224ebe2d42a08fef5b"
+    },
+    {
+      "name": "data/documentation/web-twain-docs",
+      "path": "documentation/web-twain-docs",
+      "url": "https://github.com/dynamsoft-docs/web-twain-docs.git",
+      "branch": "master",
+      "owner": "dynamsoft-docs",
+      "repo": "web-twain-docs",
+      "commit": "5da9b65024e8eeecab1dced934638c57cafe0b79",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/web-twain-docs/zip/5da9b65024e8eeecab1dced934638c57cafe0b79"
+    },
+    {
+      "name": "data/samples/dynamic-web-twain",
+      "path": "samples/dynamic-web-twain",
+      "url": "https://github.com/Dynamsoft/web-twain-codelab.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "web-twain-codelab",
+      "commit": "6622b408a0a253b80c7dd6e6ba334c1cf0bf0ca3",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/web-twain-codelab/zip/6622b408a0a253b80c7dd6e6ba334c1cf0bf0ca3"
+    },
+    {
+      "name": "data/samples/dynamsoft-barcode-reader",
+      "path": "samples/dynamsoft-barcode-reader",
+      "url": "https://github.com/Dynamsoft/barcode-reader-javascript-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "barcode-reader-javascript-samples",
+      "commit": "2f0a723e88e3271170672e61c214a3d1d7a31328",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/barcode-reader-javascript-samples/zip/2f0a723e88e3271170672e61c214a3d1d7a31328"
+    },
+    {
+      "name": "data/samples/dynamsoft-barcode-reader-c-cpp",
+      "path": "samples/dynamsoft-barcode-reader-c-cpp",
+      "url": "https://github.com/Dynamsoft/barcode-reader-c-cpp-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "barcode-reader-c-cpp-samples",
+      "commit": "31193773be1b64616d84a0ac439dde1a1e1d3067",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/barcode-reader-c-cpp-samples/zip/31193773be1b64616d84a0ac439dde1a1e1d3067"
+    },
+    {
+      "name": "data/samples/dynamsoft-barcode-reader-dotnet",
+      "path": "samples/dynamsoft-barcode-reader-dotnet",
+      "url": "https://github.com/Dynamsoft/barcode-reader-dotnet-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "barcode-reader-dotnet-samples",
+      "commit": "5d7abad2ba3a23bff70ccbd8359f47ebb8605953",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/barcode-reader-dotnet-samples/zip/5d7abad2ba3a23bff70ccbd8359f47ebb8605953"
+    },
+    {
+      "name": "data/samples/dynamsoft-barcode-reader-flutter",
+      "path": "samples/dynamsoft-barcode-reader-flutter",
+      "url": "https://github.com/Dynamsoft/barcode-reader-flutter-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "barcode-reader-flutter-samples",
+      "commit": "36c113de476a07c20867eae77fd29f3f92b70d41",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/barcode-reader-flutter-samples/zip/36c113de476a07c20867eae77fd29f3f92b70d41"
+    },
+    {
+      "name": "data/samples/dynamsoft-barcode-reader-java",
+      "path": "samples/dynamsoft-barcode-reader-java",
+      "url": "https://github.com/Dynamsoft/barcode-reader-java-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "barcode-reader-java-samples",
+      "commit": "16cc16f9e0c8625842a43d6bdd1474720976ecd7",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/barcode-reader-java-samples/zip/16cc16f9e0c8625842a43d6bdd1474720976ecd7"
+    },
+    {
+      "name": "data/samples/dynamsoft-barcode-reader-maui",
+      "path": "samples/dynamsoft-barcode-reader-maui",
+      "url": "https://github.com/Dynamsoft/barcode-reader-maui-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "barcode-reader-maui-samples",
+      "commit": "6b1252fffdde08356dc2c2d6e18bc92c99bd9a42",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/barcode-reader-maui-samples/zip/6b1252fffdde08356dc2c2d6e18bc92c99bd9a42"
+    },
+    {
+      "name": "data/samples/dynamsoft-barcode-reader-mobile",
+      "path": "samples/dynamsoft-barcode-reader-mobile",
+      "url": "https://github.com/Dynamsoft/barcode-reader-mobile-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "barcode-reader-mobile-samples",
+      "commit": "9bf2ea7ed0c95035612494e5e282de1cd3b9e74d",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/barcode-reader-mobile-samples/zip/9bf2ea7ed0c95035612494e5e282de1cd3b9e74d"
+    },
+    {
+      "name": "data/samples/dynamsoft-barcode-reader-python",
+      "path": "samples/dynamsoft-barcode-reader-python",
+      "url": "https://github.com/Dynamsoft/barcode-reader-python-samples.git",
+      "branch": "master",
+      "owner": "Dynamsoft",
+      "repo": "barcode-reader-python-samples",
+      "commit": "e581a3a6eda1ce8128d1c8bd8667382b536f17ed",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/barcode-reader-python-samples/zip/e581a3a6eda1ce8128d1c8bd8667382b536f17ed"
+    },
+    {
+      "name": "data/samples/dynamsoft-barcode-reader-react-native",
+      "path": "samples/dynamsoft-barcode-reader-react-native",
+      "url": "https://github.com/Dynamsoft/barcode-reader-react-native-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "barcode-reader-react-native-samples",
+      "commit": "acb3ac877853f1543ff086fb15df30335b0d4cbe",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/barcode-reader-react-native-samples/zip/acb3ac877853f1543ff086fb15df30335b0d4cbe"
+    },
+    {
+      "name": "data/samples/dynamsoft-capture-vision-nodejs",
+      "path": "samples/dynamsoft-capture-vision-nodejs",
+      "url": "https://github.com/Dynamsoft/capture-vision-nodejs-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "capture-vision-nodejs-samples",
+      "commit": "380fe5f0bc10c8776958353cd349beaec6962fcb",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/capture-vision-nodejs-samples/zip/380fe5f0bc10c8776958353cd349beaec6962fcb"
+    },
+    {
+      "name": "data/samples/dynamsoft-document-viewer",
+      "path": "samples/dynamsoft-document-viewer",
+      "url": "https://github.com/Dynamsoft/document-viewer-samples.git",
+      "branch": "main",
+      "owner": "Dynamsoft",
+      "repo": "document-viewer-samples",
+      "commit": "84fbb0ce71aa4d327aeeb39dab57cab92c43cd9d",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/document-viewer-samples/zip/84fbb0ce71aa4d327aeeb39dab57cab92c43cd9d"
+    }
+  ]
+}

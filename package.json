@@ -1,6 +1,6 @@
 {
   "name": "simple-dynamsoft-mcp",
-  "version": "5.0.0",
+  "version": "6.2.0",
   "description": "MCP server for Dynamsoft SDKs - Barcode Reader (Mobile/Python/Web), Dynamic Web TWAIN, and Document Viewer. Provides documentation, code snippets, and API guidance.",
   "license": "MIT",
   "repository": {
@@ -16,14 +16,25 @@
   },
   "files": [
     "src",
-    "data",
-    "code-snippet",
+    "data/metadata",
+    "scripts",
     "README.md",
     ".env.example"
   ],
   "scripts": {
     "start": "node src/index.js",
-    "test": "node test/server.test.js"
+    "test": "npm run test:fuse",
+    "test:fuse": "npm run test:stdio && npm run test:http && npm run test:package",
+    "test:local": "node --test test/integration/stdio.test.js test/integration/http-gateway.test.js",
+    "test:stdio": "node --test test/integration/stdio.test.js",
+    "test:http": "node --test test/integration/http-gateway.test.js",
+    "test:package": "node --test test/integration/package-runtime.test.js",
+    "data:bootstrap": "git submodule sync --recursive && git submodule update --init --recursive --jobs 1",
+    "data:sync": "node scripts/sync-submodules.mjs",
+    "data:status": "git submodule status --recursive",
+    "data:lock": "node scripts/update-data-lock.mjs",
+    "data:verify-lock": "node scripts/verify-data-lock.mjs",
+    "rag:prebuild": "node scripts/prebuild-rag-index.mjs"
   },
   "keywords": [
     "mcp",
@@ -44,10 +55,12 @@
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@xenova/transformers": "^2.17.2",
     "dotenv": "^16.4.5",
+    "extract-zip": "^2.0.1",
     "fuse.js": "^7.0.0",
     "zod": "~3.24.0"
   },
   "devDependencies": {
+    "supergateway": "^3.4.3",
     "supertest": "^7.1.3"
   }
 }

@@ -1,0 +1,68 @@
+[submodule "data/samples/dynamsoft-barcode-reader"]
+	path = data/samples/dynamsoft-barcode-reader
+	url = https://github.com/Dynamsoft/barcode-reader-javascript-samples.git
+	branch = main
+[submodule "data/samples/dynamic-web-twain"]
+	path = data/samples/dynamic-web-twain
+	url = https://github.com/Dynamsoft/web-twain-codelab.git
+	branch = main
+[submodule "data/samples/dynamsoft-document-viewer"]
+	path = data/samples/dynamsoft-document-viewer
+	url = https://github.com/Dynamsoft/document-viewer-samples.git
+	branch = main
+[submodule "data/documentation/web-twain-docs"]
+	path = data/documentation/web-twain-docs
+	url = https://github.com/dynamsoft-docs/web-twain-docs.git
+	branch = master
+[submodule "data/documentation/document-viewer-docs"]
+	path = data/documentation/document-viewer-docs
+	url = https://github.com/dynamsoft-docs/document-viewer-docs.git
+	branch = main
+[submodule "data/samples/dynamsoft-barcode-reader-mobile"]
+	path = data/samples/dynamsoft-barcode-reader-mobile
+	url = https://github.com/Dynamsoft/barcode-reader-mobile-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-barcode-reader-maui"]
+	path = data/samples/dynamsoft-barcode-reader-maui
+	url = https://github.com/Dynamsoft/barcode-reader-maui-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-barcode-reader-react-native"]
+	path = data/samples/dynamsoft-barcode-reader-react-native
+	url = https://github.com/Dynamsoft/barcode-reader-react-native-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-barcode-reader-flutter"]
+	path = data/samples/dynamsoft-barcode-reader-flutter
+	url = https://github.com/Dynamsoft/barcode-reader-flutter-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-barcode-reader-python"]
+	path = data/samples/dynamsoft-barcode-reader-python
+	url = https://github.com/Dynamsoft/barcode-reader-python-samples.git
+	branch = master
+[submodule "data/samples/dynamsoft-barcode-reader-dotnet"]
+	path = data/samples/dynamsoft-barcode-reader-dotnet
+	url = https://github.com/Dynamsoft/barcode-reader-dotnet-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-barcode-reader-java"]
+	path = data/samples/dynamsoft-barcode-reader-java
+	url = https://github.com/Dynamsoft/barcode-reader-java-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-barcode-reader-c-cpp"]
+	path = data/samples/dynamsoft-barcode-reader-c-cpp
+	url = https://github.com/Dynamsoft/barcode-reader-c-cpp-samples.git
+	branch = main
+[submodule "data/samples/dynamsoft-capture-vision-nodejs"]
+	path = data/samples/dynamsoft-capture-vision-nodejs
+	url = https://github.com/Dynamsoft/capture-vision-nodejs-samples.git
+	branch = main
+[submodule "data/documentation/barcode-reader-docs-js"]
+	path = data/documentation/barcode-reader-docs-js
+	url = https://github.com/dynamsoft-docs/barcode-reader-docs-js.git
+	branch = main
+[submodule "data/documentation/barcode-reader-docs-mobile"]
+	path = data/documentation/barcode-reader-docs-mobile
+	url = https://github.com/dynamsoft-docs/barcode-reader-docs-mobile.git
+	branch = main
+[submodule "data/documentation/barcode-reader-docs-server"]
+	path = data/documentation/barcode-reader-docs-server
+	url = https://github.com/dynamsoft-docs/barcode-reader-docs-server.git
+	branch = main

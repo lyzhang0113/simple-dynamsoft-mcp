@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import "dotenv/config";
 import Fuse from "fuse.js";
+import { getResolvedDataRoot } from "./data-root.js";
 import {
   resourceIndex,
   resourceIndexByUri,
@@ -17,7 +18,7 @@ import {
 } from "./resource-index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = join(__dirname, "..");
+const dataRoot = getResolvedDataRoot();
 
 const pkgUrl = new URL("../package.json", import.meta.url);
 const pkg = JSON.parse(readFileSync(pkgUrl, "utf8"));
@@ -61,8 +62,8 @@ function normalizeGeminiModel(model) {
 const ragConfig = {
   provider: readEnvValue("RAG_PROVIDER", "auto").toLowerCase(),
   fallback: readEnvValue("RAG_FALLBACK", "fuse").toLowerCase(),
-  cacheDir: readEnvValue("RAG_CACHE_DIR", join(projectRoot, "data", ".rag-cache")),
-  modelCacheDir: readEnvValue("RAG_MODEL_CACHE_DIR", join(projectRoot, "data", ".rag-cache", "models")),
+  cacheDir: readEnvValue("RAG_CACHE_DIR", join(dataRoot, ".rag-cache")),
+  modelCacheDir: readEnvValue("RAG_MODEL_CACHE_DIR", join(dataRoot, ".rag-cache", "models")),
   localModel: readEnvValue("RAG_LOCAL_MODEL", "Xenova/all-MiniLM-L6-v2"),
   localQuantized: readBoolEnv("RAG_LOCAL_QUANTIZED", true),
   chunkSize: readIntEnv("RAG_CHUNK_SIZE", 1200),
@@ -79,6 +80,19 @@ const ragConfig = {
   geminiBaseUrl: readEnvValue("GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com"),
   geminiBatchSize: readIntEnv("GEMINI_EMBED_BATCH_SIZE", 16)
 };
+
+const ragLogState = {
+  config: false,
+  providerChain: false,
+  localEmbedderInit: false,
+  providerReady: new Set(),
+  providerFirstUse: new Set(),
+  fallbackUse: new Set()
+};
+
+function logRag(message) {
+  console.error(`[rag] ${message}`);
+}
 
 // ============================================================================
 // RAG search implementation
@@ -191,9 +205,13 @@ function buildIndexSignature() {
   return JSON.stringify({
     packageVersion: pkg.version,
     resourceCount: signatureData.resourceCount,
+    dbrWebDocCount: signatureData.dbrWebDocCount,
+    dbrMobileDocCount: signatureData.dbrMobileDocCount,
+    dbrServerDocCount: signatureData.dbrServerDocCount,
     dwtDocCount: signatureData.dwtDocCount,
     ddvDocCount: signatureData.ddvDocCount,
     versions: signatureData.versions,
+    dataSources: signatureData.dataSources,
     chunkSize: ragConfig.chunkSize,
     chunkOverlap: ragConfig.chunkOverlap,
     maxChunksPerDoc: ragConfig.maxChunksPerDoc,
@@ -213,14 +231,20 @@ function makeCacheFileName(provider, model, cacheKey) {
 }
 
 function loadVectorIndexCache(cacheFile, expectedKey) {
-  if (!existsSync(cacheFile)) return null;
+  if (!existsSync(cacheFile)) {
+    return { hit: false, reason: "missing", payload: null };
+  }
   try {
     const parsed = JSON.parse(readFileSync(cacheFile, "utf8"));
-    if (!parsed || parsed.cacheKey !== expectedKey) return null;
-    if (!Array.isArray(parsed.items) || !Array.isArray(parsed.vectors)) return null;
-    return parsed;
+    if (!parsed || parsed.cacheKey !== expectedKey) {
+      return { hit: false, reason: "cache_key_mismatch", payload: null };
+    }
+    if (!Array.isArray(parsed.items) || !Array.isArray(parsed.vectors)) {
+      return { hit: false, reason: "invalid_payload", payload: null };
+    }
+    return { hit: true, reason: "ok", payload: parsed };
   } catch {
-    return null;
+    return { hit: false, reason: "parse_error", payload: null };
   }
 }
 
@@ -275,6 +299,12 @@ async function getLocalEmbedder() {
   localEmbedderPromise = (async () => {
     const { pipeline, env } = await import("@xenova/transformers");
     ensureDirectory(ragConfig.modelCacheDir);
+    if (!ragLogState.localEmbedderInit) {
+      ragLogState.localEmbedderInit = true;
+      logRag(
+        `init local embedder model=${ragConfig.localModel} quantized=${ragConfig.localQuantized} model_cache_dir=${ragConfig.modelCacheDir}`
+      );
+    }
     env.cacheDir = ragConfig.modelCacheDir;
     env.allowLocalModels = true;
     const extractor = await pipeline("feature-extraction", ragConfig.localModel, {
@@ -361,23 +391,34 @@ async function createVectorProvider({ name, model, embedder, batchSize }) {
   };
   const cacheKey = createHash("sha256").update(JSON.stringify(cacheMeta)).digest("hex");
   const cacheFile = join(ragConfig.cacheDir, makeCacheFileName(name, model, cacheKey));
+  logRag(
+    `provider=${name} cache_file=${cacheFile} rebuild=${ragConfig.rebuild} cache_key=${cacheKey.slice(0, 12)}`
+  );
 
   let indexPromise = null;
   const loadIndex = async () => {
     if (indexPromise) return indexPromise;
     indexPromise = (async () => {
       if (!ragConfig.rebuild) {
-        const cached = loadVectorIndexCache(cacheFile, cacheKey);
-        if (cached) {
+        const cacheState = loadVectorIndexCache(cacheFile, cacheKey);
+        if (cacheState.hit) {
+          const cached = cacheState.payload;
+          logRag(
+            `cache hit provider=${name} file=${cacheFile} items=${cached.items.length} vectors=${cached.vectors.length}`
+          );
           return {
             items: cached.items,
             vectors: cached.vectors
           };
         }
+        logRag(`cache miss provider=${name} file=${cacheFile} reason=${cacheState.reason}`);
+      } else {
+        logRag(`cache bypass provider=${name} file=${cacheFile} reason=rebuild_true`);
       }
 
       const items = buildEmbeddingItems();
       const texts = items.map((item) => item.text);
+      logRag(`building index provider=${name} embed_items=${texts.length} batch_size=${batchSize}`);
       const vectors = await embedTexts(texts, embedder, batchSize);
       const normalized = vectors.map(normalizeVector);
 
@@ -388,6 +429,7 @@ async function createVectorProvider({ name, model, embedder, batchSize }) {
         vectors: normalized
       };
       saveVectorIndexCache(cacheFile, payload);
+      logRag(`cache saved provider=${name} file=${cacheFile} items=${payload.items.length} vectors=${payload.vectors.length}`);
       return {
         items: payload.items,
         vectors: payload.vectors
@@ -460,6 +502,14 @@ function resolveProviderChain() {
   return Array.from(new Set(chain));
 }
 
+function logRagConfigOnce() {
+  if (ragLogState.config) return;
+  ragLogState.config = true;
+  logRag(
+    `config provider=${ragConfig.provider} fallback=${ragConfig.fallback} prewarm=${ragConfig.prewarm} rebuild=${ragConfig.rebuild} cache_dir=${ragConfig.cacheDir}`
+  );
+}
+
 const providerCache = new Map();
 
 async function loadSearchProvider(name) {
@@ -490,6 +540,10 @@ async function loadSearchProvider(name) {
   } else {
     providerPromise = Promise.reject(new Error(`Unknown search provider: ${name}`));
   }
+  if (!ragLogState.providerReady.has(name)) {
+    ragLogState.providerReady.add(name);
+    logRag(`provider ready name=${name}`);
+  }
   providerCache.set(name, providerPromise);
   return providerPromise;
 }
@@ -504,12 +558,25 @@ async function searchResources({ query, product, edition, platform, type, limit 
     return maxResults ? results.slice(0, maxResults) : results;
   }
 
+  logRagConfigOnce();
   const providers = resolveProviderChain();
+  if (!ragLogState.providerChain) {
+    ragLogState.providerChain = true;
+    logRag(`provider chain=${providers.join(" -> ")}`);
+  }
   let lastError = null;
   for (const name of providers) {
     try {
       const provider = await loadSearchProvider(name);
       const results = await provider.search(searchQuery, filters, maxResults);
+      if (!ragLogState.providerFirstUse.has(name)) {
+        ragLogState.providerFirstUse.add(name);
+        logRag(`provider selected name=${name}`);
+      }
+      if (name !== providers[0] && !ragLogState.fallbackUse.has(name)) {
+        ragLogState.fallbackUse.add(name);
+        logRag(`fallback engaged selected=${name} primary=${providers[0]}`);
+      }
       return results;
     } catch (error) {
       lastError = error;
@@ -525,14 +592,17 @@ async function searchResources({ query, product, edition, platform, type, limit 
 
 async function prewarmRagIndex() {
   if (!ragConfig.prewarm) return;
+  logRagConfigOnce();
   const providers = resolveProviderChain();
   const primary = providers[0];
   if (!primary || primary === "fuse") return;
   try {
+    logRag(`prewarm start provider=${primary}`);
     const provider = await loadSearchProvider(primary);
     if (provider.warm) {
       await provider.warm();
     }
+    logRag(`prewarm done provider=${primary}`);
   } catch (error) {
     console.error(`[rag] prewarm failed: ${error.message}`);
   }
