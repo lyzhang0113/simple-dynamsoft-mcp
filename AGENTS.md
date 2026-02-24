@@ -68,6 +68,10 @@ Avoid modifying `data/` submodule content unless explicitly requested.
 - Init submodules: `npm run data:bootstrap`
 - Sync submodules: `npm run data:sync`
 - Submodule status: `npm run data:status`
+- Update SDK versions from docs: `npm run data:versions`
+- Strict version/source check during update: `npm run data:versions:strict`
+- Verify SDK versions are synced: `npm run data:verify-versions`
+- Strict verify for source-structure drift: `npm run data:verify-versions:strict`
 - Update data lock manifest: `npm run data:lock`
 - Verify data lock manifest: `npm run data:verify-lock`
 - Build prebuilt local RAG index cache: `npm run rag:prebuild`
@@ -156,8 +160,8 @@ Use this sequence when onboarding a new product family or edition docs/samples.
 
 - Version sync entrypoint: `scripts/update-sdk-versions.mjs`.
 - Workflow hook: `.github/workflows/update-data-lock.yml` runs:
-  - `npm run data:versions`
-  - `npm run data:verify-versions`
+  - `npm run data:versions:strict`
+  - `npm run data:verify-versions:strict`
 - Prefer product-specific canonical sources, not one generic regex:
   - DBR/DCV editions: release-note index pages.
   - DWT: `assets/js/setLatestVersion.js`.

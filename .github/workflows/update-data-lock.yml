@@ -32,10 +32,10 @@ jobs:
         run: npm run data:sync
 
       - name: Update sdk versions from docs
-        run: npm run data:versions
+        run: npm run data:versions:strict
 
       - name: Verify sdk versions are synced
-        run: npm run data:verify-versions
+        run: npm run data:verify-versions:strict
 
       - name: Update lock manifest
         run: npm run data:lock

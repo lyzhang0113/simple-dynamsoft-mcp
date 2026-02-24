@@ -5,6 +5,7 @@ import { join, relative } from "node:path";
 const projectRoot = process.cwd();
 const metadataPath = join(projectRoot, "data", "metadata", "dynamsoft_sdks.json");
 const checkOnly = process.argv.includes("--check");
+const strictMode = process.argv.includes("--strict") || process.env.VERSION_SYNC_STRICT === "true";
 
 function logVersionSync(message) {
   console.log(`[version-sync] ${message}`);
@@ -244,7 +245,7 @@ if (!existsSync(metadataPath)) {
 }
 
 logVersionSync(
-  `start mode=${checkOnly ? "check" : "update"} metadata=${relative(projectRoot, metadataPath)} sources=${sdkVersionSources.length}`
+  `start mode=${checkOnly ? "check" : "update"} strict=${strictMode ? "true" : "false"} metadata=${relative(projectRoot, metadataPath)} sources=${sdkVersionSources.length}`
 );
 
 const metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
@@ -321,6 +322,11 @@ if (skipped.length > 0) {
 logVersionSync(
   `summary updates=${updates.length} unchanged=${unchanged.length} skipped=${skipped.length}`
 );
+
+if (strictMode && skipped.length > 0) {
+  console.error("[version-sync] strict mode failed: one or more SDK sources could not be resolved.");
+  process.exit(1);
+}
 
 if (checkOnly) {
   if (updates.length > 0) {

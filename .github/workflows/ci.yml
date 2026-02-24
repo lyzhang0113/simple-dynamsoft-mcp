@@ -27,6 +27,9 @@ jobs:
       - name: Bootstrap data
         run: npm run data:bootstrap
 
+      - name: Verify data source wiring
+        run: npm run data:verify-versions:strict
+
       - name: Test (fuse + package runtime)
         run: npm run test:fuse
 
