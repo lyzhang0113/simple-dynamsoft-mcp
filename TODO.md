@@ -70,6 +70,32 @@ Goal: avoid long local index build time whenever local embeddings are used (prim
 - [x] Validate prebuilt-index build + release-attachment path in workflow.
 - [ ] Validate runtime prebuilt-index download path and fallback behavior.
 
+## Workstream 4: Hybrid Lexical Fallback (BM25 + Fuse)
+
+Goal: replace fuse-only fallback with lexical hybrid retrieval for no-model scenarios.
+
+- [ ] Add a lexical provider that combines BM25 keyword ranking with Fuse fuzzy matching.
+- [ ] Keep semantic providers (`gemini`/`local`) as primary, and use hybrid lexical for fallback.
+- [ ] Add score fusion/rerank strategy for BM25 + Fuse results with deterministic ordering.
+- [ ] Add env toggle for lexical fallback (for example `RAG_FALLBACK=lexical`).
+- [ ] Keep standalone `fuse` mode available for compatibility.
+- [ ] Add integration tests for lexical fallback in both stdio and HTTP gateway paths.
+- [ ] Document lexical fallback behavior in `README.md`, `AGENTS.md`, and `.env.example`.
+
+## Workstream 5: Gemini Prewarm Rate-Limit Hardening
+
+Goal: prevent prewarm failures when embedding large corpora with Gemini API quotas/rate limits.
+
+- [ ] Add exponential backoff with jitter for Gemini embedding requests during prewarm/index build.
+- [ ] Add retry policy for retryable errors (`429`, `503`, transient `5xx`) with max-attempt cap.
+- [ ] Add configurable throttling between Gemini requests/batches to reduce burst pressure.
+- [ ] Add env controls for retry/backoff/throttle settings (for example `GEMINI_RETRY_MAX_ATTEMPTS`, `GEMINI_RETRY_BASE_DELAY_MS`, `GEMINI_RETRY_MAX_DELAY_MS`, `GEMINI_REQUEST_THROTTLE_MS`).
+- [ ] Add adaptive batch downgrade on repeated rate-limit responses (reduce `GEMINI_EMBED_BATCH_SIZE` progressively).
+- [ ] Persist partial progress/checkpoints during prewarm so retries can resume instead of restarting full corpus embedding.
+- [ ] Add graceful fallback behavior when prewarm fails (continue startup and use fallback provider/search mode).
+- [ ] Add structured logs/metrics for retry attempts, backoff delay, throttle events, and final prewarm outcome.
+- [ ] Add tests for retry/backoff behavior and config parsing, and update docs in `README.md`, `AGENTS.md`, and `.env.example`.
+
 ## Key Points For Future Agents
 
 - Do not manually edit `data/metadata/data-manifest.json`; regenerate via `npm run data:lock`.
