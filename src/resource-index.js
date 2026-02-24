@@ -399,9 +399,49 @@ function getPinnedResources() {
   return resourceIndex.filter((entry) => entry.pinned);
 }
 
+function safeDecodeURIComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function buildResourceLookupCandidates(uri) {
+  const candidates = [];
+  if (typeof uri !== "string" || uri.length === 0) return candidates;
+  candidates.push(uri);
+
+  if (!uri.includes("://")) return candidates;
+  const [scheme, rest] = uri.split("://");
+  if (scheme !== "doc") return candidates;
+
+  const parts = String(rest || "").split("/").filter(Boolean);
+  if (parts.length < 5) return candidates;
+
+  const head = parts.slice(0, 4);
+  const slugRaw = parts.slice(4).join("/");
+  const decodedOnce = safeDecodeURIComponent(slugRaw);
+  const decodedTwice = safeDecodeURIComponent(decodedOnce);
+
+  for (const slug of [decodedOnce, decodedTwice]) {
+    const canonical = `${scheme}://${head.join("/")}/${encodeURIComponent(slug)}`;
+    if (!candidates.includes(canonical)) {
+      candidates.push(canonical);
+    }
+  }
+
+  return candidates;
+}
+
 async function readResourceContent(uri) {
-  const resource = resourceIndexByUri.get(uri);
+  let resource = null;
+  for (const candidate of buildResourceLookupCandidates(uri)) {
+    resource = resourceIndexByUri.get(candidate);
+    if (resource) break;
+  }
   if (!resource) return null;
+
   const content = await resource.loadContent();
   return {
     uri,

@@ -80,6 +80,7 @@ Avoid modifying `data/` submodule content unless explicitly requested.
 - Strict verify for source-structure drift: `npm run data:verify-versions:strict`
 - Update data lock manifest: `npm run data:lock`
 - Verify data lock manifest: `npm run data:verify-lock`
+- Verify all doc resources can be read: `npm run data:verify-docs`
 - Build prebuilt local RAG index cache: `npm run rag:prebuild`
 - Optional startup sync env: `DATA_SYNC_ON_START=true`, `DATA_SYNC_TIMEOUT_MS=30000`
 - Optional runtime data env: `MCP_DATA_DIR`, `MCP_DATA_AUTO_DOWNLOAD`, `MCP_DATA_CACHE_DIR`, `MCP_DATA_REFRESH_ON_START`

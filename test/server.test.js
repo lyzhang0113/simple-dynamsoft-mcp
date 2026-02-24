@@ -8,6 +8,7 @@
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { resourceIndex } from '../src/resource-index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -328,6 +329,26 @@ await test('search + resources/read works together', async () => {
 
     assert(readResponse.result, 'Should have read result');
     assert(readResponse.result.contents.length > 0, 'Should return content');
+});
+
+await test('resources/read tolerates doc URI with decoded slash in slug', async () => {
+    const uriWithEncodedSlash = resourceIndex.find(
+        (entry) => entry.type === 'doc' && entry.uri.startsWith('doc://') && entry.uri.includes('%2F')
+    )?.uri;
+    assert(uriWithEncodedSlash, 'Expected at least one doc URI containing an encoded slash');
+
+    const malformedUri = decodeURIComponent(uriWithEncodedSlash);
+    assert(malformedUri !== uriWithEncodedSlash, 'Decoded URI should differ from canonical URI');
+
+    const readResponse = await sendRequest({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'resources/read',
+        params: { uri: malformedUri }
+    });
+
+    assert(readResponse.result, 'Should have read result');
+    assert(readResponse.result.contents.length > 0, 'Should return content for decoded-slash URI');
 });
 
 await test('resolve_version returns latest for DBR web', async () => {

@@ -40,6 +40,7 @@
     "data:verify-versions:strict": "node scripts/update-sdk-versions.mjs --check --strict",
     "data:lock": "node scripts/update-data-lock.mjs",
     "data:verify-lock": "node scripts/verify-data-lock.mjs",
+    "data:verify-docs": "node scripts/verify-doc-resources.mjs",
     "rag:prebuild": "node scripts/prebuild-rag-index.mjs"
   },
   "keywords": [
