@@ -185,8 +185,10 @@ Example:
 Commonly used settings:
 - `RAG_PROVIDER`: `auto` | `gemini` | `local` | `fuse`
 - `RAG_FALLBACK`: `fuse` | `local` | `none`
-- `RAG_PREBUILT_INDEX_AUTO_DOWNLOAD`: `true` by default; auto-fetch prebuilt local index when local embeddings are selected
-- `RAG_PREBUILT_INDEX_URL`: override release asset URL for prebuilt index archive
+- `RAG_PREBUILT_INDEX_AUTO_DOWNLOAD`: `true` by default; auto-fetch prebuilt index when local or gemini embeddings are selected
+- `RAG_PREBUILT_INDEX_URL`: global override release asset URL for prebuilt index archive
+- `RAG_PREBUILT_INDEX_URL_LOCAL`: override release asset URL for local prebuilt index archive
+- `RAG_PREBUILT_INDEX_URL_GEMINI`: override release asset URL for gemini prebuilt index archive
 - `RAG_PREBUILT_INDEX_TIMEOUT_MS`: download timeout for prebuilt index fetch
 - `MCP_DATA_DIR`: use a preloaded local data folder (`metadata/`, `samples/`, `documentation/`)
 - `MCP_DATA_AUTO_DOWNLOAD`: allow startup archive download when bundled data is unavailable
@@ -199,17 +201,19 @@ For the complete list and defaults, see `.env.example` and the sections `Submodu
 
 ## Use Release Assets In A Local Project
 
-Use this when you want to run from a built `.tgz` package and reuse a prebuilt local RAG index.
+Use this when you want to run from a built `.tgz` package and reuse prebuilt RAG indexes.
 
 1. Download release assets from GitHub Releases for the same version:
 - `simple-dynamsoft-mcp-<version>.tgz`
-- `prebuilt-rag-index-<version>.tar.gz`
+- `prebuilt-rag-index-local-<version>.tar.gz`
+- `prebuilt-rag-index-gemini-<version>.tar.gz` (only needed if `RAG_PROVIDER=gemini`)
 2. In your project folder, create a local tools folder, for example:
 - `<project>/.tools/simple-dynamsoft-mcp/`
-3. Copy assets into that folder and extract the prebuilt index:
+3. Copy assets into that folder and extract the prebuilt index you plan to use:
 - Keep `simple-dynamsoft-mcp-<version>.tgz` as-is for `npx --package`.
-- Extract `prebuilt-rag-index-<version>.tar.gz`.
-- Expected cache output path: `<project>/.tools/simple-dynamsoft-mcp/prebuilt-rag/cache/*.json`.
+- Extract `prebuilt-rag-index-local-<version>.tar.gz` for local embeddings.
+- Extract `prebuilt-rag-index-gemini-<version>.tar.gz` for gemini embeddings.
+- Expected cache output path: `<project>/.tools/simple-dynamsoft-mcp/prebuilt-rag/<provider>/cache/*.json`.
 4. Configure project-local `.vscode/mcp.json` to use the local package and cache path.
 
 Example (`.vscode/mcp.json`):
@@ -231,7 +235,7 @@ Example (`.vscode/mcp.json`):
         "RAG_REBUILD": "false",
         "RAG_LOCAL_MODEL": "Xenova/all-MiniLM-L6-v2",
         "RAG_LOCAL_QUANTIZED": "true",
-        "RAG_CACHE_DIR": ".tools/simple-dynamsoft-mcp/prebuilt-rag/cache"
+        "RAG_CACHE_DIR": ".tools/simple-dynamsoft-mcp/prebuilt-rag/local/cache"
       }
     }
   }
@@ -242,9 +246,11 @@ Notes:
 - Use absolute paths if your MCP client does not resolve relative paths from workspace root.
 - `RAG_REBUILD` must stay `false` to reuse prebuilt cache files.
 - Runtime auto-download is enabled by default (`RAG_PREBUILT_INDEX_AUTO_DOWNLOAD=true`) when provider resolution reaches local embeddings (primary or fallback).
-- Default prebuilt URL pattern: `https://github.com/yushulx/simple-dynamsoft-mcp/releases/download/v<version>/prebuilt-rag-index-<version>.tar.gz`.
+- Default prebuilt URL patterns:
+- `https://github.com/yushulx/simple-dynamsoft-mcp/releases/download/v<version>/prebuilt-rag-index-local-<version>.tar.gz`
+- `https://github.com/yushulx/simple-dynamsoft-mcp/releases/download/v<version>/prebuilt-rag-index-gemini-<version>.tar.gz`
 - Downloaded prebuilt cache is accepted when package version matches (with provider/model/payload sanity checks).
-- Prebuilt cache is used whenever provider execution resolves to local embeddings (primary or fallback).
+- Prebuilt cache is used whenever provider execution resolves to local or gemini embeddings (primary or fallback).
 
 ## Supported SDKs
 
@@ -502,7 +508,7 @@ At startup, the server logs data mode/path to stderr:
 - Release workflow: `.github/workflows/release.yml`
 - Release behavior:
 - Creates GitHub release when `package.json` version changes on `main`
-- Attaches `npm pack` artifact and prebuilt RAG index artifact (release workflow requires `GEMINI_API_KEY` for gemini prebuild path)
+- Attaches `npm pack` artifact plus separate prebuilt RAG index archives for local and gemini providers (release workflow requires `GEMINI_API_KEY` for gemini prebuild path)
 - Publishes the package to npm from the release workflow (OIDC trusted publishing)
 
 ## Testing
@@ -546,7 +552,9 @@ Key env vars:
 - `RAG_LOCAL_MODEL`: default `Xenova/all-MiniLM-L6-v2`
 - `RAG_CACHE_DIR`: default `data/.rag-cache`
 - `RAG_PREBUILT_INDEX_AUTO_DOWNLOAD`: default `true`
-- `RAG_PREBUILT_INDEX_URL`: override release prebuilt index asset URL
+- `RAG_PREBUILT_INDEX_URL`: global override for release prebuilt index asset URL
+- `RAG_PREBUILT_INDEX_URL_LOCAL`: override for local prebuilt index asset URL
+- `RAG_PREBUILT_INDEX_URL_GEMINI`: override for gemini prebuilt index asset URL
 - `RAG_PREBUILT_INDEX_TIMEOUT_MS`: default `180000`
 
 Local embeddings download the model on first run and cache under `data/.rag-cache/models`.

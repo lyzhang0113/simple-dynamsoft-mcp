@@ -56,7 +56,7 @@ Goal: avoid long local index build time whenever local embeddings are used (prim
 - [x] package version
 - [x] RAG model id
 - [x] index signature/cache key
-- [x] Add runtime logic: whenever execution resolves to local embeddings (primary or fallback), try downloading matching prebuilt index before local build.
+- [x] Add runtime logic: whenever execution resolves to local or gemini embeddings (primary or fallback), try downloading matching prebuilt index before index build.
 - [x] Validate downloaded prebuilt index compatibility before use (package-version match + provider/model/payload sanity checks).
 - [x] Fallback to existing local-build flow when prebuilt index is missing/incompatible/download fails.
 - [x] Add env controls:
