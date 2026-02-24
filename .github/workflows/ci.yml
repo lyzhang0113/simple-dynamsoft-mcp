@@ -31,7 +31,7 @@ jobs:
         run: npm run test:fuse
 
   test_local_provider:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     env:
       RAG_PROVIDER: local
       RAG_FALLBACK: none
