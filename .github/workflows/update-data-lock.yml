@@ -56,6 +56,12 @@ jobs:
           fi
           echo "data_changed=$data_changed" >> "$GITHUB_OUTPUT"
 
+          doc_changed="false"
+          if echo "$changed_files" | grep -Eq '^data/documentation/'; then
+            doc_changed="true"
+          fi
+          echo "doc_changed=$doc_changed" >> "$GITHUB_OUTPUT"
+
           echo "[data-refresh] changed_files:"
           if [[ -n "$changed_files" ]]; then
             echo "$changed_files"
@@ -63,6 +69,11 @@ jobs:
             echo "(none)"
           fi
           echo "[data-refresh] data_changed=$data_changed"
+          echo "[data-refresh] doc_changed=$doc_changed"
+
+      - name: Verify all doc resources are readable
+        if: steps.detect_changes.outputs.doc_changed == 'true'
+        run: npm run data:verify-docs
 
       - name: Bump patch version for data refresh
         id: bump_version
