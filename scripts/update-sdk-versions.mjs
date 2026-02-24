@@ -84,7 +84,9 @@ function detectFromReleaseNoteIndexes(docRoot) {
     return normalized.endsWith("/release-notes/index.md") || normalized.endsWith("/releasenotes/index.md");
   });
 
-  if (markdownFiles.length === 0) return "";
+  if (markdownFiles.length === 0) {
+    return { version: "", detail: "release-note index files=0" };
+  }
 
   const versions = [];
   for (const filePath of markdownFiles) {
@@ -92,53 +94,80 @@ function detectFromReleaseNoteIndexes(docRoot) {
     versions.push(...extractVersionCandidates(content));
   }
 
-  return getHighestVersion(versions);
+  const version = getHighestVersion(versions);
+  return {
+    version,
+    detail: `release-note index files=${markdownFiles.length} candidates=${versions.length}`
+  };
 }
 
 function detectFromProductVersionYml(docRoot) {
   const filePath = join(docRoot, "_data", "product_version.yml");
-  if (!existsSync(filePath)) return "";
+  if (!existsSync(filePath)) return { version: "", detail: "_data/product_version.yml missing" };
   const content = readFileSync(filePath, "utf8");
 
   const latestLine = content
     .split(/\r?\n/)
     .find((line) => /latest version/i.test(line));
-  if (!latestLine) return "";
+  if (!latestLine) return { version: "", detail: "latest version line missing in product_version.yml" };
 
-  return getHighestVersion(extractVersionCandidates(latestLine));
+  const candidates = extractVersionCandidates(latestLine);
+  return {
+    version: getHighestVersion(candidates),
+    detail: `product_version.yml candidates=${candidates.length}`
+  };
 }
 
 function detectFromLatestVersionJs(docRoot, relativeFile) {
   const filePath = join(docRoot, ...relativeFile.split("/"));
-  if (!existsSync(filePath)) return "";
+  if (!existsSync(filePath)) return { version: "", detail: `${relativeFile} missing` };
   const content = readFileSync(filePath, "utf8");
   const match = content.match(/versionNoteLatestVersion\s*=\s*["']([0-9.]+)["']/i);
-  if (!match) return "";
-  return normalizeVersion(match[1]);
+  if (!match) return { version: "", detail: `${relativeFile} has no versionNoteLatestVersion` };
+  return { version: normalizeVersion(match[1]), detail: `parsed ${relativeFile}` };
 }
 
 function detectFromStrategies(strategies, source, resolvedVersions, metadata) {
   const docsRoot = source.docsPath ? join(projectRoot, source.docsPath) : "";
+  const attempts = [];
 
   for (const strategy of strategies) {
     if (strategy === "release-note-indexes") {
-      if (!docsRoot || !existsSync(docsRoot)) continue;
-      const detected = detectFromReleaseNoteIndexes(docsRoot);
-      if (detected) return detected;
+      if (!docsRoot || !existsSync(docsRoot)) {
+        attempts.push("release-note-indexes: docs root missing");
+        continue;
+      }
+      const result = detectFromReleaseNoteIndexes(docsRoot);
+      attempts.push(`release-note-indexes: ${result.detail}`);
+      if (result.version) {
+        return { version: result.version, strategy: "release-note-indexes", attempts };
+      }
       continue;
     }
 
     if (strategy === "product-version-yml") {
-      if (!docsRoot || !existsSync(docsRoot)) continue;
-      const detected = detectFromProductVersionYml(docsRoot);
-      if (detected) return detected;
+      if (!docsRoot || !existsSync(docsRoot)) {
+        attempts.push("product-version-yml: docs root missing");
+        continue;
+      }
+      const result = detectFromProductVersionYml(docsRoot);
+      attempts.push(`product-version-yml: ${result.detail}`);
+      if (result.version) {
+        return { version: result.version, strategy: "product-version-yml", attempts };
+      }
       continue;
     }
 
     if (typeof strategy === "object" && strategy.type === "latest-version-js") {
-      if (!docsRoot || !existsSync(docsRoot)) continue;
-      const detected = detectFromLatestVersionJs(docsRoot, strategy.file);
-      if (detected) return detected;
+      if (!docsRoot || !existsSync(docsRoot)) {
+        attempts.push(`latest-version-js(${strategy.file}): docs root missing`);
+        continue;
+      }
+      const result = detectFromLatestVersionJs(docsRoot, strategy.file);
+      attempts.push(`latest-version-js(${strategy.file}): ${result.detail}`);
+      if (result.version) {
+        return { version: result.version, strategy: `latest-version-js(${strategy.file})`, attempts };
+      }
       continue;
     }
 
@@ -150,12 +179,15 @@ function detectFromStrategies(strategies, source, resolvedVersions, metadata) {
         if (normalized) candidates.push(normalized);
       }
       const detected = getHighestVersion(candidates);
-      if (detected) return detected;
+      attempts.push(`max-of-sdks(${(strategy.sdkIds || []).join(",")}): candidates=${candidates.length}`);
+      if (detected) {
+        return { version: detected, strategy: `max-of-sdks(${(strategy.sdkIds || []).join(",")})`, attempts };
+      }
       continue;
     }
   }
 
-  return "";
+  return { version: "", strategy: "", attempts };
 }
 
 const sdkVersionSources = [
@@ -211,8 +243,13 @@ if (!existsSync(metadataPath)) {
   process.exit(1);
 }
 
+logVersionSync(
+  `start mode=${checkOnly ? "check" : "update"} metadata=${relative(projectRoot, metadataPath)} sources=${sdkVersionSources.length}`
+);
+
 const metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
 const updates = [];
+const unchanged = [];
 const skipped = [];
 const resolvedVersions = {};
 
@@ -231,22 +268,31 @@ for (const source of sdkVersionSources) {
     }
   }
 
-  const detected = detectFromStrategies(source.strategies, source, resolvedVersions, metadata);
-  if (!detected) {
-    skipped.push(`${source.sdkId} (no version found with configured strategies)`);
+  const detection = detectFromStrategies(source.strategies, source, resolvedVersions, metadata);
+  if (!detection.version) {
+    skipped.push(
+      `${source.sdkId} (no version found; attempts=${detection.attempts.join(" | ") || "none"})`
+    );
     continue;
   }
 
-  resolvedVersions[source.sdkId] = detected;
+  resolvedVersions[source.sdkId] = detection.version;
   const current = String(sdkEntry.version || "");
-  if (current !== detected) {
+  if (current !== detection.version) {
     updates.push({
       sdkId: source.sdkId,
       from: current,
-      to: detected,
-      docsPath: source.docsPath || "n/a"
+      to: detection.version,
+      docsPath: source.docsPath || "n/a",
+      strategy: detection.strategy
     });
-    sdkEntry.version = detected;
+    sdkEntry.version = detection.version;
+  } else {
+    unchanged.push({
+      sdkId: source.sdkId,
+      version: current,
+      strategy: detection.strategy
+    });
   }
 }
 
@@ -254,7 +300,15 @@ if (updates.length === 0) {
   logVersionSync("no version updates detected");
 } else {
   for (const update of updates) {
-    logVersionSync(`update ${update.sdkId}: ${update.from} -> ${update.to} (source=${update.docsPath})`);
+    logVersionSync(
+      `update ${update.sdkId}: ${update.from} -> ${update.to} (source=${update.docsPath}, strategy=${update.strategy})`
+    );
+  }
+}
+
+if (unchanged.length > 0) {
+  for (const item of unchanged) {
+    logVersionSync(`keep ${item.sdkId}: ${item.version} (strategy=${item.strategy})`);
   }
 }
 
@@ -263,6 +317,10 @@ if (skipped.length > 0) {
     logVersionSync(`skip ${item}`);
   }
 }
+
+logVersionSync(
+  `summary updates=${updates.length} unchanged=${unchanged.length} skipped=${skipped.length}`
+);
 
 if (checkOnly) {
   if (updates.length > 0) {
