@@ -257,6 +257,7 @@ jobs:
     needs: [detect, create_release]
     if: needs.detect.outputs.release_needed == 'true'
     runs-on: ubuntu-latest
+    environment: npm
     permissions:
       contents: read
       id-token: write
