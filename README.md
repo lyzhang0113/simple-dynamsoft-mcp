@@ -184,6 +184,9 @@ Example:
 Commonly used settings:
 - `RAG_PROVIDER`: `auto` | `gemini` | `local` | `fuse`
 - `RAG_FALLBACK`: `fuse` | `local` | `none`
+- `RAG_PREBUILT_INDEX_AUTO_DOWNLOAD`: `true` by default; auto-fetch prebuilt local index when local embeddings are selected
+- `RAG_PREBUILT_INDEX_URL`: override release asset URL for prebuilt index archive
+- `RAG_PREBUILT_INDEX_TIMEOUT_MS`: download timeout for prebuilt index fetch
 - `MCP_DATA_DIR`: use a preloaded local data folder (`metadata/`, `samples/`, `documentation/`)
 - `MCP_DATA_AUTO_DOWNLOAD`: allow startup archive download when bundled data is unavailable
 - `MCP_DATA_REFRESH_ON_START`: force re-download of pinned archives on startup
@@ -237,7 +240,9 @@ Example (`.vscode/mcp.json`):
 Notes:
 - Use absolute paths if your MCP client does not resolve relative paths from workspace root.
 - `RAG_REBUILD` must stay `false` to reuse prebuilt cache files.
-- Current runtime does not auto-download prebuilt index from release yet; you must place/extract it locally.
+- Runtime auto-download is enabled by default (`RAG_PREBUILT_INDEX_AUTO_DOWNLOAD=true`) when provider resolution reaches local embeddings (primary or fallback).
+- Default prebuilt URL pattern: `https://github.com/yushulx/simple-dynamsoft-mcp/releases/download/v<version>/prebuilt-rag-index-<version>.tar.gz`.
+- Downloaded prebuilt cache is accepted when package version matches (with provider/model/payload sanity checks).
 - Prebuilt cache is used whenever provider execution resolves to local embeddings (primary or fallback).
 
 ## Supported SDKs
@@ -493,6 +498,9 @@ Key env vars:
 - `GEMINI_REQUEST_THROTTLE_MS`: fixed delay between Gemini requests (default `0`)
 - `RAG_LOCAL_MODEL`: default `Xenova/all-MiniLM-L6-v2`
 - `RAG_CACHE_DIR`: default `data/.rag-cache`
+- `RAG_PREBUILT_INDEX_AUTO_DOWNLOAD`: default `true`
+- `RAG_PREBUILT_INDEX_URL`: override release prebuilt index asset URL
+- `RAG_PREBUILT_INDEX_TIMEOUT_MS`: default `180000`
 
 Local embeddings download the model on first run and cache under `data/.rag-cache/models`.
 Advanced tuning:
