@@ -31,9 +31,15 @@ const {
   LATEST_VERSIONS,
   LATEST_MAJOR,
   discoverDwtSamples,
+  discoverDcvMobileSamples,
+  discoverDcvServerSamples,
+  discoverDcvWebSamples,
   findCodeFilesInSample,
   getMobileSamplePath,
   getDbrServerSamplePath,
+  getDcvMobileSamplePath,
+  getDcvServerSamplePath,
+  getDcvWebSamplePath,
   getDwtSamplePath,
   getDdvSamplePath,
   readCodeFile,
@@ -72,7 +78,7 @@ const {
 const server = new McpServer({
   name: "simple-dynamsoft-mcp",
   version: pkg.version,
-  description: "MCP server for latest major versions of Dynamsoft SDKs: Barcode Reader (Mobile/Server/Web), Dynamic Web TWAIN, and Document Viewer"
+  description: "MCP server for latest major versions of Dynamsoft SDKs: Capture Vision, Barcode Reader, Dynamic Web TWAIN, and Document Viewer. Includes guidance for choosing DBR vs DCV by scenario."
 });
 
 function formatScoreLabel(entry) {
@@ -93,7 +99,7 @@ server.registerTool(
   "get_index",
   {
     title: "Get Index",
-    description: "Get a compact index of products, editions, versions, and available samples/docs.",
+    description: "Get a compact index of products, editions, versions, samples/docs, plus DBR-vs-DCV selection guidance.",
     inputSchema: {}
   },
   async () => ({
@@ -109,12 +115,12 @@ server.registerTool(
   "search",
   {
     title: "Search",
-    description: "Semantic (RAG) search across docs and samples with fuzzy fallback; returns resource links for lazy loading.",
+    description: "Semantic (RAG) search across docs and samples with fuzzy fallback; returns resource links for lazy loading. Prefer DCV for MRZ/VIN/document-normalization/driver-license scenarios; DBR for barcode-only.",
     inputSchema: {
       query: z.string().describe("Keywords to search across docs and samples."),
-      product: z.string().optional().describe("Product: dbr, dwt, ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
-      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      product: z.string().optional().describe("Product: dcv, dbr, dwt, ddv"),
+      edition: z.string().optional().describe("Edition: core, mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview, spm, core"),
       version: z.string().optional().describe("Version constraint (major or full version)"),
       type: z.enum(["doc", "sample", "index", "policy", "any"]).optional(),
       limit: z.number().int().min(1).max(10).optional().describe("Max results (default 5)")
@@ -209,11 +215,11 @@ server.registerTool(
   "list_samples",
   {
     title: "List Samples",
-    description: "List available sample IDs and URIs for a given scope.",
+    description: "List available sample IDs and URIs for a given scope. Use DCV scope for MRZ/VIN/document normalization scenarios.",
     inputSchema: {
-      product: z.string().optional().describe("Product: dbr, dwt, ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
-      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      product: z.string().optional().describe("Product: dcv, dbr, dwt, ddv"),
+      edition: z.string().optional().describe("Edition: core, mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview, spm, core"),
       limit: z.number().int().min(1).max(200).optional().describe("Max results (default 50)")
     }
   },
@@ -291,9 +297,9 @@ server.registerTool(
     description: "Resolve a sample_id (or sample URI) to matching sample URIs.",
     inputSchema: {
       sample_id: z.string().describe("Sample identifier or sample:// URI"),
-      product: z.string().optional().describe("Product: dbr, dwt, ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
-      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      product: z.string().optional().describe("Product: dcv, dbr, dwt, ddv"),
+      edition: z.string().optional().describe("Edition: core, mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview, spm, core"),
       limit: z.number().int().min(1).max(10).optional().describe("Max results (default 5)")
     }
   },
@@ -517,9 +523,9 @@ server.registerTool(
     title: "Resolve Version",
     description: "Resolve a concrete latest-major version for a product/edition/platform.",
     inputSchema: {
-      product: z.string().describe("Product: dbr, dwt, or ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
-      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      product: z.string().describe("Product: dcv, dbr, dwt, or ddv"),
+      edition: z.string().optional().describe("Edition: core, mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview, spm, core"),
       constraint: z.string().optional().describe("Version constraint, e.g., latest, 11.x, 10"),
       feature: z.string().optional().describe("Optional feature hint")
     }
@@ -529,10 +535,10 @@ server.registerTool(
     const normalizedPlatform = normalizePlatform(platform);
     const normalizedEdition = normalizeEdition(edition, normalizedPlatform, normalizedProduct);
 
-    if (!["dbr", "dwt", "ddv"].includes(normalizedProduct)) {
+    if (!["dcv", "dbr", "dwt", "ddv"].includes(normalizedProduct)) {
       return {
         isError: true,
-        content: [{ type: "text", text: `Unknown product "${product}". Use dbr, dwt, or ddv.` }]
+        content: [{ type: "text", text: `Unknown product "${product}". Use dcv, dbr, dwt, or ddv.` }]
       };
     }
 
@@ -546,6 +552,41 @@ server.registerTool(
 
     if (!policy.ok) {
       return { isError: true, content: [{ type: "text", text: policy.message }] };
+    }
+
+    if (normalizedProduct === "dcv") {
+      if (!normalizedEdition) {
+        const lines = [
+          "# DCV Version Resolution",
+          `- Latest major: v${LATEST_MAJOR.dcv}`,
+          `- Core: ${LATEST_VERSIONS.dcv.core}`,
+          `- Web: ${LATEST_VERSIONS.dcv.web}`,
+          `- Mobile: ${LATEST_VERSIONS.dcv.mobile}`,
+          `- Server/Desktop: ${LATEST_VERSIONS.dcv.server}`,
+          "",
+          "Specify edition/platform to resolve a single version."
+        ];
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      }
+
+      const resolved = LATEST_VERSIONS.dcv[normalizedEdition];
+      if (!resolved) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Edition "${normalizedEdition}" is not hosted by this MCP server.` }]
+        };
+      }
+
+      const displayPlatform = normalizedPlatform === "web" ? "js" : normalizedPlatform;
+      const lines = [
+        "# DCV Version Resolution",
+        `- Edition: ${normalizedEdition}`,
+        displayPlatform ? `- Platform: ${displayPlatform}` : "",
+        `- Latest major: v${LATEST_MAJOR.dcv}`,
+        `- Resolved version: ${resolved}`
+      ].filter(Boolean);
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
     }
 
     if (normalizedProduct === "dbr") {
@@ -609,15 +650,15 @@ server.registerTool(
   "get_quickstart",
   {
     title: "Get Quickstart",
-    description: "Opinionated quickstart for a target product/edition/platform.",
+    description: "Opinionated quickstart for a target product/edition/platform. DCV supports MRZ/VIN/document-normalization/driver-license workflows.",
     inputSchema: {
-      product: z.string().describe("Product: dbr, dwt, or ddv"),
-      edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
-      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
+      product: z.string().describe("Product: dcv, dbr, dwt, or ddv"),
+      edition: z.string().optional().describe("Edition: core, mobile, web, server/desktop"),
+      platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview, spm, core"),
       language: z.string().optional().describe("Language hint: kotlin, java, swift, js, ts, python, cpp, csharp, react, vue, angular"),
       version: z.string().optional().describe("Version constraint"),
       api_level: z.string().optional().describe("API level: high-level or low-level (mobile only)"),
-      scenario: z.string().optional().describe("Scenario: camera, image, single, multiple, react, etc.")
+      scenario: z.string().optional().describe("Scenario: camera, image, single, multiple, MRZ, VIN, document scan/normalization, driver license, react, etc.")
     }
   },
   async ({ product, edition, platform, language, version, api_level, scenario }) => {
@@ -634,6 +675,212 @@ server.registerTool(
 
     if (!policy.ok) {
       return { isError: true, content: [{ type: "text", text: policy.message }] };
+    }
+
+    if (normalizedProduct === "dcv") {
+      const scenarioLower = `${scenario || ""} ${language || ""}`.toLowerCase();
+      const effectiveEdition = normalizedEdition || (normalizedPlatform ? normalizeEdition("", normalizedPlatform, "dcv") : "server");
+
+      function selectDcvServerSample(platformHint, hint) {
+        const platformName = normalizePlatform(platformHint) || "python";
+        if (platformName === "python") {
+          if (hint.includes("mrz")) return "mrz_scanner";
+          if (hint.includes("vin")) return "vin_scanner";
+          if (hint.includes("driver") || hint.includes("license")) return "driver_license_scanner";
+          if (hint.includes("gs1")) return "gs1_ai_scanner";
+          return "document_scanner";
+        }
+        if (platformName === "nodejs") {
+          if (hint.includes("lambda")) return "lambda";
+          if (hint.includes("pdf")) return "pdf-advanced";
+          if (hint.includes("koa")) return "koa";
+          return "express";
+        }
+        if (hint.includes("mrz")) return "MRZScanner";
+        if (hint.includes("vin")) return "VINScanner";
+        if (hint.includes("driver") || hint.includes("license")) return "DriverLicenseScanner";
+        if (hint.includes("gs1")) return "GS1AIScanner";
+        return "DocumentScanner";
+      }
+
+      function selectMobileSample(sampleNames, hint) {
+        const lowerToName = new Map(sampleNames.map((name) => [String(name).toLowerCase(), name]));
+        const candidates = hint.includes("mrz")
+          ? ["scanmrz", "mrzscanner"]
+          : hint.includes("vin")
+            ? ["scanvin", "vinscanner"]
+            : (hint.includes("driver") || hint.includes("license"))
+              ? ["driverlicensescanner"]
+              : ["scandocument", "documentscanner"];
+        for (const candidate of candidates) {
+          if (lowerToName.has(candidate)) return lowerToName.get(candidate);
+        }
+        return sampleNames[0] || "";
+      }
+
+      function readBestSampleContent(samplePath) {
+        if (!samplePath || !existsSync(samplePath)) return { text: "", fence: "text" };
+        const sampleStat = statSync(samplePath);
+        if (sampleStat.isFile()) {
+          return {
+            text: readCodeFile(samplePath),
+            fence: extname(samplePath).replace(".", "") || "text"
+          };
+        }
+        const readmePath = join(samplePath, "README.md");
+        if (existsSync(readmePath)) return { text: readCodeFile(readmePath), fence: "markdown" };
+
+        const codeFiles = findCodeFilesInSample(samplePath);
+        if (codeFiles.length > 0) {
+          const preferredNames = ["index.html", "index.js", "index.ts", "main.dart", "App.tsx", "MainActivity.kt", "MainActivity.java"];
+          const preferred = codeFiles.find((file) => preferredNames.includes(file.filename)) || codeFiles[0];
+          return {
+            text: readCodeFile(preferred.path),
+            fence: preferred.extension ? preferred.extension.replace(".", "") : "text"
+          };
+        }
+
+        return { text: "Sample found, but no code files detected.", fence: "text" };
+      }
+
+      function formatInstallLines(installation) {
+        if (!installation || typeof installation !== "object") return [];
+        const lines = [];
+        for (const value of Object.values(installation)) {
+          if (typeof value === "string" && value.trim()) lines.push(value);
+        }
+        return lines;
+      }
+
+      if (effectiveEdition === "server") {
+        const sdkEntry = registry.sdks["dcv-server"];
+        const targetPlatform = normalizePlatform(normalizedPlatform || sdkEntry.default_platform || "python");
+        const sampleName = selectDcvServerSample(targetPlatform, scenarioLower);
+        const samplePath = getDcvServerSamplePath(targetPlatform, sampleName);
+
+        if (!samplePath || !existsSync(samplePath)) {
+          return { isError: true, content: [{ type: "text", text: `Sample not found: ${sampleName}.` }] };
+        }
+
+        const { text: sampleContent, fence } = readBestSampleContent(samplePath);
+        const installLines = formatInstallLines(sdkEntry.platforms?.[targetPlatform]?.installation);
+
+        return {
+          content: [{
+            type: "text",
+            text: [
+              `# Quick Start: DCV Server (${targetPlatform})`,
+              "",
+              `**SDK Version:** ${sdkEntry.version}`,
+              `**Trial License:** \`${registry.trial_license}\``,
+              "",
+              installLines.length ? "## Install" : "",
+              installLines.length ? "```bash" : "",
+              ...installLines,
+              installLines.length ? "```" : "",
+              installLines.length ? "" : "",
+              `## ${sampleName}`,
+              "```" + fence,
+              sampleContent,
+              "```",
+              "",
+              `Docs: ${sdkEntry.platforms?.[targetPlatform]?.docs?.["user-guide"] || "N/A"}`
+            ].filter(Boolean).join("\n")
+          }]
+        };
+      }
+
+      if (effectiveEdition === "web") {
+        const sdkEntry = registry.sdks["dcv-web"];
+        const available = discoverDcvWebSamples();
+        const sampleName = scenarioLower.includes("vin") ? "VINScanner" : (available[0] || "VINScanner");
+        const samplePath = getDcvWebSamplePath(sampleName);
+        if (!samplePath || !existsSync(samplePath)) {
+          return { isError: true, content: [{ type: "text", text: `Sample not found: ${sampleName}.` }] };
+        }
+        const { text: sampleContent, fence } = readBestSampleContent(samplePath);
+        const installLines = formatInstallLines(sdkEntry.platforms?.web?.installation);
+
+        return {
+          content: [{
+            type: "text",
+            text: [
+              "# Quick Start: DCV Web",
+              "",
+              `**SDK Version:** ${sdkEntry.version}`,
+              `**Trial License:** \`${registry.trial_license}\``,
+              "",
+              installLines.length ? "## Install" : "",
+              installLines.length ? "```bash" : "",
+              ...installLines,
+              installLines.length ? "```" : "",
+              installLines.length ? "" : "",
+              `## ${sampleName}`,
+              "```" + fence,
+              sampleContent,
+              "```",
+              "",
+              `Docs: ${sdkEntry.platforms?.web?.docs?.["user-guide"] || "N/A"}`
+            ].filter(Boolean).join("\n")
+          }]
+        };
+      }
+
+      if (effectiveEdition === "mobile") {
+        const sdkEntry = registry.sdks["dcv-mobile"];
+        const targetPlatform = normalizePlatform(normalizedPlatform || sdkEntry.default_platform || "android");
+        const sampleNames = discoverDcvMobileSamples(targetPlatform);
+        const sampleName = selectMobileSample(sampleNames, scenarioLower);
+        const samplePath = getDcvMobileSamplePath(targetPlatform, sampleName);
+
+        if (!samplePath || !existsSync(samplePath)) {
+          return { isError: true, content: [{ type: "text", text: `Sample not found: ${sampleName || "N/A"}.` }] };
+        }
+
+        const { text: sampleContent, fence } = readBestSampleContent(samplePath);
+        const installLines = formatInstallLines(sdkEntry.platforms?.[targetPlatform]?.installation);
+
+        return {
+          content: [{
+            type: "text",
+            text: [
+              `# Quick Start: DCV Mobile (${targetPlatform})`,
+              "",
+              `**SDK Version:** ${sdkEntry.version}`,
+              `**Trial License:** \`${registry.trial_license}\``,
+              "",
+              installLines.length ? "## Install" : "",
+              installLines.length ? "```bash" : "",
+              ...installLines,
+              installLines.length ? "```" : "",
+              installLines.length ? "" : "",
+              `## ${sampleName}`,
+              "```" + fence,
+              sampleContent,
+              "```",
+              "",
+              `Docs: ${sdkEntry.platforms?.[targetPlatform]?.docs?.["user-guide"] || "N/A"}`
+            ].filter(Boolean).join("\n")
+          }]
+        };
+      }
+
+      if (effectiveEdition === "core") {
+        const sdkEntry = registry.sdks["dcv-core"];
+        return {
+          content: [{
+            type: "text",
+            text: [
+              "# Quick Start: DCV Core",
+              "",
+              `**SDK Version:** ${sdkEntry.version}`,
+              "",
+              "DCV core docs aggregate architecture, parameters, and cross-product workflows.",
+              `Docs: ${sdkEntry.platforms?.core?.docs?.introduction || "https://www.dynamsoft.com/capture-vision/docs/core/"}`
+            ].join("\n")
+          }]
+        };
+      }
     }
 
     if (normalizedProduct === "dbr" && normalizedEdition === "server") {
@@ -946,7 +1193,7 @@ server.registerTool(
     title: "Generate Project",
     description: "Generate a project structure from a sample and return files inline (no zip/download).",
     inputSchema: {
-      product: z.string().describe("Product: dbr, dwt, or ddv"),
+      product: z.string().describe("Product: dcv, dbr, dwt, or ddv"),
       edition: z.string().optional().describe("Edition: mobile, web, server/desktop"),
       platform: z.string().optional().describe("Platform: android, ios, maui, react-native, flutter, js, python, cpp, java, dotnet, nodejs, angular, blazor, capacitor, electron, es6, native-ts, next, nuxt, pwa, react, requirejs, svelte, vue, webview"),
       version: z.string().optional().describe("Version constraint"),
@@ -1018,6 +1265,12 @@ server.registerTool(
         samplePath = getWebSamplePath(sampleInfo.category, sampleInfo.sampleName);
       } else if (sampleInfo.product === "dbr" && (sampleInfo.edition === "python" || sampleInfo.edition === "server")) {
         samplePath = getDbrServerSamplePath(sampleInfo.platform, sampleInfo.sampleName);
+      } else if (sampleInfo.product === "dcv" && sampleInfo.edition === "mobile") {
+        samplePath = getDcvMobileSamplePath(sampleInfo.platform, sampleInfo.sampleName);
+      } else if (sampleInfo.product === "dcv" && sampleInfo.edition === "server") {
+        samplePath = getDcvServerSamplePath(sampleInfo.platform, sampleInfo.sampleName);
+      } else if (sampleInfo.product === "dcv" && sampleInfo.edition === "web") {
+        samplePath = getDcvWebSamplePath(sampleInfo.sampleName);
       } else if (sampleInfo.product === "dwt") {
         samplePath = getDwtSamplePath(sampleInfo.category, sampleInfo.sampleName);
       } else if (sampleInfo.product === "ddv") {
@@ -1045,6 +1298,21 @@ server.registerTool(
         const altLevel = level === "high-level" ? "low-level" : "high-level";
         const alternatePath = getMobileSamplePath(targetPlatform, altLevel, sampleName);
         samplePath = existsSync(primaryPath) ? primaryPath : (existsSync(alternatePath) ? alternatePath : null);
+      } else if (normalizedProduct === "dcv" && normalizedEdition === "mobile") {
+        const platformCandidates = normalizedPlatform
+          ? [normalizedPlatform]
+          : ["android", "ios", "react-native", "flutter", "maui", "spm"];
+        for (const platformCandidate of platformCandidates) {
+          const candidate = getDcvMobileSamplePath(platformCandidate, sampleName);
+          if (candidate && existsSync(candidate)) {
+            samplePath = candidate;
+            break;
+          }
+        }
+      } else if (normalizedProduct === "dcv" && normalizedEdition === "web") {
+        samplePath = getDcvWebSamplePath(sampleName);
+      } else if (normalizedProduct === "dcv" && normalizedEdition === "server") {
+        samplePath = getDcvServerSamplePath(normalizedPlatform || "python", sampleName);
       } else if (normalizedProduct === "dbr" && normalizedEdition === "web") {
         samplePath = getWebSamplePath(undefined, sampleName);
       } else if (normalizedProduct === "dbr" && normalizedEdition === "server") {
@@ -1212,7 +1480,7 @@ server.server.setRequestHandler(ListResourcesRequestSchema, async () => {
 
 server.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   const parsed = parseResourceUri(request.params.uri);
-  if (parsed && ["dbr", "dwt", "ddv"].includes(parsed.product)) {
+  if (parsed && ["dcv", "dbr", "dwt", "ddv"].includes(parsed.product)) {
     const policy = ensureLatestMajor({
       product: parsed.product,
       version: parsed.version,

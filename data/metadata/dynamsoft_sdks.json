@@ -6,7 +6,7 @@
     "dbr-mobile": {
       "name": "Dynamsoft Barcode Reader Mobile SDK",
       "description": "Barcode scanning for mobile platforms (Android/iOS) using Dynamsoft Barcode Reader.",
-      "version": "11.2.5000",
+      "version": "11.4.1000",
       "default_platform": "android",
       "default_api_level": "high-level",
       "snippet_path": "dynamsoft-barcode-reader",
@@ -120,7 +120,7 @@
     "dbr-server": {
       "name": "Dynamsoft Barcode Reader Server/Desktop SDK",
       "description": "Barcode scanning for server/desktop platforms including Python, .NET, Java, C++, and Node.js.",
-      "version": "11.2.5000",
+      "version": "11.4.1000",
       "default_platform": "python",
       "snippet_path": "dynamsoft-barcode-reader/server",
       "platforms": {
@@ -252,6 +252,206 @@
         }
       }
     },
+    "dcv-core": {
+      "name": "Dynamsoft Capture Vision Core",
+      "description": "Unified architecture documentation for Capture Vision capabilities across barcode, MRZ, document normalization, and parsing workflows.",
+      "version": "3.4.1000",
+      "default_platform": "core",
+      "snippet_path": "dynamsoft-capture-vision/core",
+      "platforms": {
+        "core": {
+          "docs": {
+            "introduction": "https://www.dynamsoft.com/capture-vision/docs/core/",
+            "architecture": "https://www.dynamsoft.com/capture-vision/docs/core/architecture/"
+          }
+        }
+      }
+    },
+    "dcv-server": {
+      "name": "Dynamsoft Capture Vision Server/Desktop SDK",
+      "description": "Capture Vision workflows for Python, .NET, Java, C++, and Node.js, including VIN, MRZ, document normalization, and driver license scenarios.",
+      "version": "3.4.1000",
+      "default_platform": "python",
+      "snippet_path": "dynamsoft-capture-vision/server",
+      "platforms": {
+        "python": {
+          "languages": [
+            "Python"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/capture-vision/docs/server/programming/python/user-guide/",
+            "api-reference": "https://www.dynamsoft.com/capture-vision/docs/server/programming/python/api-reference/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-python-samples"
+          },
+          "installation": {
+            "pip": "pip install dynamsoft-capture-vision-bundle"
+          }
+        },
+        "dotnet": {
+          "languages": [
+            "C#"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/capture-vision/docs/server/programming/dotnet/user-guide/",
+            "api-reference": "https://www.dynamsoft.com/capture-vision/docs/server/programming/dotnet/api-reference/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-dotnet-samples"
+          }
+        },
+        "java": {
+          "languages": [
+            "Java"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/capture-vision/docs/server/programming/java/user-guide/",
+            "api-reference": "https://www.dynamsoft.com/capture-vision/docs/server/programming/java/api-reference/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-java-samples"
+          }
+        },
+        "cpp": {
+          "languages": [
+            "C++"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/capture-vision/docs/server/programming/cplusplus/user-guide/",
+            "api-reference": "https://www.dynamsoft.com/capture-vision/docs/server/programming/cplusplus/api-reference/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-cpp-samples"
+          }
+        },
+        "nodejs": {
+          "languages": [
+            "JavaScript",
+            "TypeScript"
+          ],
+          "docs": {
+            "user-guide": "https://github.com/Dynamsoft/capture-vision-nodejs-samples#readme",
+            "api-reference": "https://www.dynamsoft.com/capture-vision/docs/server/programming/cplusplus/api-reference/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-nodejs-samples"
+          },
+          "installation": {
+            "npm": "npm i dynamsoft-capture-vision-for-node",
+            "model": "npm i dynamsoft-capture-vision-for-node-model"
+          }
+        }
+      }
+    },
+    "dcv-web": {
+      "name": "Dynamsoft Capture Vision JavaScript SDK",
+      "description": "Capture Vision workflows for JavaScript web apps, including VIN and MRZ processing scenarios.",
+      "version": "3.2.5000",
+      "default_platform": "web",
+      "snippet_path": "dynamsoft-capture-vision/web",
+      "platforms": {
+        "web": {
+          "languages": [
+            "JavaScript",
+            "TypeScript"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/user-guide/",
+            "api-reference": "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-javascript-samples"
+          },
+          "installation": {
+            "npm": "npm install dynamsoft-capture-vision-bundle"
+          }
+        }
+      }
+    },
+    "dcv-mobile": {
+      "name": "Dynamsoft Capture Vision Mobile SDK",
+      "description": "Capture Vision workflows for mobile platforms including Android, iOS, Flutter, React Native, and .NET MAUI.",
+      "version": "3.4.1000",
+      "default_platform": "android",
+      "snippet_path": "dynamsoft-capture-vision/mobile",
+      "platforms": {
+        "android": {
+          "languages": [
+            "Kotlin",
+            "Java"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/android/user-guide/",
+            "api-reference": "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/android/api-reference/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-mobile-samples/tree/main/Android"
+          }
+        },
+        "ios": {
+          "languages": [
+            "Swift",
+            "Objective-C"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/objectivec-swift/user-guide/",
+            "api-reference": "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/objectivec-swift/api-reference/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-mobile-samples/tree/main/ios"
+          }
+        },
+        "flutter": {
+          "languages": [
+            "Dart"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/flutter/user-guide/",
+            "api-reference": "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/flutter/api-reference/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-flutter-samples"
+          }
+        },
+        "react-native": {
+          "languages": [
+            "TypeScript",
+            "JavaScript"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/react-native/user-guide/",
+            "api-reference": "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/react-native/api-reference/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-react-native-samples"
+          }
+        },
+        "maui": {
+          "languages": [
+            "C#"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/maui/user-guide/",
+            "api-reference": "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/maui/api-reference/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-maui-samples"
+          }
+        },
+        "spm": {
+          "languages": [
+            "Swift"
+          ],
+          "docs": {
+            "user-guide": "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/objectivec-swift/user-guide/"
+          },
+          "samples": {
+            "repo": "https://github.com/Dynamsoft/capture-vision-spm"
+          }
+        }
+      }
+    },
     "dwt": {
       "name": "Dynamic Web TWAIN",
       "description": "Document scanning SDK for web applications. Supports TWAIN, WIA, ICA, SANE scanners.",
@@ -292,7 +492,7 @@
     "ddv": {
       "name": "Dynamsoft Document Viewer",
       "description": "Browser-based JavaScript SDK for viewing, editing, and annotating documents (PDFs and images).",
-      "version": "3.x",
+      "version": "3.2",
       "default_platform": "web",
       "snippet_path": "dynamsoft-document-viewer",
       "api_docs": "ddv-api-docs.json",

@@ -9,6 +9,17 @@ const SAMPLE_DIRS = {
   dbrReactNative: "dynamsoft-barcode-reader-react-native",
   dbrFlutter: "dynamsoft-barcode-reader-flutter",
   dbrNodejs: "dynamsoft-capture-vision-nodejs",
+  dcvWeb: "dynamsoft-capture-vision-javascript",
+  dcvMobile: "dynamsoft-capture-vision-mobile",
+  dcvPython: "dynamsoft-capture-vision-python",
+  dcvDotnet: "dynamsoft-capture-vision-dotnet",
+  dcvJava: "dynamsoft-capture-vision-java",
+  dcvCpp: "dynamsoft-capture-vision-c-cpp",
+  dcvMaui: "dynamsoft-capture-vision-maui",
+  dcvReactNative: "dynamsoft-capture-vision-react-native",
+  dcvFlutter: "dynamsoft-capture-vision-flutter",
+  dcvNodejs: "dynamsoft-capture-vision-nodejs",
+  dcvSpm: "dynamsoft-capture-vision-spm",
   dwt: "dynamic-web-twain",
   ddv: "dynamsoft-document-viewer"
 };
@@ -17,6 +28,10 @@ const DOC_DIRS = {
   dbrWeb: "barcode-reader-docs-js",
   dbrMobile: "barcode-reader-docs-mobile",
   dbrServer: "barcode-reader-docs-server",
+  dcvWeb: "capture-vision-docs-js",
+  dcvMobile: "capture-vision-docs-mobile",
+  dcvServer: "capture-vision-docs-server",
+  dcvCore: "capture-vision-docs",
   dwt: "web-twain-docs",
   ddv: "document-viewer-docs"
 };
@@ -34,6 +49,26 @@ const DOCS_CONFIG = {
   },
   dbrServer: {
     urlBase: "https://www.dynamsoft.com/barcode-reader/docs/server/",
+    excludeDirs: [".git", ".github", ".vscode", ".vs", "_data", "_includes", "_layouts", "assets"],
+    excludeFiles: ["README.md", "search.md", "error.md"]
+  },
+  dcvWeb: {
+    urlBase: "https://www.dynamsoft.com/capture-vision/docs/web/",
+    excludeDirs: [".git", ".github", ".vscode", ".vs", "_data", "_includes", "_layouts", "assets"],
+    excludeFiles: ["README.md", "search.md", "error.md"]
+  },
+  dcvMobile: {
+    urlBase: "https://www.dynamsoft.com/capture-vision/docs/mobile/",
+    excludeDirs: [".git", ".github", ".vscode", ".vs", "_data", "_includes", "_layouts", "assets"],
+    excludeFiles: ["README.md", "search.md", "error.md"]
+  },
+  dcvServer: {
+    urlBase: "https://www.dynamsoft.com/capture-vision/docs/server/",
+    excludeDirs: [".git", ".github", ".vscode", ".vs", "_data", "_includes", "_layouts", "assets"],
+    excludeFiles: ["README.md", "search.md", "error.md"]
+  },
+  dcvCore: {
+    urlBase: "https://www.dynamsoft.com/capture-vision/docs/core/",
     excludeDirs: [".git", ".github", ".vscode", ".vs", "_data", "_includes", "_layouts", "assets"],
     excludeFiles: ["README.md", "search.md", "error.md"]
   },
@@ -63,6 +98,8 @@ const DOCS_CONFIG = {
 
 const DBR_MOBILE_PLATFORM_CANDIDATES = ["android", "ios", "maui", "react-native", "flutter"];
 const DBR_SERVER_PLATFORM_CANDIDATES = ["python", "cpp", "java", "dotnet", "nodejs"];
+const DCV_MOBILE_PLATFORM_CANDIDATES = ["android", "ios", "maui", "react-native", "flutter", "spm"];
+const DCV_SERVER_PLATFORM_CANDIDATES = ["python", "cpp", "java", "dotnet", "nodejs"];
 
 const CODE_FILE_EXTENSIONS = [
   ".java",
@@ -115,6 +152,22 @@ const DBR_SERVER_PREFERRED_EXTS = {
   nodejs: [".js", ".mjs", ".cjs", ".ts"]
 };
 
+const DCV_SERVER_PREFERRED_FILES = {
+  dotnet: ["Program.cs", "MainPage.xaml.cs", "MainPage.cs"],
+  java: ["Main.java", "App.java"],
+  cpp: ["main.cpp", "Main.cpp"],
+  nodejs: ["index.js", "index.mjs", "app.js", "app.mjs", "server.js", "server.mjs"],
+  python: ["document_scanner.py", "mrz_scanner.py", "vin_scanner.py", "driver_license_scanner.py", "gs1_ai_scanner.py"]
+};
+
+const DCV_SERVER_PREFERRED_EXTS = {
+  dotnet: [".cs"],
+  java: [".java"],
+  cpp: [".cpp", ".cc", ".cxx", ".h", ".hpp"],
+  nodejs: [".js", ".mjs", ".cjs", ".ts"],
+  python: [".py"]
+};
+
 const LEGACY_DBR_LINKS = {
   "10": {
     web: { web: "https://www.dynamsoft.com/barcode-reader/docs/v10/web/programming/javascript/" },
@@ -160,10 +213,14 @@ export {
   DOCS_CONFIG,
   DBR_MOBILE_PLATFORM_CANDIDATES,
   DBR_SERVER_PLATFORM_CANDIDATES,
+  DCV_MOBILE_PLATFORM_CANDIDATES,
+  DCV_SERVER_PLATFORM_CANDIDATES,
   CODE_FILE_EXTENSIONS,
   DDV_PREFERRED_ENTRY_FILES,
   DBR_SERVER_PREFERRED_FILES,
   DBR_SERVER_PREFERRED_EXTS,
+  DCV_SERVER_PREFERRED_FILES,
+  DCV_SERVER_PREFERRED_EXTS,
   LEGACY_DBR_LINKS,
   LEGACY_DWT_LINKS
 };

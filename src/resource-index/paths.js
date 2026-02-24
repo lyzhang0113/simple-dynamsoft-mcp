@@ -25,6 +25,17 @@ const SAMPLE_ROOTS = {
   dbrReactNative: join(samplesRoot, SAMPLE_DIRS.dbrReactNative),
   dbrFlutter: join(samplesRoot, SAMPLE_DIRS.dbrFlutter),
   dbrNodejs: join(samplesRoot, SAMPLE_DIRS.dbrNodejs),
+  dcvWeb: join(samplesRoot, SAMPLE_DIRS.dcvWeb),
+  dcvMobile: join(samplesRoot, SAMPLE_DIRS.dcvMobile),
+  dcvPython: join(samplesRoot, SAMPLE_DIRS.dcvPython),
+  dcvDotnet: join(samplesRoot, SAMPLE_DIRS.dcvDotnet),
+  dcvJava: join(samplesRoot, SAMPLE_DIRS.dcvJava),
+  dcvCpp: join(samplesRoot, SAMPLE_DIRS.dcvCpp),
+  dcvMaui: join(samplesRoot, SAMPLE_DIRS.dcvMaui),
+  dcvReactNative: join(samplesRoot, SAMPLE_DIRS.dcvReactNative),
+  dcvFlutter: join(samplesRoot, SAMPLE_DIRS.dcvFlutter),
+  dcvNodejs: join(samplesRoot, SAMPLE_DIRS.dcvNodejs),
+  dcvSpm: join(samplesRoot, SAMPLE_DIRS.dcvSpm),
   dwt: join(samplesRoot, SAMPLE_DIRS.dwt),
   ddv: join(samplesRoot, SAMPLE_DIRS.ddv)
 };
@@ -33,6 +44,10 @@ const DOC_ROOTS = {
   dbrWeb: join(docsRoot, DOC_DIRS.dbrWeb),
   dbrMobile: join(docsRoot, DOC_DIRS.dbrMobile),
   dbrServer: join(docsRoot, DOC_DIRS.dbrServer),
+  dcvWeb: join(docsRoot, DOC_DIRS.dcvWeb),
+  dcvMobile: join(docsRoot, DOC_DIRS.dcvMobile),
+  dcvServer: join(docsRoot, DOC_DIRS.dcvServer),
+  dcvCore: join(docsRoot, DOC_DIRS.dcvCore),
   dwt: join(docsRoot, DOC_DIRS.dwt),
   dwtArticles: join(docsRoot, DOC_DIRS.dwt, "_articles"),
   ddv: join(docsRoot, DOC_DIRS.ddv)

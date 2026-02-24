@@ -145,6 +145,7 @@ await test('get_index returns product data', async () => {
     assert(response.result, 'Should have result');
     const text = response.result.content[0].text;
     const parsed = JSON.parse(text);
+    assert(parsed.products.dcv, 'Should include DCV');
     assert(parsed.products.dbr, 'Should include DBR');
     assert(parsed.products.dwt, 'Should include DWT');
     assert(parsed.products.ddv, 'Should include DDV');
@@ -229,6 +230,26 @@ await test('list_samples returns DBR nodejs server samples', async () => {
     assert(parsed.samples.every(s => s.platform === 'nodejs'), 'All samples should be nodejs platform');
 });
 
+await test('list_samples returns DCV python server samples', async () => {
+    const response = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+            name: 'list_samples',
+            arguments: { product: 'dcv', edition: 'server', platform: 'python' }
+        }
+    });
+
+    assert(response.result, 'Should have result');
+    const text = response.result.content[0].text;
+    const jsonIndex = text.indexOf('JSON:');
+    assert(jsonIndex !== -1, 'Should include JSON section');
+    const parsed = JSON.parse(text.slice(jsonIndex + 5).trim());
+    assert(parsed.samples.length > 0, 'Should return DCV python samples');
+    assert(parsed.samples.every(s => s.platform === 'python'), 'All samples should be python platform');
+});
+
 await test('list_samples returns DBR maui mobile samples', async () => {
     const response = await sendRequest({
         jsonrpc: '2.0',
@@ -281,6 +302,7 @@ await test('resources/list returns pinned resources', async () => {
     const uris = response.result.resources.map(r => r.uri);
     assert(uris.includes('doc://index'), 'Should include doc://index');
     assert(uris.includes('doc://version-policy'), 'Should include doc://version-policy');
+    assert(uris.includes('doc://product-selection'), 'Should include doc://product-selection guidance');
 });
 
 await test('search + resources/read works together', async () => {
@@ -340,6 +362,22 @@ await test('resolve_version returns latest for DDV', async () => {
     assert(text.includes('DDV Version Resolution'), 'Should include DDV resolution');
 });
 
+await test('resolve_version returns latest for DCV', async () => {
+    const response = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+            name: 'resolve_version',
+            arguments: { product: 'dcv' }
+        }
+    });
+
+    assert(response.result, 'Should have result');
+    const text = response.result.content[0].text;
+    assert(text.includes('DCV Version Resolution'), 'Should include DCV resolution');
+});
+
 await test('resolve_version rejects old major version', async () => {
     const response = await sendRequest({
         jsonrpc: '2.0',
@@ -370,6 +408,22 @@ await test('get_quickstart returns a DDV quickstart', async () => {
     assert(response.result, 'Should have result');
     const text = response.result.content[0].text;
     assert(text.includes('Quick Start: Dynamsoft Document Viewer'), 'Should include DDV quickstart header');
+});
+
+await test('get_quickstart returns a DCV quickstart', async () => {
+    const response = await sendRequest({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+            name: 'get_quickstart',
+            arguments: { product: 'dcv', edition: 'server', platform: 'python', scenario: 'mrz' }
+        }
+    });
+
+    assert(response.result, 'Should have result');
+    const text = response.result.content[0].text;
+    assert(text.includes('Quick Start: DCV Server'), 'Should include DCV quickstart header');
 });
 
 await test('generate_project returns DDV project structure', async () => {

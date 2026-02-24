@@ -10,6 +10,48 @@ function mapDocTitlesWithOptionalPlatform(articles, includePlatform = false) {
   }));
 }
 
+function getDcvScenarioTags(sampleName) {
+  const normalized = String(sampleName || "").toLowerCase();
+  const tags = [];
+  if (normalized.includes("mrz")) {
+    tags.push("mrz", "passport", "id-card", "machine-readable-zone");
+  }
+  if (normalized.includes("vin")) {
+    tags.push("vin", "vehicle-identification-number", "vehicle", "automotive");
+  }
+  if (normalized.includes("driver") || normalized.includes("license")) {
+    tags.push("driver-license", "id-card", "dl", "aamva");
+  }
+  if (normalized.includes("document")) {
+    tags.push("document-scan", "document-normalization", "auto-capture", "cropping", "deskew");
+  }
+  if (normalized.includes("gs1")) {
+    tags.push("gs1", "application-identifiers", "ai");
+  }
+  return Array.from(new Set(tags));
+}
+
+function buildProductSelectionGuidanceText() {
+  return [
+    "# Product Selection Guidance",
+    "",
+    "## DBR vs DCV",
+    "",
+    "Dynamsoft Capture Vision (DCV) is a superset architecture that aggregates DBR, DLR, DDN, DCP, and DCE.",
+    "",
+    "Use DBR when you only need barcode reading and do not need DCV workflows.",
+    "",
+    "Use DCV when your scenario includes:",
+    "- VIN scanning",
+    "- MRZ/passport/ID scanning",
+    "- Driver license parsing",
+    "- Document detection/normalization/auto-capture/cropping",
+    "- Multi-task image processing and parsing workflows",
+    "",
+    "If a query includes MRZ, VIN, driver license, or document-normalization intents, prefer DCV samples/docs."
+  ].join("\n");
+}
+
 function addMarkdownDocResources({
   addResourceToIndex,
   docs,
@@ -65,11 +107,21 @@ function addMarkdownDocResources({
 function buildIndexData({
   LATEST_VERSIONS,
   LATEST_MAJOR,
+  dcvCoreDocs,
+  dcvWebDocs,
+  dcvMobileDocs,
+  dcvServerDocs,
   dbrWebDocs,
   dbrMobileDocs,
   dbrServerDocs,
   dwtDocs,
   ddvDocs,
+  discoverDcvWebSamples,
+  getDcvWebFrameworkPlatforms,
+  getDcvMobilePlatforms,
+  getDcvServerPlatforms,
+  discoverDcvMobileSamples,
+  discoverDcvServerSamples,
   discoverWebSamples,
   getDbrWebFrameworkPlatforms,
   getDbrMobilePlatforms,
@@ -80,12 +132,20 @@ function buildIndexData({
   discoverDdvSamples,
   getDdvWebFrameworkPlatforms
 }) {
+  const dcvCoreVersion = LATEST_VERSIONS.dcv.core;
+  const dcvWebVersion = LATEST_VERSIONS.dcv.web;
+  const dcvMobileVersion = LATEST_VERSIONS.dcv.mobile;
+  const dcvServerVersion = LATEST_VERSIONS.dcv.server;
   const dbrMobileVersion = LATEST_VERSIONS.dbr.mobile;
   const dbrWebVersion = LATEST_VERSIONS.dbr.web;
   const dbrServerVersion = LATEST_VERSIONS.dbr.server;
   const dwtVersion = LATEST_VERSIONS.dwt.web;
   const ddvVersion = LATEST_VERSIONS.ddv.web;
 
+  const dcvWebSamples = discoverDcvWebSamples();
+  const dcvWebFrameworks = getDcvWebFrameworkPlatforms();
+  const dcvMobilePlatforms = getDcvMobilePlatforms();
+  const dcvServerPlatforms = getDcvServerPlatforms();
   const dbrWebSamples = discoverWebSamples();
   const dbrWebFrameworks = getDbrWebFrameworkPlatforms();
   const dbrMobilePlatforms = getDbrMobilePlatforms();
@@ -94,7 +154,56 @@ function buildIndexData({
   const ddvWebFrameworks = getDdvWebFrameworkPlatforms();
 
   return {
+    productSelection: {
+      dcvSupersetSummary: "DCV aggregates DBR, DLR, DDN, DCP, and DCE into one pipeline.",
+      useDbrWhen: [
+        "Barcode-only workflows where DCV-specific workflows are not required."
+      ],
+      useDcvWhen: [
+        "VIN scanning",
+        "MRZ/passport/ID scanning",
+        "Driver license parsing",
+        "Document normalization/auto-capture/cropping",
+        "Multi-task capture vision workflows"
+      ]
+    },
     products: {
+      dcv: {
+        latestMajor: LATEST_MAJOR.dcv,
+        editions: {
+          core: {
+            version: dcvCoreVersion,
+            platforms: ["core"],
+            docCount: dcvCoreDocs.length,
+            docTitles: mapDocTitlesWithOptionalPlatform(dcvCoreDocs)
+          },
+          web: {
+            version: dcvWebVersion,
+            platforms: ["js", ...dcvWebFrameworks],
+            samples: dcvWebSamples,
+            docCount: dcvWebDocs.length,
+            docTitles: mapDocTitlesWithOptionalPlatform(dcvWebDocs)
+          },
+          mobile: {
+            version: dcvMobileVersion,
+            platforms: dcvMobilePlatforms,
+            samples: Object.fromEntries(
+              dcvMobilePlatforms.map((platform) => [platform, discoverDcvMobileSamples(platform)])
+            ),
+            docCount: dcvMobileDocs.length,
+            docTitles: mapDocTitlesWithOptionalPlatform(dcvMobileDocs, true)
+          },
+          server: {
+            version: dcvServerVersion,
+            platforms: dcvServerPlatforms,
+            samples: Object.fromEntries(
+              dcvServerPlatforms.map((platform) => [platform, discoverDcvServerSamples(platform)])
+            ),
+            docCount: dcvServerDocs.length,
+            docTitles: mapDocTitlesWithOptionalPlatform(dcvServerDocs, true)
+          }
+        }
+      },
       dbr: {
         latestMajor: LATEST_MAJOR.dbr,
         editions: {
@@ -165,11 +274,23 @@ function buildResourceIndex({
   buildVersionPolicyText,
   LATEST_VERSIONS,
   LATEST_MAJOR,
+  dcvCoreDocs,
+  dcvWebDocs,
+  dcvMobileDocs,
+  dcvServerDocs,
   dbrWebDocs,
   dbrMobileDocs,
   dbrServerDocs,
   dwtDocs,
   ddvDocs,
+  discoverDcvMobileSamples,
+  getDcvMobilePlatforms,
+  getDcvMobileSamplePath,
+  getDcvServerPlatforms,
+  discoverDcvServerSamples,
+  getDcvServerSampleContent,
+  discoverDcvWebSamples,
+  getDcvWebSamplePath,
   discoverMobileSamples,
   getDbrMobilePlatforms,
   getMobileSamplePath,
@@ -217,11 +338,184 @@ function buildResourceIndex({
     })
   });
 
+  addResourceToIndex({
+    id: "product-selection",
+    uri: "doc://product-selection",
+    type: "policy",
+    title: "Product Selection Guidance",
+    summary: "When to use DCV vs DBR (and when DWT/DDV are better fits).",
+    mimeType: "text/markdown",
+    tags: ["guidance", "product-selection", "dcv", "dbr", "dwt", "ddv"],
+    pinned: true,
+    loadContent: async () => ({
+      text: buildProductSelectionGuidanceText(),
+      mimeType: "text/markdown"
+    })
+  });
+
+  const dcvCoreVersion = LATEST_VERSIONS.dcv.core;
+  const dcvWebVersion = LATEST_VERSIONS.dcv.web;
+  const dcvMobileVersion = LATEST_VERSIONS.dcv.mobile;
+  const dcvServerVersion = LATEST_VERSIONS.dcv.server;
   const dbrMobileVersion = LATEST_VERSIONS.dbr.mobile;
   const dbrWebVersion = LATEST_VERSIONS.dbr.web;
   const dbrServerVersion = LATEST_VERSIONS.dbr.server;
   const dwtVersion = LATEST_VERSIONS.dwt.web;
   const ddvVersion = LATEST_VERSIONS.ddv.web;
+
+  addMarkdownDocResources({
+    addResourceToIndex,
+    docs: dcvCoreDocs,
+    idPrefix: "dcv-core-doc",
+    uriPrefix: "doc://dcv/core",
+    product: "dcv",
+    edition: "core",
+    version: dcvCoreVersion,
+    majorVersion: LATEST_MAJOR.dcv,
+    defaultPlatform: "core",
+    defaultSummary: "Dynamsoft Capture Vision Core documentation",
+    baseTags: ["doc", "dcv", "core"]
+  });
+
+  addMarkdownDocResources({
+    addResourceToIndex,
+    docs: dcvWebDocs,
+    idPrefix: "dcv-web-doc",
+    uriPrefix: "doc://dcv/web",
+    product: "dcv",
+    edition: "web",
+    version: dcvWebVersion,
+    majorVersion: LATEST_MAJOR.dcv,
+    defaultPlatform: "web",
+    defaultSummary: "Dynamsoft Capture Vision Web documentation",
+    baseTags: ["doc", "dcv", "web"]
+  });
+
+  addMarkdownDocResources({
+    addResourceToIndex,
+    docs: dcvMobileDocs,
+    idPrefix: "dcv-mobile-doc",
+    uriPrefix: "doc://dcv/mobile",
+    product: "dcv",
+    edition: "mobile",
+    version: dcvMobileVersion,
+    majorVersion: LATEST_MAJOR.dcv,
+    defaultPlatform: "mobile",
+    defaultSummary: "Dynamsoft Capture Vision Mobile documentation",
+    baseTags: ["doc", "dcv", "mobile"]
+  });
+
+  addMarkdownDocResources({
+    addResourceToIndex,
+    docs: dcvServerDocs,
+    idPrefix: "dcv-server-doc",
+    uriPrefix: "doc://dcv/server",
+    product: "dcv",
+    edition: "server",
+    version: dcvServerVersion,
+    majorVersion: LATEST_MAJOR.dcv,
+    defaultPlatform: "server",
+    defaultSummary: "Dynamsoft Capture Vision Server/Desktop documentation",
+    baseTags: ["doc", "dcv", "server"]
+  });
+
+  for (const sampleName of discoverDcvWebSamples()) {
+    const scenarioTags = getDcvScenarioTags(sampleName);
+    addResourceToIndex({
+      id: `dcv-web-${sampleName}`,
+      uri: `sample://dcv/web/web/${dcvWebVersion}/${sampleName}`,
+      type: "sample",
+      product: "dcv",
+      edition: "web",
+      platform: "web",
+      version: dcvWebVersion,
+      majorVersion: LATEST_MAJOR.dcv,
+      title: `DCV web sample: ${sampleName}`,
+      summary: `DCV web sample ${sampleName}.`,
+      mimeType: "text/plain",
+      tags: ["sample", "dcv", "web", sampleName, ...scenarioTags],
+      loadContent: async () => {
+        const samplePath = getDcvWebSamplePath(sampleName);
+        if (!samplePath || !existsSync(samplePath)) return { text: "Sample not found", mimeType: "text/plain" };
+
+        const stat = statSync(samplePath);
+        if (stat.isDirectory()) {
+          const readmePath = join(samplePath, "README.md");
+          if (existsSync(readmePath)) return { text: readCodeFile(readmePath), mimeType: "text/markdown" };
+          const codeFiles = findCodeFilesInSample(samplePath);
+          if (codeFiles.length > 0) {
+            const preferred = codeFiles.find((file) => file.filename === "index.html") || codeFiles[0];
+            return { text: readCodeFile(preferred.path), mimeType: getMimeTypeForExtension(preferred.extension) };
+          }
+          return { text: "Sample found, but no code files detected.", mimeType: "text/plain" };
+        }
+
+        const ext = extname(samplePath).replace(".", "");
+        return { text: readCodeFile(samplePath), mimeType: getMimeTypeForExtension(ext) };
+      }
+    });
+  }
+
+  for (const platform of getDcvMobilePlatforms()) {
+    for (const sampleName of discoverDcvMobileSamples(platform)) {
+      const scenarioTags = getDcvScenarioTags(sampleName);
+      addResourceToIndex({
+        id: `dcv-mobile-${platform}-${sampleName}`,
+        uri: `sample://dcv/mobile/${platform}/${dcvMobileVersion}/${sampleName}`,
+        type: "sample",
+        product: "dcv",
+        edition: "mobile",
+        platform,
+        version: dcvMobileVersion,
+        majorVersion: LATEST_MAJOR.dcv,
+        title: `DCV mobile sample: ${sampleName} (${platform})`,
+        summary: `DCV mobile ${platform} sample ${sampleName}.`,
+        mimeType: "text/plain",
+        tags: ["sample", "dcv", "mobile", platform, sampleName, ...scenarioTags],
+        loadContent: async () => {
+          const samplePath = getDcvMobileSamplePath(platform, sampleName);
+          if (!samplePath || !existsSync(samplePath)) return { text: "Sample not found", mimeType: "text/plain" };
+
+          const stat = statSync(samplePath);
+          if (stat.isFile()) {
+            const ext = extname(samplePath).replace(".", "");
+            return { text: readCodeFile(samplePath), mimeType: getMimeTypeForExtension(ext) };
+          }
+
+          const mainFile = getMainCodeFile(platform, samplePath);
+          if (mainFile) {
+            const ext = mainFile.filename.split(".").pop() || "";
+            return { text: readCodeFile(mainFile.path), mimeType: getMimeTypeForExtension(ext) };
+          }
+
+          const readmePath = join(samplePath, "README.md");
+          if (existsSync(readmePath)) return { text: readCodeFile(readmePath), mimeType: "text/markdown" };
+          return { text: "Sample found, but no code files detected.", mimeType: "text/plain" };
+        }
+      });
+    }
+  }
+
+  for (const platform of getDcvServerPlatforms()) {
+    for (const sampleName of discoverDcvServerSamples(platform)) {
+      const scenarioTags = getDcvScenarioTags(sampleName);
+      addResourceToIndex({
+        id: `dcv-${platform}-${sampleName}`,
+        uri: `sample://dcv/server/${platform}/${dcvServerVersion}/${sampleName}`,
+        type: "sample",
+        product: "dcv",
+        edition: "server",
+        platform,
+        version: dcvServerVersion,
+        majorVersion: LATEST_MAJOR.dcv,
+        title: `DCV ${platform.toUpperCase()} sample: ${sampleName}`,
+        summary: `DCV ${platform} sample ${sampleName}.`,
+        mimeType: platform === "python" ? "text/x-python" : (platform === "nodejs" ? "text/javascript" : "text/plain"),
+        tags: ["sample", "dcv", "server", platform, sampleName, ...scenarioTags],
+        loadContent: async () => getDcvServerSampleContent(platform, sampleName)
+      });
+    }
+  }
 
   addMarkdownDocResources({
     addResourceToIndex,

@@ -5,6 +5,10 @@ import {
   DBR_SERVER_PLATFORM_CANDIDATES,
   DBR_SERVER_PREFERRED_EXTS,
   DBR_SERVER_PREFERRED_FILES,
+  DCV_MOBILE_PLATFORM_CANDIDATES,
+  DCV_SERVER_PLATFORM_CANDIDATES,
+  DCV_SERVER_PREFERRED_EXTS,
+  DCV_SERVER_PREFERRED_FILES,
   CODE_FILE_EXTENSIONS
 } from "./config.js";
 import { SAMPLE_ROOTS, getExistingPath } from "./paths.js";
@@ -13,6 +17,7 @@ import { normalizePlatform } from "../normalizers.js";
 let cachedWebFrameworkPlatforms = null;
 let cachedDbrWebFrameworkPlatforms = null;
 let cachedDdvWebFrameworkPlatforms = null;
+let cachedDcvWebFrameworkPlatforms = null;
 
 function getCodeFileExtensions() {
   return CODE_FILE_EXTENSIONS;
@@ -38,6 +43,14 @@ function getDbrCrossMobileRoot(platform) {
   if (platform === "maui") return SAMPLE_ROOTS.dbrMaui;
   if (platform === "react-native") return SAMPLE_ROOTS.dbrReactNative;
   if (platform === "flutter") return SAMPLE_ROOTS.dbrFlutter;
+  return null;
+}
+
+function getDcvCrossMobileRoot(platform) {
+  if (platform === "maui") return SAMPLE_ROOTS.dcvMaui;
+  if (platform === "react-native") return SAMPLE_ROOTS.dcvReactNative;
+  if (platform === "flutter") return SAMPLE_ROOTS.dcvFlutter;
+  if (platform === "spm") return SAMPLE_ROOTS.dcvSpm;
   return null;
 }
 
@@ -123,6 +136,14 @@ function discoverDirectoryNames(path) {
   return sortUnique(names);
 }
 
+function discoverDirectoryNamesWithFilter(path, matcher) {
+  return discoverDirectoryNames(path).filter((name) => matcher(name));
+}
+
+function isDcvScenarioSampleName(sampleName) {
+  return /scan|scanner|mrz|vin|driver|license|document|gs1/i.test(sampleName || "");
+}
+
 function discoverDbrServerSamples(platform) {
   const normalizedPlatform = normalizePlatform(platform);
   if (normalizedPlatform === "python") return discoverPythonSamples();
@@ -145,6 +166,95 @@ function getDbrMobilePlatforms() {
 
 function getDbrServerPlatforms() {
   return DBR_SERVER_PLATFORM_CANDIDATES.filter((platform) => discoverDbrServerSamples(platform).length > 0);
+}
+
+function discoverDcvCrossMobileSamples(platform) {
+  const root = getDcvCrossMobileRoot(platform);
+  if (!root || !existsSync(root)) return [];
+  if (platform === "spm") {
+    return existsSync(join(root, "Package.swift")) ? ["package-swift"] : [];
+  }
+
+  return discoverDirectoryNamesWithFilter(root, (name) => isDcvScenarioSampleName(name));
+}
+
+function discoverDcvMobileSamples(platform) {
+  const normalizedPlatform = normalizePlatform(platform);
+
+  if (["maui", "react-native", "flutter", "spm"].includes(normalizedPlatform)) {
+    return discoverDcvCrossMobileSamples(normalizedPlatform);
+  }
+
+  if (normalizedPlatform === "android") {
+    return discoverDirectoryNamesWithFilter(join(SAMPLE_ROOTS.dcvMobile, "Android"), (name) => isDcvScenarioSampleName(name));
+  }
+
+  if (normalizedPlatform === "ios") {
+    return discoverDirectoryNamesWithFilter(join(SAMPLE_ROOTS.dcvMobile, "ios"), (name) => isDcvScenarioSampleName(name));
+  }
+
+  return [];
+}
+
+function discoverDcvPythonSamples() {
+  const samples = [];
+  const pythonPath = join(SAMPLE_ROOTS.dcvPython, "Samples");
+  if (!existsSync(pythonPath)) return samples;
+
+  for (const entry of readdirSync(pythonPath, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.endsWith(".py")) {
+      samples.push(entry.name.replace(".py", ""));
+    }
+  }
+  return sortUnique(samples);
+}
+
+function getDcvServerSamplesRoot(platform) {
+  if (platform === "python") return SAMPLE_ROOTS.dcvPython;
+  if (platform === "dotnet") return SAMPLE_ROOTS.dcvDotnet;
+  if (platform === "java") return SAMPLE_ROOTS.dcvJava;
+  if (platform === "cpp") return SAMPLE_ROOTS.dcvCpp;
+  if (platform === "nodejs") return SAMPLE_ROOTS.dcvNodejs;
+  return null;
+}
+
+function discoverDcvServerSamples(platform) {
+  const normalizedPlatform = normalizePlatform(platform);
+  if (normalizedPlatform === "python") return discoverDcvPythonSamples();
+  if (normalizedPlatform === "nodejs") return discoverDirectoryNames(getDcvServerSamplesRoot("nodejs"));
+
+  if (["dotnet", "java", "cpp"].includes(normalizedPlatform)) {
+    const root = getDcvServerSamplesRoot(normalizedPlatform);
+    return discoverDirectoryNames(join(root || "", "Samples"));
+  }
+  return [];
+}
+
+function getDcvMobilePlatforms() {
+  return DCV_MOBILE_PLATFORM_CANDIDATES.filter((platform) => discoverDcvMobileSamples(platform).length > 0);
+}
+
+function getDcvServerPlatforms() {
+  return DCV_SERVER_PLATFORM_CANDIDATES.filter((platform) => discoverDcvServerSamples(platform).length > 0);
+}
+
+function discoverDcvWebSamples() {
+  const sampleSet = new Set();
+  if (!existsSync(SAMPLE_ROOTS.dcvWeb)) return [];
+
+  for (const entry of readdirSync(SAMPLE_ROOTS.dcvWeb, { withFileTypes: true })) {
+    if (entry.name.startsWith(".")) continue;
+    if (entry.isDirectory()) sampleSet.add(entry.name);
+    if (entry.isFile() && entry.name.endsWith(".html")) sampleSet.add(entry.name.replace(".html", ""));
+  }
+  return Array.from(sampleSet).sort();
+}
+
+function getDcvWebFrameworkPlatforms() {
+  if (cachedDcvWebFrameworkPlatforms) return cachedDcvWebFrameworkPlatforms;
+  // Current DCV web samples are plain JS scenario samples.
+  cachedDcvWebFrameworkPlatforms = [];
+  return cachedDcvWebFrameworkPlatforms;
 }
 
 function discoverWebSamples() {
@@ -273,7 +383,11 @@ function getDdvWebFrameworkPlatforms() {
 
 function getWebFrameworkPlatforms() {
   if (cachedWebFrameworkPlatforms) return cachedWebFrameworkPlatforms;
-  const frameworks = new Set([...getDbrWebFrameworkPlatforms(), ...getDdvWebFrameworkPlatforms()]);
+  const frameworks = new Set([
+    ...getDbrWebFrameworkPlatforms(),
+    ...getDdvWebFrameworkPlatforms(),
+    ...getDcvWebFrameworkPlatforms()
+  ]);
   cachedWebFrameworkPlatforms = frameworks;
   return cachedWebFrameworkPlatforms;
 }
@@ -375,6 +489,85 @@ function getDdvSamplePath(sampleName) {
   return null;
 }
 
+function getDcvMobileSamplePath(platform, sampleName) {
+  const normalizedPlatform = normalizePlatform(platform);
+
+  if (["maui", "react-native", "flutter"].includes(normalizedPlatform)) {
+    const root = getDcvCrossMobileRoot(normalizedPlatform);
+    const direct = root ? join(root, sampleName) : "";
+    return getExistingPath(direct) || direct;
+  }
+
+  if (normalizedPlatform === "spm") {
+    const root = getDcvCrossMobileRoot("spm");
+    if (!root) return "";
+    const packageFile = join(root, "Package.swift");
+    const readmeFile = join(root, "README.md");
+    if (sampleName === "package-swift") return getExistingPath(packageFile, readmeFile) || packageFile;
+    const direct = join(root, sampleName);
+    return getExistingPath(direct, packageFile, readmeFile) || direct;
+  }
+
+  if (normalizedPlatform === "android") {
+    const direct = join(SAMPLE_ROOTS.dcvMobile, "Android", sampleName);
+    return getExistingPath(direct) || direct;
+  }
+
+  if (normalizedPlatform === "ios") {
+    const direct = join(SAMPLE_ROOTS.dcvMobile, "ios", sampleName);
+    return getExistingPath(direct) || direct;
+  }
+
+  return "";
+}
+
+function getDcvServerSamplePath(platform, sampleName) {
+  const normalizedPlatform = normalizePlatform(platform) || "python";
+
+  if (normalizedPlatform === "python") {
+    const fileName = sampleName.endsWith(".py") ? sampleName : `${sampleName}.py`;
+    const primary = join(SAMPLE_ROOTS.dcvPython, "Samples", fileName);
+    return getExistingPath(primary) || primary;
+  }
+
+  if (normalizedPlatform === "nodejs") {
+    const root = getDcvServerSamplesRoot("nodejs");
+    if (!root) return "";
+    const direct = join(root, sampleName);
+    const js = join(root, `${sampleName}.js`);
+    const mjs = join(root, `${sampleName}.mjs`);
+    return getExistingPath(direct, js, mjs) || direct;
+  }
+
+  if (["dotnet", "java", "cpp"].includes(normalizedPlatform)) {
+    const root = getDcvServerSamplesRoot(normalizedPlatform);
+    if (!root) return "";
+    const direct = join(root, "Samples", sampleName);
+    return getExistingPath(direct) || direct;
+  }
+
+  return "";
+}
+
+function getDcvWebSamplePath(sampleName) {
+  if (!existsSync(SAMPLE_ROOTS.dcvWeb)) return null;
+  const directDir = join(SAMPLE_ROOTS.dcvWeb, sampleName);
+  if (existsSync(directDir) && statSync(directDir).isDirectory()) {
+    const indexPath = join(directDir, "index.html");
+    if (existsSync(indexPath)) return indexPath;
+    const readmePath = join(directDir, "README.md");
+    if (existsSync(readmePath)) return readmePath;
+    for (const entry of readdirSync(directDir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith(".html")) return join(directDir, entry.name);
+    }
+    return directDir;
+  }
+
+  const htmlPath = join(SAMPLE_ROOTS.dcvWeb, `${sampleName}.html`);
+  if (existsSync(htmlPath)) return htmlPath;
+  return null;
+}
+
 function readCodeFile(filePath) {
   if (!existsSync(filePath)) return null;
   return readFileSync(filePath, "utf8");
@@ -452,30 +645,79 @@ function getDbrServerSampleContent(platform, sampleName) {
   };
 }
 
+function getDcvServerSampleContent(platform, sampleName) {
+  const samplePath = getDcvServerSamplePath(platform, sampleName);
+  if (!samplePath || !existsSync(samplePath)) return { text: "Sample not found", mimeType: "text/plain" };
+
+  const stat = statSync(samplePath);
+  if (stat.isFile()) {
+    const ext = extname(samplePath).replace(".", "");
+    return { text: readCodeFile(samplePath), mimeType: getMimeTypeForExtension(ext) };
+  }
+
+  const normalizedPlatform = normalizePlatform(platform);
+  const preferredFiles = DCV_SERVER_PREFERRED_FILES[normalizedPlatform] || [];
+  for (const name of preferredFiles) {
+    const candidate = join(samplePath, name);
+    if (existsSync(candidate) && statSync(candidate).isFile()) {
+      const ext = extname(candidate).replace(".", "");
+      return { text: readCodeFile(candidate), mimeType: getMimeTypeForExtension(ext) };
+    }
+  }
+
+  const readmePath = join(samplePath, "README.md");
+  if (existsSync(readmePath)) return { text: readCodeFile(readmePath), mimeType: "text/markdown" };
+
+  const codeFiles = findCodeFilesInSample(samplePath);
+  if (codeFiles.length > 0) {
+    const preferredExts = DCV_SERVER_PREFERRED_EXTS[normalizedPlatform] || [];
+    const preferred = codeFiles.find((file) => preferredExts.includes(file.extension)) || codeFiles[0];
+    return { text: readCodeFile(preferred.path), mimeType: getMimeTypeForExtension(preferred.extension) };
+  }
+
+  const files = readdirSync(samplePath, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name);
+  return {
+    text: files.length > 0 ? files.join("\n") : "Sample found, but no code files detected.",
+    mimeType: "text/plain"
+  };
+}
+
 export {
   getCodeFileExtensions,
   isCodeFile,
   discoverMobileSamples,
   discoverDbrServerSamples,
   discoverPythonSamples,
+  discoverDcvMobileSamples,
+  discoverDcvServerSamples,
+  discoverDcvWebSamples,
   discoverWebSamples,
   getWebSamplePath,
   discoverDwtSamples,
   discoverDdvSamples,
   mapDdvSampleToFramework,
   getDbrWebFrameworkPlatforms,
+  getDcvWebFrameworkPlatforms,
   getDdvWebFrameworkPlatforms,
   getWebFrameworkPlatforms,
   findCodeFilesInSample,
   getDbrMobilePlatforms,
   getDbrServerPlatforms,
+  getDcvMobilePlatforms,
+  getDcvServerPlatforms,
   getMobileSamplePath,
   getPythonSamplePath,
   getDbrServerSamplePath,
+  getDcvMobileSamplePath,
+  getDcvServerSamplePath,
+  getDcvWebSamplePath,
   getDwtSamplePath,
   getDdvSamplePath,
   readCodeFile,
   getMainCodeFile,
   getMimeTypeForExtension,
-  getDbrServerSampleContent
+  getDbrServerSampleContent,
+  getDcvServerSampleContent
 };

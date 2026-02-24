@@ -4,6 +4,7 @@
 This repository hosts a stdio-only MCP server for Dynamsoft SDKs. It provides tool-based discovery and lazy resource reads so agents do not load all resources by default.
 
 Supported products:
+- DCV (Capture Vision): core, mobile, web, server/desktop (python, dotnet, java, cpp, nodejs)
 - DBR (Barcode Reader): mobile, web, server/desktop (python, dotnet, java, cpp, nodejs)
 - DWT (Dynamic Web TWAIN): web
 - DDV (Document Viewer): web
@@ -19,6 +20,7 @@ Supported products:
 ## Version Policy
 - Only the latest major version is served.
 - DBR legacy docs are available only for v9 and v10; versions prior to v9 are refused.
+- DCV has no legacy archive links in this server.
 - DWT archived docs are available for v16.1.1+ (specific versions listed in code).
 - DDV has no legacy archive links in this server.
 
@@ -30,6 +32,7 @@ Supported products:
 - `src/resource-index/*`: modularized resource-index implementation (`config`, `paths`, docs/sample discovery, URI parsing, version policy, builders).
 - `src/submodule-sync.js`: optional startup sync for submodules (`DATA_SYNC_ON_START`).
 - `scripts/sync-submodules.mjs`: script entry used by `npm run data:sync`.
+- `scripts/update-sdk-versions.mjs`: syncs latest SDK versions from docs repositories (supports strict mode for source-structure drift detection).
 - `scripts/update-data-lock.mjs`: updates `data/metadata/data-manifest.json` from current submodule commits.
 - `scripts/verify-data-lock.mjs`: verifies lock manifest matches current submodule heads.
 - `scripts/prebuild-rag-index.mjs`: builds and writes local RAG cache artifacts for release distribution.
@@ -45,6 +48,10 @@ Supported products:
 - `data/documentation/barcode-reader-docs-js`: DBR web docs repository (git submodule).
 - `data/documentation/barcode-reader-docs-mobile`: DBR mobile docs repository (git submodule).
 - `data/documentation/barcode-reader-docs-server`: DBR server docs repository (git submodule).
+- `data/documentation/capture-vision-docs`: DCV core docs repository (git submodule).
+- `data/documentation/capture-vision-docs-js`: DCV web docs repository (git submodule).
+- `data/documentation/capture-vision-docs-server`: DCV server docs repository (git submodule).
+- `data/documentation/capture-vision-docs-mobile`: DCV mobile docs repository (git submodule).
 - `data/documentation/web-twain-docs`: DWT docs repository (git submodule).
 - `data/documentation/document-viewer-docs`: DDV docs repository (git submodule).
 
@@ -67,6 +74,10 @@ Avoid modifying `data/` submodule content unless explicitly requested.
 - Init submodules: `npm run data:bootstrap`
 - Sync submodules: `npm run data:sync`
 - Submodule status: `npm run data:status`
+- Update SDK versions from docs: `npm run data:versions`
+- Strict version/source check during update: `npm run data:versions:strict`
+- Verify SDK versions are synced: `npm run data:verify-versions`
+- Strict verify for source-structure drift: `npm run data:verify-versions:strict`
 - Update data lock manifest: `npm run data:lock`
 - Verify data lock manifest: `npm run data:verify-lock`
 - Build prebuilt local RAG index cache: `npm run rag:prebuild`
@@ -78,9 +89,11 @@ Avoid modifying `data/` submodule content unless explicitly requested.
 
 CI notes:
 - `test_fuse` runs on `ubuntu-latest` for every PR/push.
+- `test_fuse` includes strict source-wiring validation via `npm run data:verify-versions:strict`.
 - `test_local_provider` runs on `ubuntu-latest` for every PR/push.
 - `test_gemini_provider` runs on `ubuntu-latest` when `GEMINI_API_KEY` secret is configured.
 - `rag:prebuild` is run in the local-provider CI job before local-provider integration tests.
+- `update-data-lock.yml` enables auto-merge for refresh PRs when repository settings allow auto-merge and required checks pass.
 
 ## Roadmap Notes
 - Read `TODO.md` before making release automation changes.
@@ -99,12 +112,78 @@ CI notes:
 ### Important Notes For Future Agents
 
 - Do not edit `data/metadata/data-manifest.json` manually. Regenerate it with `npm run data:lock`.
+- Do not edit `data/metadata/dynamsoft_sdks.json` manually for "latest" updates when docs can be used. Use `npm run data:versions`.
 - Always run `npm run data:verify-lock` after lock updates and before proposing releases.
+- Always run `npm run data:verify-versions:strict` when changing docs submodules, version extraction logic, or metadata workflow.
 - Keep dual-mode behavior intact: dev clone should use local submodules when available, and npm/npx mode should bootstrap from manifest-pinned archives into cache.
 - If users report "no download happened", first check startup stderr for the `[data] mode=...` log line.
 - Be careful with package contents: ensure npm package does not include full submodule payloads.
 - Avoid modifying submodule contents under `data/samples/*` and `data/documentation/*` unless explicitly requested.
 - Local-provider tests create `.cache/` under repo root unless overridden by env; do not commit that directory.
+
+### Runbook: Add New Documentation And Sample Sources
+
+Use this sequence when onboarding a new product family or edition docs/samples.
+
+1. Create a feature branch first.
+2. Add docs/samples as git submodules under:
+   - `data/documentation/<repo-name>`
+   - `data/samples/<repo-name>`
+3. Initialize and sync submodules:
+   - `npm run data:bootstrap`
+   - `npm run data:sync`
+4. Inspect each added repo structure before coding:
+   - Check README and scenario folders/files (MRZ, VIN, doc scan, driver license, etc.).
+   - Confirm where release notes or canonical version source is stored.
+5. Update indexing/config layer:
+   - `src/resource-index/config.js` (dirs, platform candidates, preferred file types)
+   - `src/resource-index/paths.js` (new roots)
+   - `src/resource-index/samples.js` (discovery + resolvers)
+   - `src/resource-index/uri.js` (URI parsing)
+   - `src/resource-index.js` (load docs/samples, latest versions, signature data)
+   - `src/resource-index/builders.js` (resource builders, scenario tags, pinned guidance resources)
+6. Update product normalization/routing:
+   - `src/normalizers.js` (aliases, scenario inference terms)
+   - `src/index.js` (tool schema hints, resolve_version/get_quickstart/generate_project routes)
+   - `src/resource-index/version-policy.js` (latest-major policy and legacy messaging)
+7. Update metadata and public guidance:
+   - `data/metadata/dynamsoft_sdks.json`
+   - `README.md`
+   - add/refresh pinned product-selection guidance resource so external agents see DBR-vs-DCV criteria on first connection.
+8. Update/extend tests:
+   - `test/server.test.js`
+   - `test/integration/helpers.js`
+9. Refresh lock and versions:
+   - `npm run data:versions:strict`
+   - `npm run data:verify-versions:strict`
+   - `npm run data:lock`
+   - `npm run data:verify-lock`
+10. Run validation suites:
+   - `node test/server.test.js`
+   - `npm run test:unit`
+   - `npm run test:stdio`
+   - `npm test`
+
+### Version Source Rules (Automation)
+
+- Version sync entrypoint: `scripts/update-sdk-versions.mjs`.
+- Workflow hook: `.github/workflows/update-data-lock.yml` runs:
+  - `npm run data:versions:strict`
+  - `npm run data:verify-versions:strict`
+- Prefer product-specific canonical sources, not one generic regex:
+  - DBR/DCV editions: release-note index pages.
+  - DWT: `assets/js/setLatestVersion.js`.
+  - DDV: `_data/product_version.yml` (fallback release notes).
+  - DCV core: `_data/product_version.yml`, fallback to max edition versions when grouped labels are used.
+
+### Pitfalls Found While Adding DCV
+
+- Do not assume all docs repos have `/release-notes/` folders; structures differ by product.
+- Some docs repos store grouped labels like `latest version` or `2.x` instead of full semantic versions.
+- If core docs only expose grouped major labels, derive from concrete edition versions as fallback.
+- Add scenario tags during sample indexing, otherwise sample resolution may miss best matches for MRZ/VIN/document/license queries.
+- Keep DBR-vs-DCV selection guidance explicit and pinned; this affects external agent routing quality.
+- After adding submodules, always regenerate `data/metadata/data-manifest.json`; stale lockfiles break runtime bootstrap expectations.
 
 ## Contribution Notes
 - Prefer adding new content as resources (search + read) instead of new tools.
