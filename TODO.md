@@ -53,15 +53,15 @@ Goal: avoid long local index build time whenever local embeddings are used (prim
 - [x] Define artifact naming convention including compatibility keys:
 - [x] package version
 - [x] RAG model id
-- [ ] index signature/cache key
-- [ ] Add runtime logic: whenever execution resolves to local embeddings (primary or fallback), try downloading matching prebuilt index before local build.
-- [ ] Validate downloaded index signature before use.
-- [ ] Fallback to existing local-build flow when prebuilt index is missing/incompatible/download fails.
-- [ ] Add env controls:
-- [ ] `RAG_PREBUILT_INDEX_AUTO_DOWNLOAD` (default `true`)
-- [ ] `RAG_PREBUILT_INDEX_URL`
-- [ ] `RAG_PREBUILT_INDEX_TIMEOUT_MS`
-- [ ] Document this behavior in `README.md`, `AGENTS.md`, and `.env.example`.
+- [x] index signature/cache key
+- [x] Add runtime logic: whenever execution resolves to local embeddings (primary or fallback), try downloading matching prebuilt index before local build.
+- [x] Validate downloaded prebuilt index compatibility before use (package-version match + provider/model/payload sanity checks).
+- [x] Fallback to existing local-build flow when prebuilt index is missing/incompatible/download fails.
+- [x] Add env controls:
+- [x] `RAG_PREBUILT_INDEX_AUTO_DOWNLOAD` (default `true`)
+- [x] `RAG_PREBUILT_INDEX_URL`
+- [x] `RAG_PREBUILT_INDEX_TIMEOUT_MS`
+- [x] Document this behavior in `README.md`, `AGENTS.md`, and `.env.example`.
 
 ## Post-Release Validation
 

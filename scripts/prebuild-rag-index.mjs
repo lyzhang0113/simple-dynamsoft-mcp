@@ -42,11 +42,26 @@ if (cacheFiles.length === 0) {
   throw new Error(`No cache JSON files found in ${cacheDir}.`);
 }
 
+let indexSignature = "";
+let indexCacheKey = "";
+const localCacheFile = cacheFiles.find((path) => /rag-local-.*\.json$/i.test(path));
+if (localCacheFile) {
+  try {
+    const parsed = JSON.parse(readFileSync(localCacheFile, "utf8"));
+    indexSignature = String(parsed?.meta?.signature || "");
+    indexCacheKey = String(parsed?.cacheKey || "");
+  } catch {
+    // Keep manifest generation resilient; runtime still validates cache payloads directly.
+  }
+}
+
 const manifest = {
   packageVersion: pkg.version,
   generatedAt: new Date().toISOString(),
   ragProvider: ragConfig.provider,
   ragModel: ragConfig.localModel,
+  indexSignature,
+  indexCacheKey,
   cacheDir: toPosixPath(cacheDir),
   files: cacheFiles.map((path) => {
     const stats = statSync(path);

@@ -1,9 +1,11 @@
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, rmSync, statSync } from "node:fs";
+import { join, dirname, basename, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
 import "dotenv/config";
 import Fuse from "fuse.js";
+import * as tar from "tar";
 import { getResolvedDataRoot } from "./data-root.js";
 import {
   resourceIndex,
@@ -22,6 +24,8 @@ const dataRoot = getResolvedDataRoot();
 
 const pkgUrl = new URL("../package.json", import.meta.url);
 const pkg = JSON.parse(readFileSync(pkgUrl, "utf8"));
+const defaultPrebuiltIndexUrl =
+  `https://github.com/yushulx/simple-dynamsoft-mcp/releases/download/v${pkg.version}/prebuilt-rag-index-${pkg.version}.tar.gz`;
 
 // ============================================================================
 // RAG configuration
@@ -75,6 +79,9 @@ const ragConfig = {
   rebuild: readBoolEnv("RAG_REBUILD", false),
   prewarm: readBoolEnv("RAG_PREWARM", false),
   prewarmBlock: readBoolEnv("RAG_PREWARM_BLOCK", false),
+  prebuiltIndexAutoDownload: readBoolEnv("RAG_PREBUILT_INDEX_AUTO_DOWNLOAD", true),
+  prebuiltIndexUrl: readEnvValue("RAG_PREBUILT_INDEX_URL", defaultPrebuiltIndexUrl),
+  prebuiltIndexTimeoutMs: readIntEnv("RAG_PREBUILT_INDEX_TIMEOUT_MS", 180000),
   geminiApiKey: readEnvValue("GEMINI_API_KEY", ""),
   geminiModel: normalizeGeminiModel(readEnvValue("GEMINI_EMBED_MODEL", "models/gemini-embedding-001")),
   geminiBaseUrl: readEnvValue("GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com"),
@@ -89,6 +96,8 @@ const ragLogState = {
   providerFirstUse: new Set(),
   fallbackUse: new Set()
 };
+
+const prebuiltDownloadAttempts = new Map();
 
 function logRag(message) {
   console.error(`[rag] ${message}`);
@@ -230,22 +239,208 @@ function makeCacheFileName(provider, model, cacheKey) {
   return `rag-${provider}-${safeModel}-${cacheKey.slice(0, 12)}.json`;
 }
 
-function loadVectorIndexCache(cacheFile, expectedKey) {
+function loadVectorIndexCache(
+  cacheFile,
+  { cacheKey, signature, provider, model, requireSignature = false } = {}
+) {
   if (!existsSync(cacheFile)) {
     return { hit: false, reason: "missing", payload: null };
   }
   try {
     const parsed = JSON.parse(readFileSync(cacheFile, "utf8"));
-    if (!parsed || parsed.cacheKey !== expectedKey) {
+    if (!parsed || (cacheKey && parsed.cacheKey !== cacheKey)) {
       return { hit: false, reason: "cache_key_mismatch", payload: null };
     }
     if (!Array.isArray(parsed.items) || !Array.isArray(parsed.vectors)) {
       return { hit: false, reason: "invalid_payload", payload: null };
     }
+    const meta = parsed.meta || {};
+    if (provider && meta.provider && meta.provider !== provider) {
+      return { hit: false, reason: "provider_mismatch", payload: null };
+    }
+    if (model && meta.model && meta.model !== model) {
+      return { hit: false, reason: "model_mismatch", payload: null };
+    }
+    if (signature) {
+      if (!meta.signature) {
+        if (requireSignature) {
+          return { hit: false, reason: "missing_signature", payload: null };
+        }
+      } else if (meta.signature !== signature) {
+        return { hit: false, reason: "signature_mismatch", payload: null };
+      }
+    }
     return { hit: true, reason: "ok", payload: parsed };
   } catch {
     return { hit: false, reason: "parse_error", payload: null };
   }
+}
+
+function listFilesRecursive(rootDir) {
+  const files = [];
+  const stack = [rootDir];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const entries = readdirSync(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if (entry.isFile()) {
+        files.push(fullPath);
+      }
+    }
+  }
+  return files;
+}
+
+function readSignaturePackageVersion(signatureRaw) {
+  if (!signatureRaw) return "";
+  try {
+    const parsed = JSON.parse(signatureRaw);
+    return String(parsed?.packageVersion || "");
+  } catch {
+    return "";
+  }
+}
+
+function listDownloadedCacheCandidates(extractRoot, expectedCacheFileName, cacheKey) {
+  const allFiles = listFilesRecursive(extractRoot).filter((path) => path.toLowerCase().endsWith(".json")).sort();
+  const expectedPath = allFiles.find((path) => basename(path) === expectedCacheFileName);
+
+  const cachePrefix = cacheKey.slice(0, 12);
+  const prefixPath = allFiles.find((path) => {
+    const name = basename(path);
+    return name.startsWith("rag-local-") && name.endsWith(`-${cachePrefix}.json`);
+  });
+
+  const ragLocalFiles = allFiles.filter((path) => basename(path).startsWith("rag-local-"));
+  const unique = [];
+  for (const path of [expectedPath, prefixPath, ...ragLocalFiles]) {
+    if (!path) continue;
+    if (!unique.includes(path)) unique.push(path);
+  }
+  return unique;
+}
+
+async function downloadPrebuiltArchive(url, outputPath, timeoutMs) {
+  const source = String(url || "").trim();
+  if (!source) {
+    throw new Error("prebuilt URL is empty");
+  }
+
+  if (source.startsWith("file://")) {
+    copyFileSync(fileURLToPath(source), outputPath);
+    return { sourceType: "file", size: statSync(outputPath).size };
+  }
+
+  if (!/^https?:\/\//i.test(source)) {
+    copyFileSync(resolve(source), outputPath);
+    return { sourceType: "file", size: statSync(outputPath).size };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs));
+  try {
+    const response = await fetch(source, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    writeFileSync(outputPath, Buffer.from(arrayBuffer));
+    return { sourceType: "http", size: arrayBuffer.byteLength };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function maybeDownloadPrebuiltVectorIndex({ provider, model, cacheKey, signature, cacheFile }) {
+  if (provider !== "local") {
+    return { downloaded: false, reason: "provider_not_local" };
+  }
+  if (!ragConfig.prebuiltIndexAutoDownload) {
+    return { downloaded: false, reason: "auto_download_disabled" };
+  }
+
+  const sourceUrl = String(ragConfig.prebuiltIndexUrl || "").trim();
+  if (!sourceUrl) {
+    return { downloaded: false, reason: "url_not_set" };
+  }
+
+  const attemptKey = `${provider}:${cacheKey}:${sourceUrl}`;
+  if (prebuiltDownloadAttempts.has(attemptKey)) {
+    return prebuiltDownloadAttempts.get(attemptKey);
+  }
+
+  const expectedCacheFileName = makeCacheFileName(provider, model, cacheKey);
+  const attempt = (async () => {
+    const tempRoot = join(tmpdir(), `simple-dynamsoft-mcp-rag-prebuilt-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const archivePath = join(tempRoot, "prebuilt-rag-index.tar.gz");
+    const extractRoot = join(tempRoot, "extract");
+
+    ensureDirectory(extractRoot);
+    try {
+      logRag(`prebuilt index download start provider=${provider} url=${sourceUrl} timeout_ms=${ragConfig.prebuiltIndexTimeoutMs}`);
+      const downloaded = await downloadPrebuiltArchive(sourceUrl, archivePath, ragConfig.prebuiltIndexTimeoutMs);
+      logRag(
+        `prebuilt index downloaded provider=${provider} source=${downloaded.sourceType} size=${downloaded.size}B`
+      );
+
+      await tar.x({
+        file: archivePath,
+        cwd: extractRoot,
+        strict: true
+      });
+
+      const candidateFiles = listDownloadedCacheCandidates(extractRoot, expectedCacheFileName, cacheKey);
+      if (candidateFiles.length === 0) {
+        throw new Error(`cache_file_not_found expected=${expectedCacheFileName}`);
+      }
+
+      for (const sourceCacheFile of candidateFiles) {
+        const candidateCache = loadVectorIndexCache(sourceCacheFile, {
+          provider,
+          model
+        });
+        if (!candidateCache.hit) {
+          continue;
+        }
+
+        const cachePackageVersion = readSignaturePackageVersion(candidateCache.payload?.meta?.signature);
+        if (!cachePackageVersion || cachePackageVersion !== pkg.version) {
+          continue;
+        }
+
+        const migratedPayload = {
+          ...candidateCache.payload,
+          cacheKey,
+          meta: {
+            ...(candidateCache.payload.meta || {}),
+            provider,
+            model,
+            signature
+          }
+        };
+        saveVectorIndexCache(cacheFile, migratedPayload);
+        logRag(
+          `prebuilt index installed provider=${provider} cache_file=${cacheFile} source=${basename(sourceCacheFile)} mode=version_only_compat version=${cachePackageVersion}`
+        );
+        return { downloaded: true, reason: "installed_version_only_compat" };
+      }
+
+      throw new Error(
+        `no_compatible_cache expected=${expectedCacheFileName} found=${candidateFiles.map((path) => basename(path)).join(",")}`
+      );
+    } catch (error) {
+      logRag(`prebuilt index unavailable provider=${provider} reason=${error.message}`);
+      return { downloaded: false, reason: error.message };
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  })();
+
+  prebuiltDownloadAttempts.set(attemptKey, attempt);
+  return attempt;
 }
 
 function saveVectorIndexCache(cacheFile, payload) {
@@ -391,6 +586,12 @@ async function createVectorProvider({ name, model, embedder, batchSize }) {
   };
   const cacheKey = createHash("sha256").update(JSON.stringify(cacheMeta)).digest("hex");
   const cacheFile = join(ragConfig.cacheDir, makeCacheFileName(name, model, cacheKey));
+  const expectedCacheState = {
+    cacheKey,
+    signature,
+    provider: name,
+    model
+  };
   logRag(
     `provider=${name} cache_file=${cacheFile} rebuild=${ragConfig.rebuild} cache_key=${cacheKey.slice(0, 12)}`
   );
@@ -400,7 +601,7 @@ async function createVectorProvider({ name, model, embedder, batchSize }) {
     if (indexPromise) return indexPromise;
     indexPromise = (async () => {
       if (!ragConfig.rebuild) {
-        const cacheState = loadVectorIndexCache(cacheFile, cacheKey);
+        let cacheState = loadVectorIndexCache(cacheFile, expectedCacheState);
         if (cacheState.hit) {
           const cached = cacheState.payload;
           logRag(
@@ -412,6 +613,30 @@ async function createVectorProvider({ name, model, embedder, batchSize }) {
           };
         }
         logRag(`cache miss provider=${name} file=${cacheFile} reason=${cacheState.reason}`);
+
+        if (name === "local") {
+          const downloadResult = await maybeDownloadPrebuiltVectorIndex({
+            provider: name,
+            model,
+            cacheKey,
+            signature,
+            cacheFile
+          });
+          if (downloadResult.downloaded) {
+            cacheState = loadVectorIndexCache(cacheFile, expectedCacheState);
+            if (cacheState.hit) {
+              const cached = cacheState.payload;
+              logRag(
+                `cache hit provider=${name} file=${cacheFile} source=prebuilt_download items=${cached.items.length} vectors=${cached.vectors.length}`
+              );
+              return {
+                items: cached.items,
+                vectors: cached.vectors
+              };
+            }
+            logRag(`cache miss provider=${name} file=${cacheFile} source=prebuilt_download reason=${cacheState.reason}`);
+          }
+        }
       } else {
         logRag(`cache bypass provider=${name} file=${cacheFile} reason=rebuild_true`);
       }
@@ -506,7 +731,7 @@ function logRagConfigOnce() {
   if (ragLogState.config) return;
   ragLogState.config = true;
   logRag(
-    `config provider=${ragConfig.provider} fallback=${ragConfig.fallback} prewarm=${ragConfig.prewarm} rebuild=${ragConfig.rebuild} cache_dir=${ragConfig.cacheDir}`
+    `config provider=${ragConfig.provider} fallback=${ragConfig.fallback} prewarm=${ragConfig.prewarm} rebuild=${ragConfig.rebuild} cache_dir=${ragConfig.cacheDir} prebuilt_auto_download=${ragConfig.prebuiltIndexAutoDownload} prebuilt_timeout_ms=${ragConfig.prebuiltIndexTimeoutMs}`
   );
 }
 
