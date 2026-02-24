@@ -31,6 +31,12 @@ jobs:
       - name: Sync submodules
         run: npm run data:sync
 
+      - name: Update sdk versions from docs
+        run: npm run data:versions
+
+      - name: Verify sdk versions are synced
+        run: npm run data:verify-versions
+
       - name: Update lock manifest
         run: npm run data:lock
 
@@ -45,7 +51,7 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
           data_changed="false"
-          if echo "$changed_files" | grep -Eq '^(data/metadata/data-manifest\.json|\.gitmodules|data/samples/|data/documentation/)'; then
+          if echo "$changed_files" | grep -Eq '^(data/metadata/data-manifest\.json|data/metadata/dynamsoft_sdks\.json|\.gitmodules|data/samples/|data/documentation/)'; then
             data_changed="true"
           fi
           echo "data_changed=$data_changed" >> "$GITHUB_OUTPUT"
