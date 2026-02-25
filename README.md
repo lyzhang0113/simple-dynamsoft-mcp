@@ -445,8 +445,14 @@ src/
 |   |-- root.js                         # Shared resolved data root selection
 |   `-- submodule-sync.js               # Optional startup fast-forward sync
 |-- rag/
-|   |-- index.js                        # Search provider selection and retrieval
-|   `-- gemini-retry.js                 # Gemini retry/backoff helpers
+|   |-- index.js                        # Public RAG API orchestration
+|   |-- config.js                       # Env parsing and runtime RAG config
+|   |-- logger.js                       # Shared RAG logging/state helpers
+|   |-- search-utils.js                 # Scope/text/search utility helpers
+|   |-- providers.js                    # Provider chain and provider loading
+|   |-- embedders.js                    # Local and Gemini embedder implementations
+|   |-- vector-cache.js                 # Vector cache/prebuilt/checkpoint lifecycle
+|   `-- gemini-retry.js                 # Gemini retry/backoff primitives
 |-- server/                             # MCP server builder and transports
 |   |-- create-server.js                # Tool/resource registration factory
 |   |-- normalizers.js                  # Product/platform/edition normalization

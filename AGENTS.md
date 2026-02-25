@@ -14,6 +14,7 @@ Supported products:
 - Resources are discovered via tools and read on demand with `resources/read`.
 - `resources/list` exposes only pinned resources to keep context small.
 - Resource indexing logic is split under `src/server/resource-index/` with `src/server/resource-index.js` as the composition layer.
+- RAG runtime logic is split under `src/rag/` with `src/rag/index.js` as the public orchestration layer.
 - Dual-mode data: use local submodules when available, otherwise bootstrap pinned archives for npm/npx usage.
 - Transport defaults to stdio and also supports native Streamable HTTP via CLI (`--transport=http`, `--host`, `--port`). Do not add an external HTTP wrapper layer in this repo.
 
@@ -33,8 +34,14 @@ Supported products:
 - `src/data/bootstrap.js`: runtime data resolver/downloader for npm/npx environments.
 - `src/data/root.js`: shared data-root resolution (`MCP_DATA_DIR` / resolved cache root / bundled data).
 - `src/data/submodule-sync.js`: optional startup sync for submodules (`DATA_SYNC_ON_START`).
-- `src/rag/index.js`: search provider selection and retrieval.
-- `src/rag/gemini-retry.js`: Gemini retry/backoff helpers.
+- `src/rag/index.js`: public RAG API orchestration (`searchResources`, `prewarmRagIndex`, `getSampleSuggestions`).
+- `src/rag/config.js`: env parsing and runtime RAG configuration defaults.
+- `src/rag/logger.js`: shared RAG logging/state helpers.
+- `src/rag/search-utils.js`: scope/text/search helpers and embedding/signature builders.
+- `src/rag/providers.js`: provider chain resolution and provider loading.
+- `src/rag/embedders.js`: local and Gemini embedder implementations.
+- `src/rag/vector-cache.js`: vector cache, prebuilt download, and checkpoint lifecycle.
+- `src/rag/gemini-retry.js`: Gemini retry/backoff primitives.
 - `src/server/resource-index.js`: resource index composition and exports used by the server and RAG layer.
 - `src/server/resource-index/*`: modularized resource-index implementation (`config`, `paths`, docs/sample discovery, URI parsing, version policy, builders).
 - `scripts/sync-submodules.mjs`: script entry used by `npm run data:sync`.

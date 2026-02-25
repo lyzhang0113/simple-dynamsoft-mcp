@@ -16,6 +16,7 @@ Current state:
 - Human-driven major version bumps (e.g., `x.y.z -> (x+1).0.0`) should publish a release.
 - Prebuilt index default decision: `RAG_PREBUILT_INDEX_AUTO_DOWNLOAD=true`.
 - Prebuilt index profile decision: single model profile for now (`Xenova/all-MiniLM-L6-v2`).
+- RAG runtime internals are modularized under `src/rag/` (config/logger/search/providers/embedders/cache split).
 
 ## Workstream 1: Data Refresh PR Automation
 
@@ -107,6 +108,15 @@ Goal: keep stdio as default while adding first-class native Streamable HTTP serv
 - [x] Replace supergateway-wrapped HTTP integration tests with native HTTP integration tests.
 - [x] Update docs (`README.md`, `AGENTS.md`) for stdio default + optional native HTTP mode.
 - [x] Validate CI paths still cover stdio + native HTTP transport scenarios.
+
+## Workstream 7: RAG Internal Modularization
+
+Goal: reduce `src/rag/index.js` complexity without behavior changes.
+
+- [x] Split monolithic RAG runtime into focused modules (`config`, `logger`, `search-utils`, `providers`, `embedders`, `vector-cache`).
+- [x] Keep `src/rag/index.js` as a thin orchestration/public API layer.
+- [x] Preserve existing runtime behavior for provider selection, fallback, prebuilt cache/download, and prewarm.
+- [x] Validate refactor with unit + stdio + native HTTP integration tests.
 
 ## Key Points For Future Agents
 
