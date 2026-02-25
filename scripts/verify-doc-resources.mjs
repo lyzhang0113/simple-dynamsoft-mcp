@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { resourceIndex, readResourceContent } from "../src/resource-index.js";
+import { resourceIndex, readResourceContent } from "../src/server/resource-index.js";
 
 function parsePositiveInt(value, fallback) {
   const parsed = Number.parseInt(String(value ?? ""), 10);

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import "dotenv/config";
 import Fuse from "fuse.js";
 import * as tar from "tar";
-import { getResolvedDataRoot } from "./data-root.js";
+import { getResolvedDataRoot } from "../data/root.js";
 import {
   resourceIndex,
   resourceIndexByUri,
@@ -17,7 +17,7 @@ import {
   normalizePlatform,
   normalizeEdition,
   getRagSignatureData
-} from "./resource-index.js";
+} from "../server/resource-index.js";
 import {
   sleepMs,
   parseRetryAfterMs,
@@ -30,7 +30,7 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataRoot = getResolvedDataRoot();
 
-const pkgUrl = new URL("../package.json", import.meta.url);
+const pkgUrl = new URL("../../package.json", import.meta.url);
 const pkg = JSON.parse(readFileSync(pkgUrl, "utf8"));
 const legacyPrebuiltIndexUrl =
   `https://github.com/yushulx/simple-dynamsoft-mcp/releases/download/v${pkg.version}/prebuilt-rag-index-${pkg.version}.tar.gz`;

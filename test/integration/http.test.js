@@ -8,13 +8,13 @@ import {
   getFreePort,
   resolveServerEnv,
   runCoreAssertions,
-  startSupergateway
+  startNativeHttpServer
 } from "./helpers.js";
 
-async function runGatewayScenario(provider) {
+async function runHttpScenario(provider) {
   const port = await getFreePort();
   const env = resolveServerEnv({ provider });
-  const gateway = startSupergateway({
+  const server = startNativeHttpServer({
     port,
     env
   });
@@ -23,7 +23,7 @@ async function runGatewayScenario(provider) {
   let transport = null;
   try {
     const connected = await connectStreamableClientWithRetry({
-      urls: [`http://127.0.0.1:${port}/mcp`, `http://127.0.0.1:${port}`],
+      urls: [`http://127.0.0.1:${port}/mcp`],
       name: `integration-http-${provider}`
     });
     client = connected.client;
@@ -33,40 +33,45 @@ async function runGatewayScenario(provider) {
       requestTimeoutMs: provider === "local" || provider === "gemini" ? 300000 : 60000
     });
 
-    const logs = gateway.getLogs();
+    const logs = server.getLogs();
     assert.match(
       `${logs.stdout}\n${logs.stderr}`,
       /\[data\] mode=/,
-      "Expected wrapped stdio server data mode logs through gateway output"
+      "Expected data mode logs from native HTTP server output"
+    );
+    assert.match(
+      `${logs.stdout}\n${logs.stderr}`,
+      /\[transport\] mode=http/,
+      "Expected transport mode logs from native HTTP server output"
     );
   } finally {
     if (transport) {
       await transport.close();
     }
-    await gateway.stop();
+    await server.stop();
   }
 }
 
 if (RUN_FUSE_PROVIDER_TESTS) {
-  test("[fuse] streamableHttp gateway integration works", async () => {
-    await runGatewayScenario("fuse");
+  test("[fuse] streamableHttp integration works", async () => {
+    await runHttpScenario("fuse");
   });
 } else {
-  test.skip("[fuse] streamableHttp gateway integration works", () => {});
+  test.skip("[fuse] streamableHttp integration works", () => {});
 }
 
 if (RUN_LOCAL_PROVIDER_TESTS) {
-  test("[local] streamableHttp gateway integration works", async () => {
-    await runGatewayScenario("local");
+  test("[local] streamableHttp integration works", async () => {
+    await runHttpScenario("local");
   });
 } else {
-  test.skip("[local] streamableHttp gateway integration works", () => {});
+  test.skip("[local] streamableHttp integration works", () => {});
 }
 
 if (RUN_GEMINI_PROVIDER_TESTS) {
-  test("[gemini] streamableHttp gateway integration works", async () => {
-    await runGatewayScenario("gemini");
+  test("[gemini] streamableHttp integration works", async () => {
+    await runHttpScenario("gemini");
   });
 } else {
-  test.skip("[gemini] streamableHttp gateway integration works", () => {});
+  test.skip("[gemini] streamableHttp integration works", () => {});
 }

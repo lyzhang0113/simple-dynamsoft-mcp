@@ -2,7 +2,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = join(__dirname, "..");
+const projectRoot = join(__dirname, "..", "..");
 const bundledDataRoot = join(projectRoot, "data");
 
 function getResolvedDataRoot() {

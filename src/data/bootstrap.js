@@ -11,7 +11,7 @@ import {
 import { basename, dirname, join, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import extractZip from "extract-zip";
-import { bundledDataRoot } from "./data-root.js";
+import { bundledDataRoot } from "./root.js";
 
 const manifestPath = join(bundledDataRoot, "metadata", "data-manifest.json");
 const sdkRegistryPath = join(bundledDataRoot, "metadata", "dynamsoft_sdks.json");

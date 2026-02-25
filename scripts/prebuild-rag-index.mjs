@@ -23,7 +23,7 @@ function ensureEnvDefaults() {
 ensureEnvDefaults();
 
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-const { prewarmRagIndex, ragConfig } = await import("../src/rag.js");
+const { prewarmRagIndex, ragConfig } = await import("../src/rag/index.js");
 
 await prewarmRagIndex();
 

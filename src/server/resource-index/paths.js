@@ -2,10 +2,10 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DOC_DIRS, SAMPLE_DIRS } from "./config.js";
-import { getResolvedDataRoot } from "../data-root.js";
+import { getResolvedDataRoot } from "../../data/root.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = join(__dirname, "..", "..");
+const projectRoot = join(__dirname, "..", "..", "..");
 
 const dataRoot = getResolvedDataRoot();
 const metadataRoot = join(dataRoot, "metadata");

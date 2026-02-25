@@ -26,10 +26,10 @@
     "test": "npm run test:fuse",
     "test:unit": "node --test test/unit/gemini-retry.test.js",
     "test:fuse": "npm run test:stdio && npm run test:http && npm run test:package",
-    "test:local": "node --test test/integration/stdio.test.js test/integration/http-gateway.test.js",
+    "test:local": "node --test test/integration/stdio.test.js test/integration/http.test.js",
     "test:gemini": "node scripts/run-gemini-tests.mjs",
     "test:stdio": "node --test test/integration/stdio.test.js",
-    "test:http": "node --test test/integration/http-gateway.test.js",
+    "test:http": "node --test test/integration/http.test.js",
     "test:package": "node --test test/integration/package-runtime.test.js",
     "data:bootstrap": "git submodule sync --recursive && git submodule update --init --recursive --jobs 1",
     "data:sync": "node scripts/sync-submodules.mjs",
@@ -69,7 +69,6 @@
     "zod": "~3.24.0"
   },
   "devDependencies": {
-    "supergateway": "^3.4.3",
     "supertest": "^7.1.3"
   }
 }

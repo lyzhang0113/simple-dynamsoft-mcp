@@ -14,7 +14,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..", "..");
 const serverEntry = join(projectRoot, "src", "index.js");
 const dataRoot = join(projectRoot, "data");
-const supergatewayEntry = join(projectRoot, "node_modules", "supergateway", "dist", "index.js");
 
 const RUN_FUSE_PROVIDER_TESTS = process.env.RUN_FUSE_PROVIDER_TESTS !== "false";
 const RUN_LOCAL_PROVIDER_TESTS = process.env.RUN_LOCAL_PROVIDER_TESTS === "true";
@@ -166,22 +165,18 @@ async function getFreePort() {
   });
 }
 
-function startSupergateway({
+function startNativeHttpServer({
   port,
+  host = "127.0.0.1",
   cwd = projectRoot,
-  env = {},
-  stdioCommand = "npm start"
+  env = {}
 }) {
-  if (!existsSync(supergatewayEntry)) {
-    throw new Error(`supergateway binary not found: ${supergatewayEntry}. Run npm install first.`);
-  }
   const command = nodeCommand();
   const args = [
-    supergatewayEntry,
-    "--stdio",
-    stdioCommand,
-    "--outputTransport",
-    "streamableHttp",
+    serverEntry,
+    "--transport=http",
+    "--host",
+    host,
     "--port",
     String(port)
   ];
@@ -297,5 +292,5 @@ export {
   resolveServerEnv,
   runCoreAssertions,
   serverEntry,
-  startSupergateway
+  startNativeHttpServer
 };

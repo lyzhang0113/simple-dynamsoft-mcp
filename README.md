@@ -19,7 +19,7 @@ https://github.com/user-attachments/assets/cc1c5f4b-1461-4462-897a-75abc20d62a6
 - **Trial License Included**: Ready-to-use trial license for quick testing
 - **Multiple SDKs**: Capture Vision + Barcode Reader (Mobile/Web/Server) + Dynamic Web TWAIN + Document Viewer
 - **Multiple API Levels**: High-level (simple) and low-level (advanced) options
-- **Stdio MCP server**: Runs on stdio. Works with any MCP-capable client.
+- **Transport options**: `stdio` by default, plus optional native Streamable HTTP (`/mcp`) via CLI flags.
 - **Resource-efficient discovery**: Resources are discovered via tools (semantic RAG search with fuzzy fallback + resource links). Only a small pinned set is listed by default; heavy content is fetched on-demand with `resources/read`.
 - **Submodule-backed resources**: Samples and docs are pulled from official upstream repositories under `data/samples/` and `data/documentation/`.
 - **Dual-mode data loading**: local clone uses submodules; `npx simple-dynamsoft-mcp` auto-downloads pinned archives into a local cache when submodules are unavailable.
@@ -159,6 +159,20 @@ If you prefer running from source:
   "args": ["/absolute/path/to/simple-dynamsoft-mcp/src/index.js"]
 }
 ```
+
+Default local run mode is stdio:
+
+```bash
+npm start
+```
+
+Optional native HTTP mode:
+
+```bash
+node src/index.js --transport=http --host=127.0.0.1 --port=3333
+```
+
+HTTP endpoint path: `/mcp`.
 
 ## Environment Variables in MCP Clients
 
@@ -425,21 +439,30 @@ data/
 
 ```
 src/
-|-- index.js                            # MCP server + tool handlers
-|-- data-bootstrap.js                   # Runtime data resolver/downloader (npx mode)
-|-- data-root.js                        # Shared resolved data root selection
-|-- rag.js                              # Search provider selection and retrieval
-|-- normalizers.js                      # Product/platform/edition normalization
-|-- submodule-sync.js                   # Optional startup fast-forward sync
-|-- resource-index.js                   # Resource index composition layer
-`-- resource-index/                     # Split modules for maintainability
-    |-- config.js
-    |-- paths.js
-    |-- docs-loader.js
-    |-- samples.js
-    |-- uri.js
-    |-- version-policy.js
-    `-- builders.js
+|-- index.js                            # Entry point: bootstrap + transport selection
+|-- data/
+|   |-- bootstrap.js                    # Runtime data resolver/downloader (npx mode)
+|   |-- root.js                         # Shared resolved data root selection
+|   `-- submodule-sync.js               # Optional startup fast-forward sync
+|-- rag/
+|   |-- index.js                        # Search provider selection and retrieval
+|   `-- gemini-retry.js                 # Gemini retry/backoff helpers
+|-- server/                             # MCP server builder and transports
+|   |-- create-server.js                # Tool/resource registration factory
+|   |-- normalizers.js                  # Product/platform/edition normalization
+|   |-- resource-index.js               # Resource index composition layer
+|   |-- runtime-config.js               # CLI transport/host/port parsing
+|   |-- resource-index/
+|   |   |-- config.js
+|   |   |-- paths.js
+|   |   |-- docs-loader.js
+|   |   |-- samples.js
+|   |   |-- uri.js
+|   |   |-- version-policy.js
+|   |   `-- builders.js
+|   `-- transports/
+|       |-- stdio.js                    # stdio startup path
+|       `-- http.js                     # native Streamable HTTP startup path
 scripts/
 |-- sync-submodules.mjs                 # CLI wrapper for data:sync
 |-- update-sdk-versions.mjs             # Sync SDK versions from docs structures
@@ -450,7 +473,7 @@ test/
 `-- integration/
     |-- helpers.js                      # Shared MCP client/process helpers
     |-- stdio.test.js                   # stdio integration tests
-    |-- http-gateway.test.js            # supergateway streamable HTTP integration tests
+    |-- http.test.js                    # native streamable HTTP integration tests
     `-- package-runtime.test.js         # npm pack + package runtime integration test
 ```
 
@@ -498,7 +521,7 @@ At startup, the server logs data mode/path to stderr:
 
 - CI workflow: `.github/workflows/ci.yml`
 - CI jobs:
-- `test_fuse` on `ubuntu-latest` runs `npm run test:fuse` (stdio + HTTP gateway + package-runtime with fuse provider)
+- `test_fuse` on `ubuntu-latest` runs `npm run test:fuse` (stdio + native HTTP + package-runtime with fuse provider)
 - `test_local_provider` on `ubuntu-latest` restores RAG caches, runs `npm run rag:prebuild`, then `npm run test:local`
 - `test_gemini_provider` on `ubuntu-latest` (when `GEMINI_API_KEY` secret exists) prebuilds gemini RAG cache, then runs `npm run test:gemini`
 - Daily data-lock refresh workflow: `.github/workflows/update-data-lock.yml`
@@ -519,7 +542,7 @@ At startup, the server logs data mode/path to stderr:
 - `npm run test:local`: integration coverage for local provider
 - `npm run test:gemini`: integration coverage for gemini provider (requires `GEMINI_API_KEY`)
 - `npm run test:stdio`: stdio transport integration tests
-- `npm run test:http`: streamable HTTP (supergateway) integration tests
+- `npm run test:http`: native streamable HTTP integration tests
 - `npm run test:package`: `npm pack` + `npm exec --package` runtime test
 - Optional env toggles:
 - `RUN_FUSE_PROVIDER_TESTS=true|false`
