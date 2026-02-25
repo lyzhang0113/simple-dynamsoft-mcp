@@ -25,7 +25,11 @@ Supported products:
 - DDV has no legacy archive links in this server.
 
 ## Key Files and Data
-- `src/index.js`: server implementation, tools, resource routing, version policy.
+- `src/index.js`: entrypoint bootstrap (data init, runtime transport selection).
+- `src/server/create-server.js`: MCP server factory (tool/resource registration and handlers).
+- `src/server/runtime-config.js`: CLI parser and transport runtime config (`--transport`, `--host`, `--port`).
+- `src/server/transports/stdio.js`: stdio transport startup.
+- `src/server/transports/http.js`: native streamable HTTP transport startup (`/mcp`).
 - `src/data-bootstrap.js`: runtime data resolver/downloader for npm/npx environments.
 - `src/data-root.js`: shared data-root resolution (`MCP_DATA_DIR` / resolved cache root / bundled data).
 - `src/resource-index.js`: resource index composition and exports used by the server and RAG layer.
@@ -145,7 +149,7 @@ Use this sequence when onboarding a new product family or edition docs/samples.
    - `src/resource-index/builders.js` (resource builders, scenario tags, pinned guidance resources)
 6. Update product normalization/routing:
    - `src/normalizers.js` (aliases, scenario inference terms)
-   - `src/index.js` (tool schema hints, resolve_version/get_quickstart/generate_project routes)
+   - `src/server/create-server.js` (tool schema hints, resolve_version/get_quickstart/generate_project routes)
    - `src/resource-index/version-policy.js` (latest-major policy and legacy messaging)
 7. Update metadata and public guidance:
    - `data/metadata/dynamsoft_sdks.json`

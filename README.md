@@ -439,13 +439,19 @@ data/
 
 ```
 src/
-|-- index.js                            # MCP server + tool handlers
+|-- index.js                            # Entry point: bootstrap + transport selection
 |-- data-bootstrap.js                   # Runtime data resolver/downloader (npx mode)
 |-- data-root.js                        # Shared resolved data root selection
 |-- rag.js                              # Search provider selection and retrieval
 |-- normalizers.js                      # Product/platform/edition normalization
 |-- submodule-sync.js                   # Optional startup fast-forward sync
 |-- resource-index.js                   # Resource index composition layer
+|-- server/                             # MCP server builder and transports
+|   |-- create-server.js                # Tool/resource registration factory
+|   |-- runtime-config.js               # CLI transport/host/port parsing
+|   `-- transports/
+|       |-- stdio.js                    # stdio startup path
+|       `-- http.js                     # native Streamable HTTP startup path
 `-- resource-index/                     # Split modules for maintainability
     |-- config.js
     |-- paths.js
