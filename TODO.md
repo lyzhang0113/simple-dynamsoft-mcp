@@ -102,11 +102,11 @@ Goal: prevent prewarm failures when embedding large corpora with Gemini API quot
 
 Goal: keep stdio as default while adding first-class native Streamable HTTP server mode.
 
-- [ ] Add CLI transport switches (`--transport`, `--host`, `--port`) with stdio as default mode.
-- [ ] Add native HTTP listener mode on `127.0.0.1:3333` with `/mcp` endpoint.
-- [ ] Replace supergateway-wrapped HTTP integration tests with native HTTP integration tests.
-- [ ] Update docs (`README.md`, `AGENTS.md`) for stdio default + optional native HTTP mode.
-- [ ] Validate CI paths still cover stdio + native HTTP transport scenarios.
+- [x] Add CLI transport switches (`--transport`, `--host`, `--port`) with stdio as default mode.
+- [x] Add native HTTP listener mode on `127.0.0.1:3333` with `/mcp` endpoint.
+- [x] Replace supergateway-wrapped HTTP integration tests with native HTTP integration tests.
+- [x] Update docs (`README.md`, `AGENTS.md`) for stdio default + optional native HTTP mode.
+- [x] Validate CI paths still cover stdio + native HTTP transport scenarios.
 
 ## Key Points For Future Agents
 
