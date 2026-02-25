@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Purpose
-This repository hosts a stdio-only MCP server for Dynamsoft SDKs. It provides tool-based discovery and lazy resource reads so agents do not load all resources by default.
+This repository hosts an MCP server for Dynamsoft SDKs with stdio as default transport and optional native Streamable HTTP mode. It provides tool-based discovery and lazy resource reads so agents do not load all resources by default.
 
 Supported products:
 - DCV (Capture Vision): core, mobile, web, server/desktop (python, dotnet, java, cpp, nodejs)
@@ -15,7 +15,7 @@ Supported products:
 - `resources/list` exposes only pinned resources to keep context small.
 - Resource indexing logic is split under `src/resource-index/` with `src/resource-index.js` as the composition layer.
 - Dual-mode data: use local submodules when available, otherwise bootstrap pinned archives for npm/npx usage.
-- Transport is stdio only. Do not add an HTTP wrapper in this repo.
+- Transport defaults to stdio and also supports native Streamable HTTP via CLI (`--transport=http`, `--host`, `--port`). Do not add an external HTTP wrapper layer in this repo.
 
 ## Version Policy
 - Only the latest major version is served.
@@ -36,9 +36,9 @@ Supported products:
 - `scripts/update-data-lock.mjs`: updates `data/metadata/data-manifest.json` from current submodule commits.
 - `scripts/verify-data-lock.mjs`: verifies lock manifest matches current submodule heads.
 - `scripts/prebuild-rag-index.mjs`: builds and writes local RAG cache artifacts for release distribution.
-- `test/integration/helpers.js`: shared integration test helpers for stdio, streamable HTTP gateway, and package runtime.
+- `test/integration/helpers.js`: shared integration test helpers for stdio, native streamable HTTP, and package runtime.
 - `test/integration/stdio.test.js`: stdio integration tests using MCP SDK client transport.
-- `test/integration/http-gateway.test.js`: HTTP integration tests through `supergateway`.
+- `test/integration/http.test.js`: HTTP integration tests against native streamable HTTP mode.
 - `test/integration/package-runtime.test.js`: packaged runtime test via `npm pack` + `npm exec --package`.
 - `.github/workflows/ci.yml`: CI test matrix (`test_fuse` + `test_local_provider` on `ubuntu-latest`).
 - `.github/workflows/release.yml`: release pipeline for GitHub releases and attached artifacts.
@@ -69,7 +69,7 @@ Avoid modifying `data/` submodule content unless explicitly requested.
 - Run local-provider integration suite: `npm run test:local`
 - Run gemini-provider integration suite: `npm run test:gemini`
 - Run stdio integration only: `npm run test:stdio`
-- Run streamable HTTP gateway integration only: `npm run test:http`
+- Run native streamable HTTP integration only: `npm run test:http`
 - Run packaged runtime integration only: `npm run test:package`
 - Init submodules: `npm run data:bootstrap`
 - Sync submodules: `npm run data:sync`

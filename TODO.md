@@ -81,7 +81,7 @@ Goal: replace fuse-only fallback with lexical hybrid retrieval for no-model scen
 - [ ] Add score fusion/rerank strategy for BM25 + Fuse results with deterministic ordering.
 - [ ] Add env toggle for lexical fallback (for example `RAG_FALLBACK=lexical`).
 - [ ] Keep standalone `fuse` mode available for compatibility.
-- [ ] Add integration tests for lexical fallback in both stdio and HTTP gateway paths.
+- [ ] Add integration tests for lexical fallback in both stdio and native HTTP paths.
 - [ ] Document lexical fallback behavior in `README.md`, `AGENTS.md`, and `.env.example`.
 
 ## Workstream 5: Gemini Prewarm Rate-Limit Hardening
@@ -97,6 +97,16 @@ Goal: prevent prewarm failures when embedding large corpora with Gemini API quot
 - [x] Add graceful fallback behavior when prewarm fails (continue startup and use fallback provider/search mode).
 - [x] Add structured logs/metrics for retry attempts, backoff delay, throttle events, and final prewarm outcome.
 - [x] Add tests for retry/backoff behavior and config parsing, and update docs in `README.md`, `AGENTS.md`, and `.env.example`.
+
+## Workstream 6: Native HTTP Transport
+
+Goal: keep stdio as default while adding first-class native Streamable HTTP server mode.
+
+- [ ] Add CLI transport switches (`--transport`, `--host`, `--port`) with stdio as default mode.
+- [ ] Add native HTTP listener mode on `127.0.0.1:3333` with `/mcp` endpoint.
+- [ ] Replace supergateway-wrapped HTTP integration tests with native HTTP integration tests.
+- [ ] Update docs (`README.md`, `AGENTS.md`) for stdio default + optional native HTTP mode.
+- [ ] Validate CI paths still cover stdio + native HTTP transport scenarios.
 
 ## Key Points For Future Agents
 

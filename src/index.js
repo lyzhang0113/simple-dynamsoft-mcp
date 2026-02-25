@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
+import { createServer } from "node:http";
 import { join, relative, dirname, extname } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
@@ -75,6 +77,7 @@ const {
 // MCP Server
 // ============================================================================
 
+function createMcpServerInstance() {
 const server = new McpServer({
   name: "simple-dynamsoft-mcp",
   version: pkg.version,
@@ -1501,18 +1504,173 @@ server.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
 server.server.setRequestHandler(SubscribeRequestSchema, async () => ({}));
 server.server.setRequestHandler(UnsubscribeRequestSchema, async () => ({}));
 
+return server;
+}
+
 // ============================================================================
 // Start Server
 // ============================================================================
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+const MCP_HTTP_PATH = "/mcp";
 
-if (ragConfig.prewarm) {
+function parseCliArgs(argv) {
+  const parsed = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i];
+    if (!token.startsWith("--")) continue;
+    const option = token.slice(2);
+    if (!option) continue;
+
+    const equalsIndex = option.indexOf("=");
+    if (equalsIndex >= 0) {
+      const key = option.slice(0, equalsIndex);
+      const value = option.slice(equalsIndex + 1);
+      if (key) parsed[key] = value;
+      continue;
+    }
+
+    const next = argv[i + 1];
+    if (next && !next.startsWith("--")) {
+      parsed[option] = next;
+      i += 1;
+      continue;
+    }
+
+    parsed[option] = "true";
+  }
+
+  return parsed;
+}
+
+function resolveRuntimeConfig(argv = process.argv.slice(2)) {
+  const parsed = parseCliArgs(argv);
+  const transport = String(parsed.transport || "stdio").toLowerCase();
+
+  if (!["stdio", "http"].includes(transport)) {
+    throw new Error(`Invalid --transport "${transport}". Expected "stdio" or "http".`);
+  }
+
+  if (transport === "http") {
+    const host = String(parsed.host || "127.0.0.1");
+    const portRaw = String(parsed.port || "3333");
+    const port = Number.parseInt(portRaw, 10);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error(`Invalid --port "${portRaw}". Expected an integer between 1 and 65535.`);
+    }
+    return { transport, host, port };
+  }
+
+  return { transport, host: "127.0.0.1", port: 3333 };
+}
+
+async function maybePrewarm() {
+  if (!ragConfig.prewarm) return;
   if (ragConfig.prewarmBlock) {
     await prewarmRagIndex();
   } else {
     void prewarmRagIndex();
   }
+}
+
+async function startStdioServer() {
+  console.error("[transport] mode=stdio");
+  const server = createMcpServerInstance();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  await maybePrewarm();
+}
+
+async function startHttpServer({ host, port }) {
+  console.error(`[transport] mode=http host=${host} port=${port} path=${MCP_HTTP_PATH}`);
+
+  const httpServer = createServer(async (req, res) => {
+    const requestUrl = new URL(req.url || "/", `http://${host}:${port}`);
+    if (requestUrl.pathname !== MCP_HTTP_PATH) {
+      res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+      res.end("Not Found");
+      return;
+    }
+
+    const server = createMcpServerInstance();
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined
+    });
+
+    let closed = false;
+    const closeResources = async () => {
+      if (closed) return;
+      closed = true;
+      try {
+        await transport.close();
+      } catch {}
+      try {
+        await server.close();
+      } catch {}
+    };
+
+    res.on("close", () => {
+      void closeResources();
+    });
+
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(req, res);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[transport] http request error: ${message}`);
+      if (!res.headersSent) {
+        res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({
+          jsonrpc: "2.0",
+          error: {
+            code: -32603,
+            message: "Internal server error"
+          },
+          id: null
+        }));
+      }
+      await closeResources();
+    }
+  });
+
+  await new Promise((resolve, reject) => {
+    httpServer.once("error", reject);
+    httpServer.listen(port, host, () => {
+      httpServer.off("error", reject);
+      resolve();
+    });
+  });
+
+  const shutdown = async (signal) => {
+    console.error(`[transport] shutting down http server signal=${signal}`);
+    await new Promise((resolve) => {
+      httpServer.close(() => resolve());
+    });
+    process.exit(0);
+  };
+
+  process.on("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
+  process.on("SIGTERM", () => {
+    void shutdown("SIGTERM");
+  });
+
+  await maybePrewarm();
+}
+
+let runtimeConfig;
+try {
+  runtimeConfig = resolveRuntimeConfig();
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[transport] ${message}`);
+  process.exit(1);
+}
+
+if (runtimeConfig.transport === "http") {
+  await startHttpServer(runtimeConfig);
+} else {
+  await startStdioServer();
 }
 
