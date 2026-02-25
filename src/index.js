@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
-import { ensureDataReady } from "./data-bootstrap.js";
-import { maybeSyncSubmodulesOnStart } from "./submodule-sync.js";
+import { ensureDataReady } from "./data/bootstrap.js";
+import { maybeSyncSubmodulesOnStart } from "./data/submodule-sync.js";
 import { createMcpServerInstance } from "./server/create-server.js";
 import { MCP_HTTP_PATH, resolveRuntimeConfig } from "./server/runtime-config.js";
 import { startStdioServer } from "./server/transports/stdio.js";
@@ -20,8 +20,8 @@ if (dataStatus.mode === "downloaded") {
   console.error(`[data] mode=${dataStatus.mode} path=${dataStatus.dataRoot}`);
 }
 
-const resourceIndexApi = await import("./resource-index.js");
-const ragApi = await import("./rag.js");
+const resourceIndexApi = await import("./server/resource-index.js");
+const ragApi = await import("./rag/index.js");
 
 const createServer = () => createMcpServerInstance({
   pkgVersion: pkg.version,

@@ -440,26 +440,29 @@ data/
 ```
 src/
 |-- index.js                            # Entry point: bootstrap + transport selection
-|-- data-bootstrap.js                   # Runtime data resolver/downloader (npx mode)
-|-- data-root.js                        # Shared resolved data root selection
-|-- rag.js                              # Search provider selection and retrieval
-|-- normalizers.js                      # Product/platform/edition normalization
-|-- submodule-sync.js                   # Optional startup fast-forward sync
-|-- resource-index.js                   # Resource index composition layer
+|-- data/
+|   |-- bootstrap.js                    # Runtime data resolver/downloader (npx mode)
+|   |-- root.js                         # Shared resolved data root selection
+|   `-- submodule-sync.js               # Optional startup fast-forward sync
+|-- rag/
+|   |-- index.js                        # Search provider selection and retrieval
+|   `-- gemini-retry.js                 # Gemini retry/backoff helpers
 |-- server/                             # MCP server builder and transports
 |   |-- create-server.js                # Tool/resource registration factory
+|   |-- normalizers.js                  # Product/platform/edition normalization
+|   |-- resource-index.js               # Resource index composition layer
 |   |-- runtime-config.js               # CLI transport/host/port parsing
+|   |-- resource-index/
+|   |   |-- config.js
+|   |   |-- paths.js
+|   |   |-- docs-loader.js
+|   |   |-- samples.js
+|   |   |-- uri.js
+|   |   |-- version-policy.js
+|   |   `-- builders.js
 |   `-- transports/
 |       |-- stdio.js                    # stdio startup path
 |       `-- http.js                     # native Streamable HTTP startup path
-`-- resource-index/                     # Split modules for maintainability
-    |-- config.js
-    |-- paths.js
-    |-- docs-loader.js
-    |-- samples.js
-    |-- uri.js
-    |-- version-policy.js
-    `-- builders.js
 scripts/
 |-- sync-submodules.mjs                 # CLI wrapper for data:sync
 |-- update-sdk-versions.mjs             # Sync SDK versions from docs structures

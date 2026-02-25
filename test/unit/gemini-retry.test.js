@@ -5,7 +5,7 @@ import {
   executeWithGeminiRetry,
   normalizeGeminiRetryConfig,
   parseRetryAfterMs
-} from "../../src/gemini-retry.js";
+} from "../../src/rag/gemini-retry.js";
 
 test("normalizeGeminiRetryConfig parses and clamps values", () => {
   const config = normalizeGeminiRetryConfig({

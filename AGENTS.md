@@ -13,7 +13,7 @@ Supported products:
 - Minimal tool surface: `get_index`, `search`, `list_samples`, `resolve_sample`, `resolve_version`, `get_quickstart`, `generate_project`.
 - Resources are discovered via tools and read on demand with `resources/read`.
 - `resources/list` exposes only pinned resources to keep context small.
-- Resource indexing logic is split under `src/resource-index/` with `src/resource-index.js` as the composition layer.
+- Resource indexing logic is split under `src/server/resource-index/` with `src/server/resource-index.js` as the composition layer.
 - Dual-mode data: use local submodules when available, otherwise bootstrap pinned archives for npm/npx usage.
 - Transport defaults to stdio and also supports native Streamable HTTP via CLI (`--transport=http`, `--host`, `--port`). Do not add an external HTTP wrapper layer in this repo.
 
@@ -30,11 +30,13 @@ Supported products:
 - `src/server/runtime-config.js`: CLI parser and transport runtime config (`--transport`, `--host`, `--port`).
 - `src/server/transports/stdio.js`: stdio transport startup.
 - `src/server/transports/http.js`: native streamable HTTP transport startup (`/mcp`).
-- `src/data-bootstrap.js`: runtime data resolver/downloader for npm/npx environments.
-- `src/data-root.js`: shared data-root resolution (`MCP_DATA_DIR` / resolved cache root / bundled data).
-- `src/resource-index.js`: resource index composition and exports used by the server and RAG layer.
-- `src/resource-index/*`: modularized resource-index implementation (`config`, `paths`, docs/sample discovery, URI parsing, version policy, builders).
-- `src/submodule-sync.js`: optional startup sync for submodules (`DATA_SYNC_ON_START`).
+- `src/data/bootstrap.js`: runtime data resolver/downloader for npm/npx environments.
+- `src/data/root.js`: shared data-root resolution (`MCP_DATA_DIR` / resolved cache root / bundled data).
+- `src/data/submodule-sync.js`: optional startup sync for submodules (`DATA_SYNC_ON_START`).
+- `src/rag/index.js`: search provider selection and retrieval.
+- `src/rag/gemini-retry.js`: Gemini retry/backoff helpers.
+- `src/server/resource-index.js`: resource index composition and exports used by the server and RAG layer.
+- `src/server/resource-index/*`: modularized resource-index implementation (`config`, `paths`, docs/sample discovery, URI parsing, version policy, builders).
 - `scripts/sync-submodules.mjs`: script entry used by `npm run data:sync`.
 - `scripts/update-sdk-versions.mjs`: syncs latest SDK versions from docs repositories (supports strict mode for source-structure drift detection).
 - `scripts/update-data-lock.mjs`: updates `data/metadata/data-manifest.json` from current submodule commits.
@@ -141,16 +143,16 @@ Use this sequence when onboarding a new product family or edition docs/samples.
    - Check README and scenario folders/files (MRZ, VIN, doc scan, driver license, etc.).
    - Confirm where release notes or canonical version source is stored.
 5. Update indexing/config layer:
-   - `src/resource-index/config.js` (dirs, platform candidates, preferred file types)
-   - `src/resource-index/paths.js` (new roots)
-   - `src/resource-index/samples.js` (discovery + resolvers)
-   - `src/resource-index/uri.js` (URI parsing)
-   - `src/resource-index.js` (load docs/samples, latest versions, signature data)
-   - `src/resource-index/builders.js` (resource builders, scenario tags, pinned guidance resources)
+   - `src/server/resource-index/config.js` (dirs, platform candidates, preferred file types)
+   - `src/server/resource-index/paths.js` (new roots)
+   - `src/server/resource-index/samples.js` (discovery + resolvers)
+   - `src/server/resource-index/uri.js` (URI parsing)
+   - `src/server/resource-index.js` (load docs/samples, latest versions, signature data)
+   - `src/server/resource-index/builders.js` (resource builders, scenario tags, pinned guidance resources)
 6. Update product normalization/routing:
-   - `src/normalizers.js` (aliases, scenario inference terms)
+   - `src/server/normalizers.js` (aliases, scenario inference terms)
    - `src/server/create-server.js` (tool schema hints, resolve_version/get_quickstart/generate_project routes)
-   - `src/resource-index/version-policy.js` (latest-major policy and legacy messaging)
+   - `src/server/resource-index/version-policy.js` (latest-major policy and legacy messaging)
 7. Update metadata and public guidance:
    - `data/metadata/dynamsoft_sdks.json`
    - `README.md`
