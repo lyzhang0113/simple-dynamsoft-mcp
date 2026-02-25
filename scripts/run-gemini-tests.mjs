@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 
 const child = spawn(
   process.execPath,
-  ["--test", "test/integration/stdio.test.js", "test/integration/http-gateway.test.js"],
+  ["--test", "test/integration/stdio.test.js", "test/integration/http.test.js"],
   {
     stdio: "inherit",
     env: {
