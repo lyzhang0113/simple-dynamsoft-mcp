@@ -8,8 +8,8 @@
       "branch": "main",
       "owner": "dynamsoft-docs",
       "repo": "barcode-reader-docs-js",
-      "commit": "10c2fc25201f89eb5a6a412bce5fe2fb7e4b3f5f",
-      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/barcode-reader-docs-js/zip/10c2fc25201f89eb5a6a412bce5fe2fb7e4b3f5f"
+      "commit": "acab784e29ff035b355dcd6d6ebe284fcb34eef3",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/barcode-reader-docs-js/zip/acab784e29ff035b355dcd6d6ebe284fcb34eef3"
     },
     {
       "name": "data/documentation/barcode-reader-docs-mobile",
@@ -28,8 +28,8 @@
       "branch": "main",
       "owner": "dynamsoft-docs",
       "repo": "barcode-reader-docs-server",
-      "commit": "6c5404429140195bd8f18f48fbc3f2d3f2524e74",
-      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/barcode-reader-docs-server/zip/6c5404429140195bd8f18f48fbc3f2d3f2524e74"
+      "commit": "5479d530342edc40d1602addebbb8cd60ed781ce",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/barcode-reader-docs-server/zip/5479d530342edc40d1602addebbb8cd60ed781ce"
     },
     {
       "name": "data/documentation/document-viewer-docs",
@@ -38,8 +38,8 @@
       "branch": "main",
       "owner": "dynamsoft-docs",
       "repo": "document-viewer-docs",
-      "commit": "26ea218ada436b1bbae04a224ebe2d42a08fef5b",
-      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/document-viewer-docs/zip/26ea218ada436b1bbae04a224ebe2d42a08fef5b"
+      "commit": "4a49e918d174f4efac927981b81c81024d9ba3dc",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/document-viewer-docs/zip/4a49e918d174f4efac927981b81c81024d9ba3dc"
     },
     {
       "name": "data/documentation/web-twain-docs",
@@ -48,8 +48,8 @@
       "branch": "master",
       "owner": "dynamsoft-docs",
       "repo": "web-twain-docs",
-      "commit": "5da9b65024e8eeecab1dced934638c57cafe0b79",
-      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/web-twain-docs/zip/5da9b65024e8eeecab1dced934638c57cafe0b79"
+      "commit": "7b8e127b298a2ef9abb7cd870bb742b44a132503",
+      "archiveUrl": "https://codeload.github.com/dynamsoft-docs/web-twain-docs/zip/7b8e127b298a2ef9abb7cd870bb742b44a132503"
     },
     {
       "name": "data/samples/dynamic-web-twain",
@@ -68,8 +68,8 @@
       "branch": "main",
       "owner": "Dynamsoft",
       "repo": "barcode-reader-javascript-samples",
-      "commit": "2f0a723e88e3271170672e61c214a3d1d7a31328",
-      "archiveUrl": "https://codeload.github.com/Dynamsoft/barcode-reader-javascript-samples/zip/2f0a723e88e3271170672e61c214a3d1d7a31328"
+      "commit": "deb6320704e324073cd0cb5d6edb8064ce130726",
+      "archiveUrl": "https://codeload.github.com/Dynamsoft/barcode-reader-javascript-samples/zip/deb6320704e324073cd0cb5d6edb8064ce130726"
     },
     {
       "name": "data/samples/dynamsoft-barcode-reader-c-cpp",
