@@ -83,7 +83,7 @@ export function registerProjectTools({
         "",
         "WHEN NOT TO USE:",
         "- If you do not have a sample_id or resource_uri yet, call list_samples or search first to discover one.",
-        "- For doc:// URIs, use resources/read instead (this tool only handles sample:// URIs).",
+        "- For doc:// URIs, use read_document instead (this tool only handles sample:// URIs).",
         "- If the user just wants a quick code snippet, use get_quickstart instead.",
         "",
         "PARAMETERS:",
@@ -137,7 +137,7 @@ export function registerProjectTools({
             isError: true,
             content: [{
               type: "text",
-              text: "resource_uri must use the sample:// scheme. For doc:// URIs, use resources/read instead."
+              text: "resource_uri must use the sample:// scheme. For doc:// URIs, call read_document with the exact uri instead."
             }]
           };
         }

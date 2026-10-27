@@ -2,7 +2,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ensureDataScopesHydrated } from "../data/bootstrap.js";
 import { createScopeHydrator } from "./helpers/server-helpers.js";
 import { registerResourceHandlers } from "./resources/register-resources.js";
+import { createIndexedResourceReader } from "./resources/read-indexed-resource.js";
 import { registerIndexTools } from "./tools/register-index-tools.js";
+import { registerDocumentTools } from "./tools/register-document-tools.js";
 import { registerSampleTools } from "./tools/register-sample-tools.js";
 import { registerVersionTools } from "./tools/register-version-tools.js";
 import { registerQuickstartTools } from "./tools/register-quickstart-tools.js";
@@ -71,6 +73,8 @@ export function createMcpServerInstance({ pkgVersion, resourceIndexApi, ragApi }
       "",
       "How to use it:",
       "- Call get_index first to see valid product/edition/platform combinations before asking the user anything.",
+      "- To answer from documentation: call search, then call read_document with the exact doc:// uri it returned, and base the answer on that text, citing the public documentation URL it contains. Do not answer from search summaries alone or hand doc:// links to the user.",
+      "- For sample:// results, call get_sample_files with resource_uri to get the complete sample project.",
       "- Only ask the user to disambiguate dimensions that actually vary for the chosen product. Do NOT ask about dimensions that don't apply.",
       "",
       "Platform/edition rules (important):",
@@ -82,6 +86,12 @@ export function createMcpServerInstance({ pkgVersion, resourceIndexApi, ragApi }
       "",
       "For scopes this MCP does not index (e.g. MRZ/MDS on mobile or server), tools return official documentation and sample links — pass those on rather than inventing code."
     ].join("\n")
+  });
+
+  const readIndexedResource = createIndexedResourceReader({
+    parseResourceUri,
+    ensureLatestMajor,
+    readResourceContent
   });
 
   registerIndexTools({
@@ -98,6 +108,11 @@ export function createMcpServerInstance({ pkgVersion, resourceIndexApi, ragApi }
     normalizeSampleName,
     getSampleEntries,
     getSampleSuggestions
+  });
+
+  registerDocumentTools({
+    server,
+    readIndexedResource
   });
 
   registerSampleTools({
@@ -183,9 +198,8 @@ export function createMcpServerInstance({ pkgVersion, resourceIndexApi, ragApi }
   registerResourceHandlers({
     server,
     getPinnedResources,
-    parseResourceUri,
-    ensureLatestMajor,
-    readResourceContent
+    readResourceContent,
+    readIndexedResource
   });
 
   return server;

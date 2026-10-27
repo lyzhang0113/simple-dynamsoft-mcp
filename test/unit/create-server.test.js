@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createMcpServerInstance } from "../../src/server/create-server.js";
 
@@ -33,6 +35,7 @@ test("createMcpServerInstance registers expected tool surface", { concurrency: f
   const expectedTools = [
     "get_index",
     "search",
+    "read_document",
     "list_samples",
     "resolve_version",
     "get_quickstart",
@@ -80,7 +83,11 @@ test("tool descriptions are comprehensive (10+ lines, key phrases)", { concurren
     },
     search: {
       minLines: 10,
-      requiredPhrases: ["query", "keyword", "sample", "doc", "resource_link", "get_index", "list_samples"]
+      requiredPhrases: ["query", "keyword", "sample", "doc", "resource_link", "get_index", "list_samples", "read_document", "get_sample_files"]
+    },
+    read_document: {
+      minLines: 10,
+      requiredPhrases: ["doc://", "uri", "search", "url", "sample://", "get_sample_files"]
     },
     list_samples: {
       minLines: 10,
@@ -366,4 +373,150 @@ test("resource read for pinned resource bypasses version policy", { concurrency:
     assert.deepEqual(result, { contents: [pinnedContent] });
     assert.equal(policyCalled, false, "version policy should not be invoked for pinned resources");
   });
+});
+
+const DOC_URI = "doc://dwt/web/web/19.x/getting-started";
+const DOC_TEXT = [
+  "# Getting Started with DWT",
+  "",
+  "**URL:** https://www.dynamsoft.com/web-twain/docs/getting-started.html",
+  "",
+  "---",
+  "",
+  "Call Dynamsoft.DWT.Load() to create the WebTwain instance."
+].join("\n");
+
+async function connectReadDocumentClient(t, overrides = {}) {
+  const calls = { policy: [], reads: [] };
+  const server = createMcpServerInstance({
+    pkgVersion: "0.0.0-test",
+    resourceIndexApi: {
+      getPinnedResources: () => [],
+      parseResourceUri: (uri) => {
+        const match = /^(doc|sample):\/\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\//.exec(uri);
+        if (!match) return null;
+        return { scheme: match[1], product: match[2], edition: match[3], platform: match[4], version: match[5] };
+      },
+      ensureLatestMajor: (params) => {
+        calls.policy.push(params);
+        return { ok: true };
+      },
+      readResourceContent: async (uri) => {
+        calls.reads.push(uri);
+        if (uri === DOC_URI) return { uri, mimeType: "text/markdown", text: DOC_TEXT };
+        return null;
+      },
+      ...overrides
+    },
+    ragApi: {}
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "read-document-test", version: "0.0.0" });
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  return { client, calls };
+}
+
+function resultText(result) {
+  return result.content.map((item) => item.text || "").join("\n");
+}
+
+test("read_document is discoverable with a required uri string and read-only annotations", async (t) => {
+  const { client } = await connectReadDocumentClient(t);
+  const { tools } = await client.listTools();
+  const tool = tools.find((entry) => entry.name === "read_document");
+  assert.ok(tool, "read_document should be listed");
+  assert.equal(tool.inputSchema.type, "object");
+  assert.equal(tool.inputSchema.properties.uri.type, "string");
+  assert.deepEqual(tool.inputSchema.required, ["uri"]);
+  assert.deepEqual(tool.annotations, {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false
+  });
+});
+
+test("read_document returns the document body with title and public URL as text content", async (t) => {
+  const { client, calls } = await connectReadDocumentClient(t);
+  const result = await client.callTool({ name: "read_document", arguments: { uri: DOC_URI } });
+
+  assert.notEqual(result.isError, true);
+  assert.deepEqual(result.content, [{ type: "text", text: DOC_TEXT }]);
+  assert.deepEqual(calls.policy, [{ product: "dwt", edition: "web", platform: "web", version: "19.x" }]);
+});
+
+test("read_document returns isError with search guidance for stale or missing URIs", async (t) => {
+  const { client } = await connectReadDocumentClient(t);
+  const result = await client.callTool({
+    name: "read_document",
+    arguments: { uri: "doc://dwt/web/web/19.x/removed-page" }
+  });
+
+  assert.equal(result.isError, true);
+  assert.match(resultText(result), /Resource not found: doc:\/\/dwt\/web\/web\/19\.x\/removed-page/);
+  assert.match(resultText(result), /Call search/);
+});
+
+test("read_document enforces the version policy before reading", async (t) => {
+  const { client, calls } = await connectReadDocumentClient(t, {
+    ensureLatestMajor: () => ({ ok: false, message: "Version 8.x is not supported" })
+  });
+  const result = await client.callTool({
+    name: "read_document",
+    arguments: { uri: "doc://dbr/server/python/8.x/api-reference" }
+  });
+
+  assert.equal(result.isError, true);
+  assert.match(resultText(result), /Version 8\.x is not supported/);
+  assert.deepEqual(calls.reads, [], "rejected versions must not be read");
+});
+
+test("read_document rejects non-doc URI schemes without reading", async (t) => {
+  const { client, calls } = await connectReadDocumentClient(t);
+
+  const sample = await client.callTool({
+    name: "read_document",
+    arguments: { uri: "sample://dwt/web/web/19.x/basic-scan" }
+  });
+  assert.equal(sample.isError, true);
+  assert.match(resultText(sample), /get_sample_files/);
+
+  const external = await client.callTool({
+    name: "read_document",
+    arguments: { uri: "https://www.dynamsoft.com/web-twain/docs/" }
+  });
+  assert.equal(external.isError, true);
+  assert.match(resultText(external), /accepts only doc:\/\/ URIs/);
+
+  assert.deepEqual(calls.reads, []);
+});
+
+test("read_document rejects a blank uri", async (t) => {
+  const { client } = await connectReadDocumentClient(t);
+  const result = await client.callTool({ name: "read_document", arguments: { uri: "   " } });
+  assert.equal(result.isError, true);
+  assert.match(resultText(result), /uri is required/);
+});
+
+test("read_document returns isError when the reader fails or yields empty text", async (t) => {
+  const failing = await connectReadDocumentClient(t, {
+    readResourceContent: async () => {
+      throw new Error("disk read failed");
+    }
+  });
+  const failed = await failing.client.callTool({ name: "read_document", arguments: { uri: DOC_URI } });
+  assert.equal(failed.isError, true);
+  assert.match(resultText(failed), /Failed to read document: disk read failed/);
+
+  const empty = await connectReadDocumentClient(t, {
+    readResourceContent: async (uri) => ({ uri, mimeType: "text/markdown", text: "  \n" })
+  });
+  const emptyResult = await empty.client.callTool({ name: "read_document", arguments: { uri: DOC_URI } });
+  assert.equal(emptyResult.isError, true);
+  assert.match(resultText(emptyResult), /no readable text content/);
 });
