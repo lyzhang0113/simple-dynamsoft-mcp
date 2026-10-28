@@ -1,6 +1,7 @@
 import { createServer as createHttpServer } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { logEvent } from "../../observability/logging.js";
+import { attachRequestLogging, buildHttpRequestContext } from "../../observability/request-logging.js";
 
 async function startHttpServer({
   host,
@@ -74,9 +75,10 @@ async function startHttpServer({
 
     try {
       server = createServer();
-      transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined
-      });
+      transport = attachRequestLogging(
+        new StreamableHTTPServerTransport({ sessionIdGenerator: undefined }),
+        buildHttpRequestContext(req)
+      );
       await server.connect(transport);
       await transport.handleRequest(req, res);
     } catch (error) {

@@ -9,7 +9,6 @@ import {
 } from "../public-offerings.js";
 import { buildUnsupportedPublicScopeResponse } from "./public-routing.js";
 import { validatePlatform, validateEdition } from "../normalizers.js";
-import { logEvent } from "../../observability/logging.js";
 
 export function registerIndexTools({
   server,
@@ -305,15 +304,6 @@ export function registerIndexTools({
           }
         }
 
-        // Zero-result queries are the highest-value eval/synonym-gap signal — log
-        // them so they can be harvested from production logs (issue #156).
-        logEvent("search", "zero_result_query", {
-          query,
-          product: normalizedProduct || "",
-          edition: normalizedEdition || "",
-          platform: normalizedPlatform || "",
-          type: type || "any"
-        });
         return {
           content: [{
             type: "text",

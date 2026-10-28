@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { logEvent } from "../../observability/logging.js";
 
 function errorResult(text) {
   return { isError: true, content: [{ type: "text", text }] };
@@ -53,13 +52,11 @@ export function registerDocumentTools({ server, readIndexedResource }) {
         resource = await readIndexedResource(uri);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        logEvent("read_document", "read_failed", { uri, error: message });
         return errorResult(`Failed to read document: ${message}`);
       }
 
       const text = typeof resource.text === "string" ? resource.text : "";
       if (!text.trim()) {
-        logEvent("read_document", "empty_document", { uri });
         return errorResult(`Document ${uri} has no readable text content. Call search again to find an alternative document.`);
       }
 

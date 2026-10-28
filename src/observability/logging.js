@@ -1,3 +1,10 @@
+// Structured logging: one JSON object per line on stderr (stdout is reserved
+// for the stdio MCP transport). Every entry carries ts, level, component, and
+// event; caller fields are merged in. Lines are directly queryable in log
+// stores such as Azure Log Analytics (parse_json(Log_s)).
+
+const RESERVED_KEYS = new Set(["ts", "level", "component", "event"]);
+
 function normalizeEnvValue(value) {
   if (value === undefined || value === null) return "";
   return String(value).trim().toLowerCase();
@@ -10,13 +17,6 @@ function isVerboseLoggingEnabled(env = process.env) {
   return ["1", "true", "yes", "on"].includes(toggle);
 }
 
-function quoteValue(value) {
-  const raw = String(value ?? "");
-  if (raw.length === 0) return "\"\"";
-  if (/\s|=/.test(raw)) return JSON.stringify(raw);
-  return raw;
-}
-
 function latencyBucket(latencyMs) {
   const n = Number(latencyMs);
   if (!Number.isFinite(n) || n < 0) return "unknown";
@@ -27,21 +27,45 @@ function latencyBucket(latencyMs) {
   return "ge3s";
 }
 
+function jsonReplacer(_key, value) {
+  if (typeof value === "bigint") return value.toString();
+  if (value instanceof Error) return { name: value.name, message: value.message };
+  return value;
+}
+
+function serializeLogEntry(entry) {
+  try {
+    return JSON.stringify(entry, jsonReplacer);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return JSON.stringify({
+      ts: entry.ts,
+      level: entry.level,
+      component: entry.component,
+      event: entry.event,
+      serialization_error: message
+    });
+  }
+}
+
 function logEvent(component, event, fields = {}, options = {}) {
   const level = normalizeEnvValue(options.level || "info") || "info";
   const verbose = isVerboseLoggingEnabled(options.env);
   if (level === "debug" && !verbose) return;
 
-  const parts = [`[${component}]`, `event=${quoteValue(event || "detail")}`];
+  const entry = {
+    ts: new Date().toISOString(),
+    level,
+    component: String(component || "app"),
+    event: String(event || "detail")
+  };
   for (const [key, value] of Object.entries(fields || {})) {
     if (value === undefined || value === null || value === "") continue;
-    parts.push(`${key}=${quoteValue(value)}`);
+    if (RESERVED_KEYS.has(key)) continue;
+    entry[key] = value;
   }
 
-  if (level !== "info") {
-    parts.push(`level=${level}`);
-  }
-  console.error(parts.join(" "));
+  console.error(serializeLogEntry(entry));
 }
 
 export {

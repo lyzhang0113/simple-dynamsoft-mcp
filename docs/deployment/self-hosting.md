@@ -87,4 +87,4 @@ sudo systemctl status simple-dynamsoft-mcp
 - For HTTP deployments, check service logs first:
   - `journalctl -u simple-dynamsoft-mcp -f`
 - For Gemini mode, confirm `GEMINI_API_KEY` is present in service environment.
-- Structured startup logs include `[data]`, `[transport]`, and `[rag]` event lines.
+- Logs are JSON lines on stderr (`{"ts","level","component","event",...}`); startup entries use components `data`, `transport`, `startup`, and `rag`. Each tool call / resource read logs a `component="mcp"` entry with arguments and response (see `.env.example` for `MCP_LOG_*` settings).

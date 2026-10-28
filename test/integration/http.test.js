@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   RUN_GEMINI_PROVIDER_TESTS,
+  assertRequestLogs,
   assertStructuredDataStartupMode,
   connectStreamableClientWithRetry,
+  findLogEvents,
   getFreePort,
   requestTimeoutForProvider,
   resolveServerEnv,
@@ -34,17 +36,17 @@ async function runHttpScenario(provider, { fallback = "none", extraEnv = {} } = 
     });
 
     const logs = server.getLogs();
-    assertStructuredDataStartupMode(`${logs.stdout}\n${logs.stderr}`);
-    assert.match(
-      `${logs.stdout}\n${logs.stderr}`,
-      /\[transport\].*event=server_start.*mode=http/,
+    const output = `${logs.stdout}\n${logs.stderr}`;
+    assertStructuredDataStartupMode(output);
+    assert.ok(
+      findLogEvents(output, "transport", "server_start").some((entry) => entry.mode === "http"),
       "Expected structured transport startup logs from native HTTP server output"
     );
-    assert.match(
-      `${logs.stdout}\n${logs.stderr}`,
-      /\[startup\].*event=stage.*stage=http_listener_ready/,
+    assert.ok(
+      findLogEvents(output, "startup", "stage").some((entry) => entry.stage === "http_listener_ready"),
       "Expected startup stage timing logs from native HTTP server output"
     );
+    await assertRequestLogs(() => server.getLogs().stderr, "http");
   } finally {
     if (transport) {
       await transport.close();

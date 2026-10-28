@@ -67,3 +67,33 @@ v1 public endpoint:
 - `https://<app>.<hash>.<region>.azurecontainerapps.io/mcp`
 
 TLS is provided by Azure on the default ACA domain.
+
+## Request Logs
+
+The server writes JSON lines to stderr, which ACA ships to the Log Analytics workspace. Every `tools/call` and `resources/read` produces one entry with `component="mcp"`, `event="tool_call"` or `"resource_read"`, and:
+
+- `tool` + `arguments` (tool calls) or `uri` (resource reads)
+- `response` (the result sent to the client) or `error` (JSON-RPC errors), plus `is_error` and `duration_ms`
+- `transport`, `user_agent`, and `client_id` (HMAC of the client IP)
+
+`arguments` and `response` are truncated to `MCP_LOG_MAX_FIELD_CHARS` (default 8000 JSON chars) as `{truncated, original_chars, preview}`, keeping each line below the container runtime's 16 KB line split.
+
+Client IP handling (`MCP_LOG_CLIENT_IP`):
+
+- `hash` (default): `client_id`, a salted hash. Groups requests per caller without storing the IP. Set `MCP_LOG_IP_SALT` (as an ACA secret) for ids that survive restarts; otherwise a per-process salt is used and ids change on each cold start (`minReplicas=0`).
+- `full`: raw `client_ip`. Personal data; check retention/privacy requirements first.
+- `off`: no IP-derived field.
+
+The IP is the right-most `X-Forwarded-For` entry (appended by ACA ingress), falling back to the socket address. Clients that call through a hosted agent (e.g. a chatbot platform) appear as that platform's egress IP, not the end user's.
+
+Example query (column is `Log_s` in `ContainerAppConsoleLogs_CL`; `Log` in the resource-specific `ContainerAppConsoleLogs` table):
+
+```kusto
+ContainerAppConsoleLogs_CL
+| extend e = parse_json(Log_s)
+| where e.component == "mcp"
+| project TimeGenerated, event = tostring(e.event), tool = tostring(e.tool),
+          arguments = e.arguments, is_error = tobool(e.is_error),
+          duration_ms = toint(e.duration_ms), client_id = tostring(e.client_id), response = e.response
+| order by TimeGenerated desc
+```

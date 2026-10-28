@@ -68,10 +68,81 @@ function requestTimeoutForProvider(provider) {
   return provider === "gemini" ? 300000 : 60000;
 }
 
+function parseLogEvents(output) {
+  const events = [];
+  for (const line of String(output || "").split(/\r?\n/)) {
+    if (!line.startsWith("{")) continue;
+    try {
+      events.push(JSON.parse(line));
+    } catch {}
+  }
+  return events;
+}
+
+function findLogEvents(output, component, event) {
+  return parseLogEvents(output).filter((entry) => entry.component === component && entry.event === event);
+}
+
+// Request logs are written just before the response is sent, so the child's
+// stderr may arrive slightly after the client sees the response.
+async function waitForLogEvent(getOutput, component, event, predicate = () => true, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const match = findLogEvents(getOutput(), component, event).find(predicate);
+    if (match || Date.now() >= deadline) return match;
+    await sleep(50);
+  }
+}
+
 function assertStructuredDataStartupMode(stderr, expectedMode = "") {
-  const modeToken = expectedMode ? `.*mode=${expectedMode}` : ".*mode=";
-  const pattern = new RegExp(`\\[data\\].*event=startup_mode${modeToken}`);
-  assert.match(stderr, pattern, "Expected structured data startup mode log in stderr");
+  const entries = findLogEvents(stderr, "data", "startup_mode");
+  assert.ok(entries.length > 0, "Expected structured data startup mode log in stderr");
+  if (expectedMode) {
+    assert.ok(
+      entries.some((entry) => entry.mode === expectedMode),
+      `Expected data startup mode=${expectedMode}, got ${entries.map((entry) => entry.mode).join(", ")}`
+    );
+  } else {
+    assert.ok(entries.every((entry) => typeof entry.mode === "string" && entry.mode), "startup_mode should include mode");
+  }
+}
+
+// Verifies the per-request log for the search -> read_document flow exercised by
+// runCoreAssertions: parameters, response, and caller context are recorded.
+async function assertRequestLogs(getOutput, expectedTransport) {
+  const searchLog = await waitForLogEvent(
+    getOutput,
+    "mcp",
+    "tool_call",
+    (entry) => entry.tool === "search" && entry.arguments?.query === "basic-scan"
+  );
+  assert.ok(searchLog, "Expected a tool_call log entry for search");
+  assert.equal(searchLog.transport, expectedTransport);
+  assert.equal(searchLog.is_error, false);
+  assert.equal(typeof searchLog.duration_ms, "number");
+  assert.ok(Array.isArray(searchLog.response?.content), "search log should include the response content");
+
+  const readLog = await waitForLogEvent(
+    getOutput,
+    "mcp",
+    "tool_call",
+    (entry) => entry.tool === "read_document" && entry.is_error === false
+  );
+  assert.ok(readLog, "Expected a tool_call log entry for read_document");
+  assert.match(readLog.arguments.uri, /^doc:\/\//);
+  assert.ok(readLog.response, "read_document log should include the (possibly truncated) response");
+
+  const resourceLog = await waitForLogEvent(getOutput, "mcp", "resource_read");
+  assert.ok(resourceLog, "Expected a resource_read log entry");
+  assert.match(resourceLog.uri, /^(doc|sample):\/\//);
+
+  if (expectedTransport === "http") {
+    assert.match(searchLog.client_id || "", /^[0-9a-f]{16}$/, "http request logs should carry a hashed client_id by default");
+    assert.equal(searchLog.client_ip, undefined, "raw client IP should not be logged by default");
+    assert.ok(searchLog.user_agent, "http request logs should include the user agent");
+  } else {
+    assert.equal(searchLog.client_id, undefined);
+  }
 }
 
 function packageCommandCandidates(tgzPath) {
@@ -422,7 +493,9 @@ export {
   requestTimeoutForProvider,
   resolveServerEnv,
   runCoreAssertions,
+  assertRequestLogs,
   assertStructuredDataStartupMode,
+  findLogEvents,
   createPackagedRuntimeClient,
   serverEntry,
   startNativeHttpServer

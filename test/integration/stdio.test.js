@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   RUN_GEMINI_PROVIDER_TESTS,
+  assertRequestLogs,
   assertStructuredDataStartupMode,
   createStdioClient,
   requestTimeoutForProvider,
@@ -22,6 +23,7 @@ async function runStdioScenario(provider) {
 
     const stderr = getStderr();
     assertStructuredDataStartupMode(stderr);
+    await assertRequestLogs(getStderr, "stdio");
   } finally {
     await transport.close();
   }
