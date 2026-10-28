@@ -208,18 +208,20 @@ function encodeDocSlug(slug) {
 
 // One doc:// slug per article: its short path, or (on a collision within the
 // same URI prefix + platform, e.g. `user-guide.md` vs `user-guide/index.md`)
-// its full source path. Shared pages arrive with a precomputed `slug`.
+// its full source path. Shared pages keep their `slugPrefix` namespace
+// (`dcv`, `dcv-core`) in both forms.
 function assignDocSlugs(docs, defaultPlatform) {
+  const withPrefix = (article, slug) => (article.slugPrefix ? `${article.slugPrefix}/${slug}` : slug);
   const keyFor = (article, slug) => `${article.platform || defaultPlatform}/${slug}`;
-  const shortSlugs = docs.map((article) => article.slug || shortDocPath(article.path || article.title));
+  const shortSlugs = docs.map((article) => withPrefix(article, shortDocPath(article.path || article.title)));
   const counts = new Map();
   docs.forEach((article, i) => {
     const key = keyFor(article, shortSlugs[i]);
     counts.set(key, (counts.get(key) || 0) + 1);
   });
   return docs.map((article, i) => {
-    if (counts.get(keyFor(article, shortSlugs[i])) === 1 || article.slug) return shortSlugs[i];
-    return String(article.path || article.title).replace(/\\/g, "/").replace(/\.md$/i, "");
+    if (counts.get(keyFor(article, shortSlugs[i])) === 1) return shortSlugs[i];
+    return withPrefix(article, String(article.path || article.title).replace(/\\/g, "/").replace(/\.md$/i, ""));
   });
 }
 
@@ -1207,6 +1209,7 @@ function buildResourceIndex({
 }
 
 export {
+  assignDocSlugs,
   buildIndexData,
   buildResourceIndex
 };

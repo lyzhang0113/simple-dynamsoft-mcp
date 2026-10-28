@@ -6,6 +6,7 @@ const manifest = {
   repos: [
     { path: "documentation/barcode-reader-docs-js" },
     { path: "documentation/capture-vision-docs-js" },
+    { path: "documentation/capture-vision-docs" },
     { path: "documentation/mobile-document-scanner-docs-js" },
     { path: "documentation/mrz-scanner-docs-js" },
     { path: "samples/dynamsoft-barcode-reader" },
@@ -19,7 +20,7 @@ const manifest = {
   ]
 };
 
-test("resolveRepoPathsForScopes picks DBR web docs and samples", () => {
+test("resolveRepoPathsForScopes picks DBR web docs, their shared Capture Vision docs, and samples", () => {
   const paths = resolveRepoPathsForScopes(
     [{ product: "dbr", edition: "web", type: "any" }],
     manifest
@@ -27,6 +28,8 @@ test("resolveRepoPathsForScopes picks DBR web docs and samples", () => {
 
   assert.deepEqual(paths, [
     "documentation/barcode-reader-docs-js",
+    "documentation/capture-vision-docs",
+    "documentation/capture-vision-docs-js",
     "samples/dynamsoft-barcode-reader"
   ]);
 });

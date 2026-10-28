@@ -46,8 +46,9 @@ function scoreCase(testCase, results, k, isInScope) {
   );
   const top = results.slice(0, k);
   const gains = top.map((result) => gradeOf(result, relevant));
-  const idealGains = [...relevant.values()].filter((g) => g > 0).sort((a, b) => b - a).slice(0, k);
-  const relevantCount = idealGains.length;
+  const positiveGains = [...relevant.values()].filter((g) => g > 0).sort((a, b) => b - a);
+  const idealGains = positiveGains.slice(0, k);
+  const relevantCount = positiveGains.length;
 
   const firstHit = gains.findIndex((gain) => gain > 0);
   const found = new Set(top.filter((result) => gradeOf(result, relevant) > 0).map((r) => normalizeUrl(r.url)));
@@ -60,7 +61,7 @@ function scoreCase(testCase, results, k, isInScope) {
   return {
     id: testCase.id,
     gap: relevantCount === 0,
-    recall: relevantCount ? found.size / Math.min(relevantCount, k) : null,
+    recall: relevantCount ? found.size / relevantCount : null,
     mrr: relevantCount ? (firstHit >= 0 ? 1 / (firstHit + 1) : 0) : null,
     ndcg: relevantCount ? dcg(gains) / dcg(idealGains) : null,
     requiredHit: required.length ? requiredFound.length === required.length : null,
@@ -117,14 +118,14 @@ async function runRetrievalEval({ searchResources, cases, k = 5, isInScope }) {
   const warmPass = [];
   for (const testCase of cases) {
     const startedAt = performance.now();
-    const results = await searchResources({ query: testCase.query, ...(testCase.filters || {}), limit: k });
+    const results = await searchResources({ query: testCase.query, ...(testCase.filters || {}), limit: k, throwOnError: true });
     const latencyMs = performance.now() - startedAt;
     firstPass.push(latencyMs);
     caseScores.push({ ...scoreCase(testCase, results, k, isInScope), latencyMs });
   }
   for (const testCase of cases) {
     const startedAt = performance.now();
-    await searchResources({ query: testCase.query, ...(testCase.filters || {}), limit: k });
+    await searchResources({ query: testCase.query, ...(testCase.filters || {}), limit: k, throwOnError: true });
     warmPass.push(performance.now() - startedAt);
   }
   return { k, summary: summarize(caseScores, firstPass, warmPass), cases: caseScores };

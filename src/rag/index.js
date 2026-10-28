@@ -115,7 +115,9 @@ function dedupeByPublicUrl(results, limit) {
   return unique;
 }
 
-async function searchResources({ query, product, edition, platform, type, limit }) {
+// `throwOnError` makes an all-providers failure throw instead of returning [];
+// evaluation uses it so a broken provider cannot pass as zero relevance.
+async function searchResources({ query, product, edition, platform, type, limit, throwOnError = false }) {
   const startedAt = Date.now();
   const filters = normalizeSearchFilters({ product, edition, platform, type }, {
     normalizeProduct,
@@ -208,6 +210,7 @@ async function searchResources({ query, product, edition, platform, type, limit 
       latency_bucket: latencyBucket(elapsedMs),
       error: lastError.message
     }, { level: "error" });
+    if (throwOnError) throw lastError;
   }
   return [];
 }

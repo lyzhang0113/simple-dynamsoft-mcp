@@ -59,10 +59,10 @@ test("selects DCV pages linked from DBR docs or sidebars; ignores unlinked and a
       }]
     });
 
-    assert.deepEqual(shared.map((doc) => doc.slug).sort(), [
-      "dcv/api-reference/capture-vision-router/settings",
-      "dcv/api-reference/capture-vision-router/single-image-processing",
-      "dcv/api-reference/core/enum-error-code"
+    assert.deepEqual(shared.map((doc) => doc.path).sort(), [
+      "programming/javascript/api-reference/capture-vision-router/settings.md",
+      "programming/javascript/api-reference/capture-vision-router/single-image-processing.md",
+      "programming/javascript/api-reference/core/enum-error-code.md"
     ]);
     assert.ok(shared.every((doc) => doc.sourceVersion === "3.6.3200" && doc.platform === "web"));
   });
@@ -92,10 +92,11 @@ test("core pages take the platforms of the DBR docs that link them", () => {
       }]
     });
 
-    const bySlug = Object.fromEntries(shared.map((doc) => [doc.slug, doc]));
-    assert.deepEqual(bySlug["dcv-core/parameters/reference/barcode-format-ids"].platforms, ["android"]);
-    assert.equal(bySlug["dcv-core/parameters/reference/barcode-format-ids"].platform, "android");
-    assert.deepEqual(bySlug["dcv-core/parameters/reference/deblur-modes"].platforms, ["ios"]);
+    const byPath = Object.fromEntries(shared.map((doc) => [doc.path, doc]));
+    assert.ok(shared.every((doc) => doc.slugPrefix === "dcv-core"));
+    assert.deepEqual(byPath["parameters/reference/barcode-format-ids.md"].platforms, ["android"]);
+    assert.equal(byPath["parameters/reference/barcode-format-ids.md"].platform, "android");
+    assert.deepEqual(byPath["parameters/reference/deblur-modes.md"].platforms, ["ios"]);
   });
 });
 

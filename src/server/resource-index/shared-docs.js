@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { resolveSiteLinks, shortDocPath } from "./docs-loader.js";
+import { resolveSiteLinks } from "./docs-loader.js";
 
 // DBR's public API is built on shared Capture Vision (DCV) modules such as
 // CaptureVisionRouter, whose reference pages live only in the DCV docs. DBR's
@@ -111,7 +111,7 @@ function isCompatibleSharedVersion(dbrVersion, dcvVersion, { requireBuild }) {
  * @param {string} options.dbrVersion DBR edition version.
  * @param {Array<{articles: Array, version: string, editionSpecific: boolean, slugPrefix: string}>} options.sources
  * @param {Function} [options.onSkip] Called with details when a source is version-incompatible.
- * @returns {Array} Articles with `slug`, `platform`, `platforms`, `sourceVersion`.
+ * @returns {Array} Articles with `slugPrefix` (doc:// namespace), `platform`, `platforms`, `sourceVersion`.
  */
 function selectSharedDcvDocs({ dbrArticles, dbrRoot, siteVars, dbrVersion, sources, onSkip }) {
   const linkMap = buildDcvLinkMap({ dbrArticles, dbrRoot, siteVars });
@@ -141,7 +141,7 @@ function selectSharedDcvDocs({ dbrArticles, dbrRoot, siteVars, dbrVersion, sourc
 
       selected.push({
         ...article,
-        slug: `${source.slugPrefix}/${shortDocPath(article.path)}`,
+        slugPrefix: source.slugPrefix,
         platform: platforms.length === 1 ? platforms[0] : (source.defaultPlatform || platforms[0]),
         platforms,
         sourceVersion: source.version
