@@ -34,6 +34,33 @@ test("resolveRepoPathsForScopes picks DBR web docs, their shared Capture Vision 
   ]);
 });
 
+test("DBR doc scopes hydrate the matching Capture Vision edition and core docs for every edition", () => {
+  const docsManifest = {
+    repos: [
+      "documentation/barcode-reader-docs-js",
+      "documentation/barcode-reader-docs-mobile",
+      "documentation/barcode-reader-docs-server",
+      "documentation/capture-vision-docs",
+      "documentation/capture-vision-docs-js",
+      "documentation/capture-vision-docs-mobile",
+      "documentation/capture-vision-docs-server"
+    ].map((path) => ({ path }))
+  };
+  const docsFor = (edition) => resolveRepoPathsForScopes([{ product: "dbr", edition, type: "doc" }], docsManifest);
+
+  assert.deepEqual(docsFor("mobile"), [
+    "documentation/barcode-reader-docs-mobile",
+    "documentation/capture-vision-docs",
+    "documentation/capture-vision-docs-mobile"
+  ]);
+  assert.deepEqual(docsFor("server"), [
+    "documentation/barcode-reader-docs-server",
+    "documentation/capture-vision-docs",
+    "documentation/capture-vision-docs-server"
+  ]);
+  assert.deepEqual(docsFor(undefined), docsManifest.repos.map((repo) => repo.path).sort());
+});
+
 test("resolveRepoPathsForScopes respects type filter", () => {
   const docOnly = resolveRepoPathsForScopes(
     [{ product: "dcv", edition: "web", type: "doc" }],
