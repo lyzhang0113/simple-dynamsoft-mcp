@@ -384,6 +384,29 @@ jobs:
 
           echo "old_revisions_file=/tmp/old_revisions.txt" >> "$GITHUB_OUTPUT"
 
+      - name: Configure client-id salt secret
+        id: salt
+        shell: bash
+        env:
+          LOG_IP_SALT: ${{ secrets.MCP_LOG_IP_SALT }}
+        run: |
+          set -euo pipefail
+
+          # Stable salt for hashed client_id in request logs. Kept as an ACA
+          # secret, never on the cache share next to the logs.
+          if [[ -z "${LOG_IP_SALT:-}" ]]; then
+            echo "::warning::MCP_LOG_IP_SALT secret is not set; client_id values will change on every restart."
+            echo "env_args=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          az containerapp secret set \
+            --name "${{ steps.vars.outputs.container_app }}" \
+            --resource-group "${{ steps.vars.outputs.resource_group }}" \
+            --secrets "log-ip-salt=${LOG_IP_SALT}" \
+            --output none
+          echo "env_args=MCP_LOG_IP_SALT=secretref:log-ip-salt" >> "$GITHUB_OUTPUT"
+
       - name: Deploy single steady revision
         id: deploy
         shell: bash
@@ -412,12 +435,17 @@ jobs:
               MCP_DATA_AUTO_DOWNLOAD=false \
               MCP_DATA_DIR="$data_root" \
               MCP_LOG_LEVEL=info \
+              MCP_REQUEST_LOG_DIR=/mnt/mcp-cache/request-logs \
+              MCP_LOG_FORMAT=text \
+              MCP_LOG_CLIENT_IP=hash \
+              MCP_LOG_TRUST_PROXY=true \
               MCP_DATA_CACHE_DIR="${cache_root}/data" \
               RAG_CACHE_DIR="${cache_root}/rag/cache" \
               RAG_MODEL_CACHE_DIR="${cache_root}/rag/models" \
               TMPDIR="${cache_root}/tmp" \
               TMP="${cache_root}/tmp" \
-              TEMP="${cache_root}/tmp"
+              TEMP="${cache_root}/tmp" \
+              ${{ steps.salt.outputs.env_args }}
 
       - name: Wait for deployed revision ready
         id: ready

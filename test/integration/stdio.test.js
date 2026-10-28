@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   RUN_GEMINI_PROVIDER_TESTS,
+  assertRequestLogs,
+  cleanupDir,
   assertStructuredDataStartupMode,
   createStdioClient,
   requestTimeoutForProvider,
@@ -10,7 +15,8 @@ import {
 } from "./helpers.js";
 
 async function runStdioScenario(provider) {
-  const env = resolveServerEnv({ provider });
+  const requestLogDir = mkdtempSync(join(tmpdir(), "mcp-request-logs-stdio-"));
+  const env = resolveServerEnv({ provider, extra: { MCP_REQUEST_LOG_DIR: requestLogDir } });
   const { client, transport, getStderr } = await createStdioClient({
     env,
     name: `integration-stdio-${provider}`
@@ -22,8 +28,10 @@ async function runStdioScenario(provider) {
 
     const stderr = getStderr();
     assertStructuredDataStartupMode(stderr);
+    await assertRequestLogs(getStderr, requestLogDir, "stdio");
   } finally {
     await transport.close();
+    cleanupDir(requestLogDir);
   }
 }
 

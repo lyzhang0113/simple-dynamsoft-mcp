@@ -2,13 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { logEvent } from "../observability/logging.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, "..", "..");
-
-function logDataSync(message) {
-  console.error(`[data-sync] ${message}`);
-}
 
 function readBoolEnv(key, fallback = false) {
   const value = process.env[key];
@@ -111,27 +108,30 @@ async function maybeSyncSubmodulesOnStart() {
   const timeoutMs = readIntEnv("DATA_SYNC_TIMEOUT_MS", 30000);
   const gitmodulesPath = join(projectRoot, ".gitmodules");
   const entries = parseGitmodules(gitmodulesPath);
-  logDataSync(`start entries=${entries.length} timeout_ms=${timeoutMs}`);
+  logEvent("data-sync", "start", { entries: entries.length, timeout_ms: timeoutMs });
   if (entries.length === 0) {
-    logDataSync("no submodules found; skipping");
+    logEvent("data-sync", "skipped", { reason: "no_submodules" });
     return;
   }
 
   let okCount = 0;
   let failCount = 0;
   for (const entry of entries) {
-    logDataSync(`sync path=${entry.path} branch=${entry.branch}`);
+    logEvent("data-sync", "sync", { path: entry.path, branch: entry.branch });
     const result = syncSubmodule(entry, timeoutMs);
     if (!result.ok) {
       failCount += 1;
-      const details = result.message ? `: ${result.message}` : "";
-      console.error(`[data-sync] ${entry.path} ${result.step} failed${details}`);
+      logEvent("data-sync", "sync_failed", {
+        path: entry.path,
+        step: result.step,
+        message: result.message
+      }, { level: "error" });
       continue;
     }
     okCount += 1;
-    logDataSync(`ok path=${entry.path}`);
+    logEvent("data-sync", "sync_ok", { path: entry.path });
   }
-  logDataSync(`done ok=${okCount} failed=${failCount}`);
+  logEvent("data-sync", "done", { ok: okCount, failed: failCount });
 }
 
 export {

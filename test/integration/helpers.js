@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -68,10 +68,99 @@ function requestTimeoutForProvider(provider) {
   return provider === "gemini" ? 300000 : 60000;
 }
 
+function parseLogEvents(output) {
+  const events = [];
+  for (const line of String(output || "").split(/\r?\n/)) {
+    if (!line.startsWith("{")) continue;
+    try {
+      events.push(JSON.parse(line));
+    } catch {}
+  }
+  return events;
+}
+
+function findLogEvents(output, component, event) {
+  return parseLogEvents(output).filter((entry) => entry.component === component && entry.event === event);
+}
+
+// Request logs are written just before the response is sent, so the child's
+// stderr may arrive slightly after the client sees the response.
+async function waitForLogEvent(getOutput, component, event, predicate = () => true, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const match = findLogEvents(getOutput(), component, event).find(predicate);
+    if (match || Date.now() >= deadline) return match;
+    await sleep(50);
+  }
+}
+
 function assertStructuredDataStartupMode(stderr, expectedMode = "") {
-  const modeToken = expectedMode ? `.*mode=${expectedMode}` : ".*mode=";
-  const pattern = new RegExp(`\\[data\\].*event=startup_mode${modeToken}`);
-  assert.match(stderr, pattern, "Expected structured data startup mode log in stderr");
+  const entries = findLogEvents(stderr, "data", "startup_mode");
+  assert.ok(entries.length > 0, "Expected structured data startup mode log in stderr");
+  if (expectedMode) {
+    assert.ok(
+      entries.some((entry) => entry.mode === expectedMode),
+      `Expected data startup mode=${expectedMode}, got ${entries.map((entry) => entry.mode).join(", ")}`
+    );
+  } else {
+    assert.ok(entries.every((entry) => typeof entry.mode === "string" && entry.mode), "startup_mode should include mode");
+  }
+}
+
+function readRequestLogDir(dir) {
+  if (!existsSync(dir)) return "";
+  return readdirSync(dir)
+    .filter((name) => /^requests-\d{4}-\d{2}-\d{2}-.+\.jsonl$/.test(name))
+    .map((name) => readFileSync(join(dir, name), "utf8"))
+    .join("\n");
+}
+
+// Verifies the per-request logs for the search -> read_document flow exercised
+// by runCoreAssertions: stderr carries only a summary, while the file in
+// requestLogDir carries arguments, the full response, and caller context.
+async function assertRequestLogs(getOutput, requestLogDir, expectedTransport) {
+  const searchSummary = await waitForLogEvent(getOutput, "mcp", "tool_call", (entry) => entry.tool === "search");
+  assert.ok(searchSummary, "Expected a tool_call summary on stderr for search");
+  assert.equal(searchSummary.transport, expectedTransport);
+  assert.equal(typeof searchSummary.duration_ms, "number");
+  assert.equal(typeof searchSummary.response_chars, "number");
+  for (const field of ["arguments", "response", "client_id", "client_ip"]) {
+    assert.equal(searchSummary[field], undefined, `stderr summary must not include ${field} by default`);
+  }
+  if (expectedTransport === "http") {
+    assert.ok(searchSummary.user_agent, "http stderr summaries should identify the requester's user agent");
+  }
+  const resourceSummary = await waitForLogEvent(getOutput, "mcp", "resource_read");
+  assert.ok(resourceSummary, "Expected a resource_read summary on stderr");
+  assert.match(resourceSummary.uri, /^(doc|sample):\/\//);
+
+  const readFile = () => readRequestLogDir(requestLogDir);
+  const searchDetail = await waitForLogEvent(
+    readFile,
+    "mcp",
+    "tool_call",
+    (entry) => entry.tool === "search" && entry.arguments?.query === "basic-scan"
+  );
+  assert.ok(searchDetail, "Expected a detailed search entry in the request log file");
+  assert.equal(searchDetail.transport, expectedTransport);
+  assert.equal(searchDetail.is_error, false);
+  assert.ok(Array.isArray(searchDetail.response?.content), "file entry should include the response content");
+
+  const readDetail = await waitForLogEvent(
+    readFile,
+    "mcp",
+    "tool_call",
+    (entry) => entry.tool === "read_document" && entry.is_error === false
+  );
+  assert.ok(readDetail, "Expected a detailed read_document entry in the request log file");
+  assert.match(readDetail.arguments.uri, /^doc:\/\//);
+  assert.match(readDetail.response.content[0].text, /\*\*URL:\*\* https:\/\//, "file entry keeps the full document text");
+
+  assert.equal(searchDetail.client_id, undefined, "IP-derived fields are opt-in");
+  assert.equal(searchDetail.client_ip, undefined, "IP-derived fields are opt-in");
+  if (expectedTransport === "http") {
+    assert.ok(searchDetail.user_agent, "http file entries should include the user agent");
+  }
 }
 
 function packageCommandCandidates(tgzPath) {
@@ -422,7 +511,9 @@ export {
   requestTimeoutForProvider,
   resolveServerEnv,
   runCoreAssertions,
+  assertRequestLogs,
   assertStructuredDataStartupMode,
+  findLogEvents,
   createPackagedRuntimeClient,
   serverEntry,
   startNativeHttpServer
