@@ -19,6 +19,7 @@ process.env.RAG_PREWARM = "false";
 const { ensureResourceIndexReady, resourceIndex, readResourceContent } = await import("../../src/server/resource-index.js");
 const { searchResources } = await import("../../src/rag/index.js");
 const { runRetrievalEval } = await import("../../scripts/lib/retrieval-eval.mjs");
+const { isResultInScope } = await import("../../scripts/lib/scope-matcher.mjs");
 
 const golden = JSON.parse(readFileSync(join(projectRoot, "test", "fixtures", "retrieval-golden.json"), "utf8"));
 ensureResourceIndexReady();
@@ -30,7 +31,7 @@ const FLOORS = {
 };
 
 test("golden-set retrieval quality stays above floors (lexical)", async () => {
-  const { summary, cases } = await runRetrievalEval({ searchResources, cases: golden.cases, k: golden.k });
+  const { summary, cases } = await runRetrievalEval({ searchResources, cases: golden.cases, k: golden.k, isInScope: isResultInScope });
   const report = cases.map((item) => `${item.id}: recall=${item.recall} mrr=${item.mrr}`).join("\n");
   for (const [metric, floor] of Object.entries(FLOORS)) {
     assert.ok(summary[metric] >= floor, `${metric}=${summary[metric]} < ${floor}\n${report}`);

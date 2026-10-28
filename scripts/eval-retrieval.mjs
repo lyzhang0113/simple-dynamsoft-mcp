@@ -33,9 +33,10 @@ if (cases.length === 0) {
 const { ensureResourceIndexReady } = await import("../src/server/resource-index.js");
 const { searchResources } = await import("../src/rag/index.js");
 const { runRetrievalEval } = await import("./lib/retrieval-eval.mjs");
+const { isResultInScope } = await import("./lib/scope-matcher.mjs");
 
 ensureResourceIndexReady();
-const report = await runRetrievalEval({ searchResources, cases, k: golden.k || 5 });
+const report = await runRetrievalEval({ searchResources, cases, k: golden.k || 5, isInScope: isResultInScope });
 report.provider = provider;
 
 const fmt = (value) => (value === null || value === undefined ? "n/a" : value.toFixed(3));

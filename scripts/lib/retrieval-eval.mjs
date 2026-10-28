@@ -23,9 +23,12 @@ function percentile(values, p) {
   return sorted[Math.max(0, index)];
 }
 
-function isOffScope(result, testCase) {
+// `isInScope(result, filters)` (when given) applies the server's own
+// product/edition/platform matching so cross-platform leakage is counted too.
+function isOffScope(result, testCase, isInScope) {
   const product = testCase.filters?.product;
   if (product && result.product !== product) return true;
+  if (isInScope && !isInScope(result, testCase.filters || {})) return true;
   const prefixes = testCase.allowedUrlPrefixes;
   if (Array.isArray(prefixes) && prefixes.length > 0 && result.url) {
     return !prefixes.some((prefix) => String(result.url).startsWith(prefix));
@@ -37,7 +40,7 @@ function isReleaseNotes(result) {
   return /\/release-notes?\//i.test(String(result.url || ""));
 }
 
-function scoreCase(testCase, results, k) {
+function scoreCase(testCase, results, k, isInScope) {
   const relevant = new Map(
     Object.entries(testCase.relevant || {}).map(([url, grade]) => [normalizeUrl(url), Number(grade) || 0])
   );
@@ -63,7 +66,7 @@ function scoreCase(testCase, results, k) {
     requiredHit: required.length ? requiredFound.length === required.length : null,
     requiredMissing: required.filter((url) => !found.has(url)),
     duplicates,
-    offScope: top.filter((result) => isOffScope(result, testCase)).length,
+    offScope: top.filter((result) => isOffScope(result, testCase, isInScope)).length,
     releaseNotes: top.filter(isReleaseNotes).length,
     returned: top.length,
     top: top.map((result, index) => ({
@@ -104,7 +107,7 @@ function summarize(caseScores, latencies) {
   };
 }
 
-async function runRetrievalEval({ searchResources, cases, k = 5 }) {
+async function runRetrievalEval({ searchResources, cases, k = 5, isInScope }) {
   const caseScores = [];
   const latencies = [];
   for (const testCase of cases) {
@@ -112,7 +115,7 @@ async function runRetrievalEval({ searchResources, cases, k = 5 }) {
     const results = await searchResources({ query: testCase.query, ...(testCase.filters || {}), limit: k });
     const latencyMs = performance.now() - startedAt;
     latencies.push(latencyMs);
-    caseScores.push({ ...scoreCase(testCase, results, k), latencyMs });
+    caseScores.push({ ...scoreCase(testCase, results, k, isInScope), latencyMs });
   }
   return { k, summary: summarize(caseScores, latencies), cases: caseScores };
 }
