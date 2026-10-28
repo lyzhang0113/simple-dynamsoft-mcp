@@ -70,15 +70,25 @@ TLS is provided by Azure on the default ACA domain.
 
 ## Request Logs
 
-The server writes JSON lines to stderr, which ACA ships to the Log Analytics workspace. Every `tools/call` and `resources/read` produces one entry with `component="mcp"`, `event="tool_call"` or `"resource_read"`, and:
+Each `tools/call` and `resources/read` is logged twice:
 
-- `tool` + `arguments` (tool calls) or `uri` (resource reads)
-- `response` (the result sent to the client) or `error` (JSON-RPC errors), plus `is_error` and `duration_ms`
-- `transport`, `request_id`, `user_agent`, and (opt-in) a client identity field
+- **Console (stderr -> Log Analytics):** a one-line summary with `component="mcp"`, `event="tool_call"` or `"resource_read"`, `transport`, `request_id`, `tool` or `uri`, `is_error`, `error` (JSON-RPC errors), `duration_ms`, and `response_chars`. No arguments, response bodies, or caller identity.
+- **Detailed file (`MCP_REQUEST_LOG_DIR`):** the same fields plus `arguments`, the full `response`, `user_agent`, and the opt-in client identity field. Deploys set `MCP_REQUEST_LOG_DIR=/mnt/mcp-cache/request-logs` on the Azure Files cache share.
 
-`arguments` and `response` are truncated to `MCP_LOG_MAX_FIELD_CHARS` (default 8000 JSON chars) as `{truncated, original_chars, preview}`; `uri`, `tool`, `request_id`, and error messages are capped at 1024 chars. This keeps each line below the container runtime's 16 KB line split.
+Detailed files are `requests-<YYYY-MM-DD>-<host>.jsonl` (UTC day, one JSON object per line, one file per replica). Files older than `MCP_REQUEST_LOG_RETENTION_DAYS` (default 30) are deleted when a new day's file opens. `request-logs/` is not a version directory, so cache cleanup (`cleanup-azure-cache.yml`) leaves it alone. Write failures are reported on stderr as `component="request-log"`, `event="file_write_failed"` and never fail a request.
 
-Client IP handling (`MCP_LOG_CLIENT_IP`, personal data, so opt-in):
+Responses are stored whole by default; set `MCP_LOG_MAX_FIELD_CHARS` to cap `arguments`/`response` as `{truncated, original_chars, preview}`. `uri`, `tool`, `request_id`, and error messages are always capped at 1024 chars.
+
+Reading the detailed logs:
+
+```bash
+az storage file list --account-name <storage-account> --share-name mcp-cache --path request-logs -o table
+az storage file download --account-name <storage-account> --share-name mcp-cache \
+  --path request-logs/requests-2026-10-28-<replica>.jsonl --dest ./requests.jsonl
+jq -c 'select(.tool == "search") | {ts, query: .arguments.query, is_error}' requests.jsonl
+```
+
+Client IP handling (`MCP_LOG_CLIENT_IP`, personal data, so opt-in; written to the detailed file only):
 
 - `off` (default): no IP-derived field.
 - `hash`: `client_id`, a salted HMAC. Groups requests per caller without storing the IP. Set `MCP_LOG_IP_SALT` (as an ACA secret) for ids that survive restarts; otherwise a per-process salt is used and ids change on each cold start (`minReplicas=0`).
@@ -86,14 +96,13 @@ Client IP handling (`MCP_LOG_CLIENT_IP`, personal data, so opt-in):
 
 On ACA the socket peer is the ingress proxy, so also set `MCP_LOG_TRUST_PROXY=true` to use the right-most `X-Forwarded-For` entry (appended by ACA ingress). Leave it unset when the server is reachable directly, since clients can then forge the header. Clients that call through a hosted agent (e.g. a chatbot platform) appear as that platform's egress IP, not the end user's.
 
-Example query (column is `Log_s` in `ContainerAppConsoleLogs_CL`; `Log` in the resource-specific `ContainerAppConsoleLogs` table):
+Console summary query (column is `Log_s` in `ContainerAppConsoleLogs_CL`; `Log` in the resource-specific `ContainerAppConsoleLogs` table):
 
 ```kusto
 ContainerAppConsoleLogs_CL
 | extend e = parse_json(Log_s)
 | where e.component == "mcp"
-| project TimeGenerated, event = tostring(e.event), tool = tostring(e.tool),
-          arguments = e.arguments, is_error = tobool(e.is_error),
-          duration_ms = toint(e.duration_ms), client_id = tostring(e.client_id), response = e.response
+| project TimeGenerated, event = tostring(e.event), tool = tostring(e.tool), uri = tostring(e.uri),
+          is_error = tobool(e.is_error), duration_ms = toint(e.duration_ms), response_chars = toint(e.response_chars)
 | order by TimeGenerated desc
 ```

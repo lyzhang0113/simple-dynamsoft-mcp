@@ -35,12 +35,22 @@ function fakeClock(...times) {
   return () => times[Math.min(index++, times.length - 1)];
 }
 
-test("logs tools/call arguments, response, duration, and context; delivers messages unchanged", async (t) => {
+function createFakeFile() {
+  const entries = [];
+  return { entries, write: (entry) => entries.push(JSON.parse(JSON.stringify(entry))) };
+}
+
+test("stderr gets a summary while the file gets arguments, full response, and context", async (t) => {
   const readLogs = captureLogs(t);
+  const file = createFakeFile();
   const transport = createFakeTransport();
   const received = [];
   transport.onmessage = (message) => received.push(message);
-  attachRequestLogging(transport, { transport: "http", client_id: "abc" }, { env: {}, now: fakeClock(1000, 1042) });
+  attachRequestLogging(
+    transport,
+    { transport: "http", client_id: "abc", user_agent: "agent/1" },
+    { env: {}, now: fakeClock(1000, 1042), file }
+  );
 
   const request = {
     jsonrpc: "2.0",
@@ -54,26 +64,42 @@ test("logs tools/call arguments, response, duration, and context; delivers messa
 
   assert.deepEqual(received, [request], "the original message handler must still run");
   assert.deepEqual(transport.sent, [response], "the response must still be sent");
-  const logs = readLogs();
-  assert.equal(logs.length, 1);
-  const [entry] = logs;
-  assert.equal(entry.component, "mcp");
-  assert.equal(entry.event, "tool_call");
-  assert.equal(entry.level, "info");
-  assert.equal(entry.transport, "http");
-  assert.equal(entry.client_id, "abc");
-  assert.equal(entry.request_id, 7);
-  assert.equal(entry.tool, "search");
-  assert.deepEqual(entry.arguments, { query: "scan a barcode", product: "dbr" });
-  assert.equal(entry.duration_ms, 42);
-  assert.equal(entry.is_error, false);
-  assert.deepEqual(entry.response, response.result);
+
+  const [summary, ...extraLogs] = readLogs();
+  assert.deepEqual(extraLogs, []);
+  const { ts: summaryTs, ...summaryFields } = summary;
+  assert.ok(summaryTs);
+  assert.deepEqual(summaryFields, {
+    level: "info",
+    component: "mcp",
+    event: "tool_call",
+    transport: "http",
+    request_id: 7,
+    tool: "search",
+    duration_ms: 42,
+    is_error: false,
+    response_chars: JSON.stringify(response.result).length
+  }, "stderr must not carry arguments, response bodies, or caller identity");
+
+  assert.equal(file.entries.length, 1);
+  const [detail] = file.entries;
+  assert.equal(detail.component, "mcp");
+  assert.equal(detail.event, "tool_call");
+  assert.equal(detail.client_id, "abc");
+  assert.equal(detail.user_agent, "agent/1");
+  assert.equal(detail.request_id, 7);
+  assert.equal(detail.tool, "search");
+  assert.deepEqual(detail.arguments, { query: "scan a barcode", product: "dbr" });
+  assert.equal(detail.duration_ms, 42);
+  assert.equal(detail.is_error, false);
+  assert.deepEqual(detail.response, response.result);
 });
 
 test("flags tool results with isError and JSON-RPC errors for resources/read", async (t) => {
   const readLogs = captureLogs(t);
+  const file = createFakeFile();
   const transport = createFakeTransport();
-  attachRequestLogging(transport, { transport: "stdio" }, { env: {} });
+  attachRequestLogging(transport, { transport: "stdio" }, { env: {}, file });
 
   transport.onmessage({ jsonrpc: "2.0", id: "a", method: "tools/call", params: { name: "read_document", arguments: { uri: "https://x" } } });
   await transport.send({ jsonrpc: "2.0", id: "a", result: { isError: true, content: [{ type: "text", text: "Unsupported URI" }] } });
@@ -88,17 +114,23 @@ test("flags tool results with isError and JSON-RPC errors for resources/read", a
   assert.equal(resourceEntry.event, "resource_read");
   assert.equal(resourceEntry.uri, "doc://dwt/web/web/19/x");
   assert.equal(resourceEntry.tool, undefined);
-  assert.equal(resourceEntry.arguments, undefined);
   assert.equal(resourceEntry.level, "warn");
   assert.equal(resourceEntry.is_error, true);
   assert.deepEqual(resourceEntry.error, { code: -32603, message: "Resource not found" });
-  assert.equal(resourceEntry.response, undefined);
+  assert.equal(resourceEntry.response_chars, undefined);
+
+  const resourceDetail = file.entries[1];
+  assert.equal(resourceDetail.level, "warn");
+  assert.equal(resourceDetail.arguments, undefined);
+  assert.equal(resourceDetail.response, undefined);
+  assert.deepEqual(resourceDetail.error, { code: -32603, message: "Resource not found" });
 });
 
 test("does not log other methods, notifications, or unmatched responses", async (t) => {
   const readLogs = captureLogs(t);
+  const file = createFakeFile();
   const transport = createFakeTransport();
-  attachRequestLogging(transport, {}, { env: {} });
+  attachRequestLogging(transport, {}, { env: {}, file });
 
   transport.onmessage({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} });
   await transport.send({ jsonrpc: "2.0", id: 1, result: { tools: [] } });
@@ -107,45 +139,48 @@ test("does not log other methods, notifications, or unmatched responses", async 
   await transport.send({ jsonrpc: "2.0", method: "notifications/message", params: {} });
 
   assert.deepEqual(readLogs(), []);
+  assert.deepEqual(file.entries, []);
   assert.equal(transport.sent.length, 3);
 });
 
-test("truncates oversized fields to MCP_LOG_MAX_FIELD_CHARS and 0 disables the limit", async (t) => {
-  const readLogs = captureLogs(t);
-  const bigText = "x".repeat(500);
-  const result = { content: [{ type: "text", text: bigText }] };
-
-  const limited = createFakeTransport();
-  attachRequestLogging(limited, {}, { env: { MCP_LOG_MAX_FIELD_CHARS: "100" } });
-  limited.onmessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_sample_files", arguments: { sample_id: "y".repeat(200) } } });
-  await limited.send({ jsonrpc: "2.0", id: 1, result });
+test("file detail is untruncated by default and MCP_LOG_MAX_FIELD_CHARS caps it", async (t) => {
+  captureLogs(t);
+  const file = createFakeFile();
+  const result = { content: [{ type: "text", text: "x".repeat(50000) }] };
 
   const unlimited = createFakeTransport();
-  attachRequestLogging(unlimited, {}, { env: { MCP_LOG_MAX_FIELD_CHARS: "0" } });
+  attachRequestLogging(unlimited, {}, { env: {}, file });
   unlimited.onmessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_sample_files", arguments: {} } });
   await unlimited.send({ jsonrpc: "2.0", id: 1, result });
 
-  const [limitedEntry, unlimitedEntry] = readLogs();
+  const limited = createFakeTransport();
+  attachRequestLogging(limited, {}, { env: { MCP_LOG_MAX_FIELD_CHARS: "100" }, file });
+  limited.onmessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_sample_files", arguments: { sample_id: "y".repeat(200) } } });
+  await limited.send({ jsonrpc: "2.0", id: 1, result });
+
+  const [unlimitedEntry, limitedEntry] = file.entries;
+  assert.deepEqual(unlimitedEntry.response, result);
   assert.equal(limitedEntry.response.truncated, true);
   assert.equal(limitedEntry.response.original_chars, JSON.stringify(result).length);
   assert.equal(limitedEntry.response.preview.length, 100);
   assert.equal(limitedEntry.arguments.truncated, true);
-  assert.deepEqual(unlimitedEntry.response, result);
 });
 
 test("MCP_LOG_REQUESTS=false disables request logging", async (t) => {
   const readLogs = captureLogs(t);
+  const file = createFakeFile();
   const transport = createFakeTransport();
-  attachRequestLogging(transport, {}, { env: { MCP_LOG_REQUESTS: "false" } });
+  attachRequestLogging(transport, {}, { env: { MCP_LOG_REQUESTS: "false" }, file });
   transport.onmessage?.({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "search", arguments: {} } });
   await transport.send({ jsonrpc: "2.0", id: 1, result: { content: [] } });
   assert.deepEqual(readLogs(), []);
+  assert.deepEqual(file.entries, []);
 });
 
 test("caps caller-controlled uri and request id so one entry stays bounded", async (t) => {
   const readLogs = captureLogs(t);
   const transport = createFakeTransport();
-  attachRequestLogging(transport, {}, { env: {} });
+  attachRequestLogging(transport, {}, { env: {}, file: null });
   const longId = "i".repeat(5000);
   const longUri = `doc://${"u".repeat(50000)}`;
   transport.onmessage({ jsonrpc: "2.0", id: longId, method: "resources/read", params: { uri: longUri } });

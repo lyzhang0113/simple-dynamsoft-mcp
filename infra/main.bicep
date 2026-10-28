@@ -219,6 +219,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               value: 'info'
             }
             {
+              name: 'MCP_REQUEST_LOG_DIR'
+              value: '/mnt/mcp-cache/request-logs'
+            }
+            {
               name: 'RAG_CACHE_DIR'
               value: '/mnt/mcp-cache/bootstrap/rag/cache'
             }

@@ -2,6 +2,7 @@ import { createServer as createHttpServer } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { logEvent } from "../../observability/logging.js";
 import { attachRequestLogging, buildHttpRequestContext } from "../../observability/request-logging.js";
+import { closeRequestLogFile } from "../../observability/request-log-file.js";
 
 async function startHttpServer({
   host,
@@ -112,6 +113,7 @@ async function startHttpServer({
     await new Promise((resolve) => {
       httpServer.close(() => resolve());
     });
+    await closeRequestLogFile();
     process.exit(0);
   };
 

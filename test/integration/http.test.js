@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   RUN_GEMINI_PROVIDER_TESTS,
   assertRequestLogs,
+  cleanupDir,
   assertStructuredDataStartupMode,
   connectStreamableClientWithRetry,
   findLogEvents,
@@ -15,7 +19,8 @@ import {
 
 async function runHttpScenario(provider, { fallback = "none", extraEnv = {} } = {}) {
   const port = await getFreePort();
-  const env = resolveServerEnv({ provider, fallback, extra: extraEnv });
+  const requestLogDir = mkdtempSync(join(tmpdir(), "mcp-request-logs-http-"));
+  const env = resolveServerEnv({ provider, fallback, extra: { MCP_REQUEST_LOG_DIR: requestLogDir, ...extraEnv } });
   const server = startNativeHttpServer({
     port,
     env
@@ -46,12 +51,13 @@ async function runHttpScenario(provider, { fallback = "none", extraEnv = {} } = 
       findLogEvents(output, "startup", "stage").some((entry) => entry.stage === "http_listener_ready"),
       "Expected startup stage timing logs from native HTTP server output"
     );
-    await assertRequestLogs(() => server.getLogs().stderr, "http");
+    await assertRequestLogs(() => server.getLogs().stderr, requestLogDir, "http");
   } finally {
     if (transport) {
       await transport.close();
     }
     await server.stop();
+    cleanupDir(requestLogDir);
   }
 }
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -107,39 +107,56 @@ function assertStructuredDataStartupMode(stderr, expectedMode = "") {
   }
 }
 
-// Verifies the per-request log for the search -> read_document flow exercised by
-// runCoreAssertions: parameters, response, and caller context are recorded.
-async function assertRequestLogs(getOutput, expectedTransport) {
-  const searchLog = await waitForLogEvent(
-    getOutput,
+function readRequestLogDir(dir) {
+  if (!existsSync(dir)) return "";
+  return readdirSync(dir)
+    .filter((name) => /^requests-\d{4}-\d{2}-\d{2}-.+\.jsonl$/.test(name))
+    .map((name) => readFileSync(join(dir, name), "utf8"))
+    .join("\n");
+}
+
+// Verifies the per-request logs for the search -> read_document flow exercised
+// by runCoreAssertions: stderr carries only a summary, while the file in
+// requestLogDir carries arguments, the full response, and caller context.
+async function assertRequestLogs(getOutput, requestLogDir, expectedTransport) {
+  const searchSummary = await waitForLogEvent(getOutput, "mcp", "tool_call", (entry) => entry.tool === "search");
+  assert.ok(searchSummary, "Expected a tool_call summary on stderr for search");
+  assert.equal(searchSummary.transport, expectedTransport);
+  assert.equal(typeof searchSummary.duration_ms, "number");
+  assert.equal(typeof searchSummary.response_chars, "number");
+  for (const field of ["arguments", "response", "user_agent", "client_id", "client_ip"]) {
+    assert.equal(searchSummary[field], undefined, `stderr summary must not include ${field}`);
+  }
+  const resourceSummary = await waitForLogEvent(getOutput, "mcp", "resource_read");
+  assert.ok(resourceSummary, "Expected a resource_read summary on stderr");
+  assert.match(resourceSummary.uri, /^(doc|sample):\/\//);
+
+  const readFile = () => readRequestLogDir(requestLogDir);
+  const searchDetail = await waitForLogEvent(
+    readFile,
     "mcp",
     "tool_call",
     (entry) => entry.tool === "search" && entry.arguments?.query === "basic-scan"
   );
-  assert.ok(searchLog, "Expected a tool_call log entry for search");
-  assert.equal(searchLog.transport, expectedTransport);
-  assert.equal(searchLog.is_error, false);
-  assert.equal(typeof searchLog.duration_ms, "number");
-  assert.ok(Array.isArray(searchLog.response?.content), "search log should include the response content");
+  assert.ok(searchDetail, "Expected a detailed search entry in the request log file");
+  assert.equal(searchDetail.transport, expectedTransport);
+  assert.equal(searchDetail.is_error, false);
+  assert.ok(Array.isArray(searchDetail.response?.content), "file entry should include the response content");
 
-  const readLog = await waitForLogEvent(
-    getOutput,
+  const readDetail = await waitForLogEvent(
+    readFile,
     "mcp",
     "tool_call",
     (entry) => entry.tool === "read_document" && entry.is_error === false
   );
-  assert.ok(readLog, "Expected a tool_call log entry for read_document");
-  assert.match(readLog.arguments.uri, /^doc:\/\//);
-  assert.ok(readLog.response, "read_document log should include the (possibly truncated) response");
+  assert.ok(readDetail, "Expected a detailed read_document entry in the request log file");
+  assert.match(readDetail.arguments.uri, /^doc:\/\//);
+  assert.match(readDetail.response.content[0].text, /\*\*URL:\*\* https:\/\//, "file entry keeps the full document text");
 
-  const resourceLog = await waitForLogEvent(getOutput, "mcp", "resource_read");
-  assert.ok(resourceLog, "Expected a resource_read log entry");
-  assert.match(resourceLog.uri, /^(doc|sample):\/\//);
-
-  assert.equal(searchLog.client_id, undefined, "IP-derived fields are opt-in");
-  assert.equal(searchLog.client_ip, undefined, "IP-derived fields are opt-in");
+  assert.equal(searchDetail.client_id, undefined, "IP-derived fields are opt-in");
+  assert.equal(searchDetail.client_ip, undefined, "IP-derived fields are opt-in");
   if (expectedTransport === "http") {
-    assert.ok(searchLog.user_agent, "http request logs should include the user agent");
+    assert.ok(searchDetail.user_agent, "http file entries should include the user agent");
   }
 }
 

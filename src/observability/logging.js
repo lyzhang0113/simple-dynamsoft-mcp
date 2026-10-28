@@ -48,11 +48,7 @@ function serializeLogEntry(entry) {
   }
 }
 
-function logEvent(component, event, fields = {}, options = {}) {
-  const level = normalizeEnvValue(options.level || "info") || "info";
-  const verbose = isVerboseLoggingEnabled(options.env);
-  if (level === "debug" && !verbose) return;
-
+function createLogEntry(component, event, fields = {}, level = "info") {
   const entry = {
     ts: new Date().toISOString(),
     level,
@@ -64,12 +60,21 @@ function logEvent(component, event, fields = {}, options = {}) {
     if (RESERVED_KEYS.has(key)) continue;
     entry[key] = value;
   }
+  return entry;
+}
 
-  console.error(serializeLogEntry(entry));
+function logEvent(component, event, fields = {}, options = {}) {
+  const level = normalizeEnvValue(options.level || "info") || "info";
+  const verbose = isVerboseLoggingEnabled(options.env);
+  if (level === "debug" && !verbose) return;
+
+  console.error(serializeLogEntry(createLogEntry(component, event, fields, level)));
 }
 
 export {
+  createLogEntry,
   isVerboseLoggingEnabled,
   latencyBucket,
-  logEvent
+  logEvent,
+  serializeLogEntry
 };

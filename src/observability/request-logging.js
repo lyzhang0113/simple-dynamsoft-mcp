@@ -1,5 +1,6 @@
 import { createHmac, randomBytes } from "node:crypto";
-import { logEvent } from "./logging.js";
+import { createLogEntry, logEvent } from "./logging.js";
+import { getRequestLogFile } from "./request-log-file.js";
 
 // JSON-RPC methods whose parameters and responses are logged. These are the
 // user-driven operations worth reviewing (what was asked, what was returned).
@@ -8,7 +9,9 @@ const LOGGED_METHODS = new Map([
   ["resources/read", "resource_read"]
 ]);
 
-const DEFAULT_MAX_FIELD_CHARS = 8000;
+// Detailed entries go to disk, so arguments/responses are kept whole unless
+// MCP_LOG_MAX_FIELD_CHARS sets a cap.
+const DEFAULT_MAX_FIELD_CHARS = 0;
 const MAX_PENDING_REQUESTS = 1000;
 const MAX_USER_AGENT_CHARS = 256;
 // Cap for caller-controlled scalars (uri, tool name, JSON-RPC id).
@@ -43,8 +46,7 @@ function resolveClientIpMode(env = process.env) {
   return CLIENT_IP_MODES.has(mode) ? mode : "off";
 }
 
-// Keeps log lines bounded: container runtimes split long stderr lines, which
-// breaks JSON parsing downstream. 0 disables the limit.
+// Bounds a logged value when a cap is configured. 0 disables the limit.
 function limitForLog(value, maxChars) {
   if (value === undefined || !maxChars) return value;
   let text;
@@ -117,11 +119,25 @@ function isResponse(message) {
     && ("result" in message || "error" in message);
 }
 
-// Logs one entry per tools/call or resources/read: request parameters, the
-// response sent back, duration, and the caller context. Hooks the transport so
-// every tool and resource handler is covered without per-handler code.
-// Safe to call before or after server.connect(transport).
-function attachRequestLogging(transport, context = {}, { env = process.env, now = Date.now } = {}) {
+function jsonLength(value) {
+  try {
+    return JSON.stringify(value)?.length ?? 0;
+  } catch {
+    return undefined;
+  }
+}
+
+// One entry per tools/call or resources/read. stderr gets a short summary
+// (what was called, outcome, duration, response size). The detailed entry
+// (arguments, full response, caller context) is appended to the request log
+// file when MCP_REQUEST_LOG_DIR is set. Hooks the transport so every tool and
+// resource handler is covered without per-handler code. Safe to call before or
+// after server.connect(transport).
+function attachRequestLogging(transport, context = {}, {
+  env = process.env,
+  now = Date.now,
+  file = getRequestLogFile(env)
+} = {}) {
   if (!isRequestLoggingEnabled(env)) return transport;
   const maxChars = resolveMaxFieldChars(env);
   const pending = new Map();
@@ -146,17 +162,28 @@ function attachRequestLogging(transport, context = {}, { env = process.env, now 
       const params = request.params;
       const isToolCall = request.event === "tool_call";
       const rpcError = message.error;
-      logEvent("mcp", request.event, {
-        ...context,
+      const level = rpcError ? "warn" : "info";
+      const summary = {
+        transport: context.transport,
         request_id: capScalar(message.id),
         tool: isToolCall ? capScalar(params.name) : undefined,
         uri: isToolCall ? undefined : capScalar(params.uri),
-        arguments: isToolCall ? limitForLog(params.arguments || {}, maxChars) : undefined,
         duration_ms: now() - request.startedAt,
         is_error: Boolean(rpcError) || message.result?.isError === true,
-        error: rpcError ? { code: rpcError.code, message: capScalar(rpcError.message) } : undefined,
+        error: rpcError ? { code: rpcError.code, message: capScalar(rpcError.message) } : undefined
+      };
+
+      logEvent("mcp", request.event, {
+        ...summary,
+        response_chars: rpcError ? undefined : jsonLength(message.result)
+      }, { level });
+
+      file?.write(createLogEntry("mcp", request.event, {
+        ...context,
+        ...summary,
+        arguments: isToolCall ? limitForLog(params.arguments || {}, maxChars) : undefined,
         response: rpcError ? undefined : limitForLog(message.result, maxChars)
-      }, { level: rpcError ? "warn" : "info" });
+      }, level));
     }
     return originalSend(message, options);
   };
