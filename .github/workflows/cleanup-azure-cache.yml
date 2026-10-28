@@ -23,6 +23,11 @@ on:
         required: false
         type: string
         default: ""
+      dry_run:
+        description: "List what would be deleted (azcopy --dry-run) without deleting anything. Combine with target_version to test one directory."
+        required: false
+        type: boolean
+        default: false
   schedule:
     # Weekly safety net in case dispatched cleanups are skipped or fail.
     - cron: "37 4 * * 1"
@@ -55,6 +60,7 @@ jobs:
           INPUT_TARGET_VERSION: ${{ github.event.inputs.target_version || '' }}
           INPUT_STORAGE_ACCOUNT: ${{ github.event.inputs.storage_account || '' }}
           INPUT_CACHE_SHARE: ${{ github.event.inputs.cache_share || '' }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
           REPO_STORAGE_ACCOUNT: ${{ vars.AZURE_CACHE_STORAGE_ACCOUNT }}
           REPO_CACHE_SHARE: ${{ vars.AZURE_CACHE_FILE_SHARE }}
         run: |
@@ -91,6 +97,7 @@ jobs:
           echo "target_version=$target_version" >> "$GITHUB_OUTPUT"
           echo "storage_account=$storage_account" >> "$GITHUB_OUTPUT"
           echo "cache_share=$cache_share" >> "$GITHUB_OUTPUT"
+          echo "dry_run=${INPUT_DRY_RUN:-false}" >> "$GITHUB_OUTPUT"
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -221,8 +228,9 @@ jobs:
           # Deleting file by file with `az storage file delete` costs one CLI
           # process and REST round trip per file and directory (~1 s each); a
           # single version holds ~9k entries, so cleanup could never keep up.
-          # `azcopy remove --recursive` enumerates and deletes server-side in
-          # parallel. AzCopy is preinstalled on ubuntu-latest runners.
+          # `azcopy remove --recursive` enumerates the directory from the runner
+          # and issues many delete requests concurrently in one process, instead
+          # of one CLI process per entry. AzCopy is preinstalled on ubuntu-latest.
           sas_expiry="$(date -u -d '+3 hours' '+%Y-%m-%dT%H:%MZ')"
           if ! sas="$(timeout -k 30s 180s az storage share generate-sas \
             --name "$share" \
@@ -256,11 +264,50 @@ jobs:
             [[ "$exists" == "true" ]]
           }
 
+          dry_run="${{ steps.vars.outputs.dry_run }}"
           deadline_seconds=$((105 * 60))
           started_at="$SECONDS"
           deleted=()
           failed=()
           skipped=()
+          previewed=()
+
+          if [[ "$dry_run" == "true" ]]; then
+            echo "Dry run: listing what azcopy would delete; nothing is removed."
+            for dir in "${delete_versions[@]}"; do
+              echo "::group::Dry run for cache directory ${dir}"
+              preview_file="$RUNNER_TEMP/dry-run-${dir}.txt"
+              if timeout -k 30s 30m azcopy remove \
+                "https://${account}.file.core.windows.net/${share}/${dir}?${sas}" \
+                --recursive=true \
+                --from-to=FileTrash \
+                --dry-run \
+                --log-level=ERROR > "$preview_file"; then
+                entries="$(grep -c "DRYRUN" "$preview_file" || true)"
+                head -n 20 "$preview_file"
+                previewed+=("${dir} (${entries} entries)")
+                echo "Dry run for ${dir}: ${entries} entries would be removed."
+              else
+                cat "$preview_file"
+                failed+=("$dir")
+                echo "::error::azcopy dry run failed for ${dir}"
+              fi
+              echo "::endgroup::"
+            done
+            {
+              echo "## Azure Files cache cleanup (dry run, nothing deleted)"
+              echo ""
+              echo "- share: \`${share}\`"
+              echo "- kept: \`${keep_versions[*]:-<none>}\`"
+              echo "- would delete (${#previewed[@]}): ${previewed[*]:-<none>}"
+              echo "- failed (${#failed[@]}): \`${failed[*]:-<none>}\`"
+              echo "- duration: $((SECONDS - started_at))s"
+            } >> "$GITHUB_STEP_SUMMARY"
+            if (( ${#failed[@]} > 0 )); then
+              exit 1
+            fi
+            exit 0
+          fi
 
           for dir in "${delete_versions[@]}"; do
             if (( SECONDS - started_at >= deadline_seconds )); then
