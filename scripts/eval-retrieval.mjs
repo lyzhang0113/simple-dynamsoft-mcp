@@ -55,7 +55,8 @@ const s = report.summary;
 console.log(`\nprovider=${provider} cases=${s.cases} (gap=${s.gapCases}) k=${report.k}`);
 console.log(`recall@${report.k}=${fmt(s.recallAtK)} mrr=${fmt(s.mrr)} ndcg@${report.k}=${fmt(s.ndcgAtK)} required_hit=${fmt(s.requiredHitRate)}`);
 console.log(`duplicate_rate=${fmt(s.duplicateRate)} off_scope_rate=${fmt(s.offScopeRate)} release_notes_rate=${fmt(s.releaseNotesRate)}`);
-console.log(`latency_ms first=${s.latencyMs.first.toFixed(0)} p50_warm=${s.latencyMs.p50Warm.toFixed(0)} p95_warm=${s.latencyMs.p95Warm.toFixed(0)}`);
+const lat = s.latencyMs;
+console.log(`latency_ms first_query=${lat.firstQuery.toFixed(0)} first_pass p50=${lat.p50FirstPass.toFixed(0)} p95=${lat.p95FirstPass.toFixed(0)} | warm p50=${lat.p50Warm.toFixed(0)} p95=${lat.p95Warm.toFixed(0)}`);
 
 if (args.json) {
   writeFileSync(args.json, JSON.stringify(report, null, 2));

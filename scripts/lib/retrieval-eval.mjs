@@ -86,7 +86,7 @@ function mean(values) {
   return present.reduce((sum, value) => sum + value, 0) / present.length;
 }
 
-function summarize(caseScores, latencies) {
+function summarize(caseScores, firstPass, warmPass) {
   const totalReturned = caseScores.reduce((sum, item) => sum + item.returned, 0) || 1;
   const required = caseScores.filter((item) => item.requiredHit !== null);
   return {
@@ -99,25 +99,35 @@ function summarize(caseScores, latencies) {
     duplicateRate: caseScores.reduce((sum, item) => sum + item.duplicates, 0) / totalReturned,
     offScopeRate: caseScores.reduce((sum, item) => sum + item.offScope, 0) / totalReturned,
     releaseNotesRate: caseScores.reduce((sum, item) => sum + item.releaseNotes, 0) / totalReturned,
+    // First pass pays index loading and per-scope index builds; the warm pass
+    // repeats the same queries, so it reflects steady-state search cost.
     latencyMs: {
-      first: latencies[0] ?? 0,
-      p50Warm: percentile(latencies.slice(1), 50),
-      p95Warm: percentile(latencies.slice(1), 95)
+      firstQuery: firstPass[0] ?? 0,
+      p50FirstPass: percentile(firstPass, 50),
+      p95FirstPass: percentile(firstPass, 95),
+      p50Warm: percentile(warmPass, 50),
+      p95Warm: percentile(warmPass, 95)
     }
   };
 }
 
 async function runRetrievalEval({ searchResources, cases, k = 5, isInScope }) {
   const caseScores = [];
-  const latencies = [];
+  const firstPass = [];
+  const warmPass = [];
   for (const testCase of cases) {
     const startedAt = performance.now();
     const results = await searchResources({ query: testCase.query, ...(testCase.filters || {}), limit: k });
     const latencyMs = performance.now() - startedAt;
-    latencies.push(latencyMs);
+    firstPass.push(latencyMs);
     caseScores.push({ ...scoreCase(testCase, results, k, isInScope), latencyMs });
   }
-  return { k, summary: summarize(caseScores, latencies), cases: caseScores };
+  for (const testCase of cases) {
+    const startedAt = performance.now();
+    await searchResources({ query: testCase.query, ...(testCase.filters || {}), limit: k });
+    warmPass.push(performance.now() - startedAt);
+  }
+  return { k, summary: summarize(caseScores, firstPass, warmPass), cases: caseScores };
 }
 
 export { normalizeUrl, scoreCase, summarize, runRetrievalEval };
