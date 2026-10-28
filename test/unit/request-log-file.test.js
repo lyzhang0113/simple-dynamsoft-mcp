@@ -98,7 +98,8 @@ test("an unwritable directory reports one error per day and never throws", async
   assert.equal(failures[0].level, "error");
 });
 
-// Stand-in for an fs.WriteStream on a volume whose flushes the test controls.
+// Stand-in for an fs.WriteStream on a volume whose flushes the test controls:
+// written bytes stay queued until flush(); end() closes once flushed.
 function createFakeStreamFactory() {
   const streams = [];
   const open = (path) => {
@@ -107,6 +108,7 @@ function createFakeStreamFactory() {
       path,
       lines: [],
       writableLength: 0,
+      ending: false,
       closed: false,
       destroyed: false,
       write(line) {
@@ -114,13 +116,22 @@ function createFakeStreamFactory() {
         this.writableLength += Buffer.byteLength(line);
         return true;
       },
+      flush() {
+        this.writableLength = 0;
+        if (this.ending) this.finishClose();
+      },
       end() {
-        this.emit("finish");
+        this.ending = true;
+        if (this.writableLength === 0) this.finishClose();
+      },
+      finishClose() {
+        if (this.closed) return;
         this.closed = true;
         this.emit("close");
       },
       destroy() {
         this.destroyed = true;
+        this.finishClose();
       }
     });
     streams.push(stream);
@@ -133,37 +144,81 @@ function stderrEvents(lines, event) {
   return lines.map((line) => JSON.parse(line)).filter((entry) => entry.event === event);
 }
 
+const ENTRY = { event: "tool_call", pad: "x".repeat(30) };
+const ENTRY_BYTES = Buffer.byteLength(`${JSON.stringify(ENTRY)}\n`);
+
 test("a stalled volume drops entries past the buffer cap and reports dropping and resuming once", (t) => {
   const stderr = silenceStderr(t);
   const { streams, open } = createFakeStreamFactory();
-  const entry = { event: "tool_call", pad: "x".repeat(30) };
-  const lineBytes = Buffer.byteLength(`${JSON.stringify(entry)}\n`);
   const file = createRequestLogFile({
     dir: tempDir(t),
     host: "h",
     now: () => Date.parse("2026-10-28T12:00:00Z"),
-    maxBufferedBytes: lineBytes * 2,
+    maxBufferedBytes: ENTRY_BYTES * 2,
     openStream: open
   });
 
-  for (let i = 0; i < 5; i += 1) file.write(entry);
+  for (let i = 0; i < 5; i += 1) file.write(ENTRY);
   const [stream] = streams;
   assert.equal(stream.lines.length, 2, "only entries that fit under the cap are queued");
-  assert.ok(stream.writableLength <= lineBytes * 2);
 
   const dropping = stderrEvents(stderr, "file_backpressure_dropping");
   assert.equal(dropping.length, 1, "dropping is reported once per stall");
-  assert.equal(dropping[0].limit_bytes, lineBytes * 2);
+  assert.equal(dropping[0].limit_bytes, ENTRY_BYTES * 2);
 
-  stream.writableLength = 0;
-  stream.emit("drain");
+  stream.flush();
+  file.write(ENTRY);
+  assert.equal(stream.lines.length, 3, "writes resume once the queue drains");
   const resumed = stderrEvents(stderr, "file_backpressure_resumed");
   assert.equal(resumed.length, 1);
   assert.equal(resumed[0].dropped_entries, 3);
+});
 
-  file.write(entry);
-  assert.equal(stream.lines.length, 3, "writes resume after the buffer drains");
-  assert.equal(stderrEvents(stderr, "file_backpressure_resumed").length, 1);
+test("the cap covers a stalled rotated-out stream, so rotation does not grant a fresh budget", (t) => {
+  const stderr = silenceStderr(t);
+  const { streams, open } = createFakeStreamFactory();
+  let clock = Date.parse("2026-10-28T23:59:59Z");
+  const file = createRequestLogFile({
+    dir: tempDir(t),
+    host: "h",
+    now: () => clock,
+    maxBufferedBytes: ENTRY_BYTES * 2,
+    openStream: open
+  });
+
+  file.write(ENTRY);
+  file.write(ENTRY);
+  clock = Date.parse("2026-10-29T00:00:01Z");
+  file.write(ENTRY);
+  file.write(ENTRY);
+  const [oldStream, newStream] = streams;
+  assert.equal(oldStream.closed, false, "the old stream is still flushing");
+  assert.equal(newStream.lines.length, 0, "no new entries while the old stream holds the full budget");
+  assert.equal(stderrEvents(stderr, "file_backpressure_dropping").length, 1);
+
+  oldStream.flush();
+  assert.equal(oldStream.closed, true);
+  file.write(ENTRY);
+  assert.equal(newStream.lines.length, 1, "budget returns once the old stream closes");
+  assert.equal(stderrEvents(stderr, "file_backpressure_resumed")[0].dropped_entries, 2);
+});
+
+test("an entry larger than the cap is dropped and reported even when nothing is queued", (t) => {
+  const stderr = silenceStderr(t);
+  const { streams, open } = createFakeStreamFactory();
+  const file = createRequestLogFile({
+    dir: tempDir(t),
+    host: "h",
+    now: () => Date.parse("2026-10-28T12:00:00Z"),
+    maxBufferedBytes: ENTRY_BYTES - 1,
+    openStream: open
+  });
+
+  file.write(ENTRY);
+  assert.equal(streams[0].lines.length, 0);
+  const [tooLarge] = stderrEvents(stderr, "file_entry_too_large");
+  assert.equal(tooLarge.entry_bytes, ENTRY_BYTES);
+  assert.equal(tooLarge.limit_bytes, ENTRY_BYTES - 1);
 });
 
 test("an error from a rotated-out stream is reported for its own day without disabling the new stream", (t) => {
@@ -214,4 +269,29 @@ test("close() reports an error from the closing stream and still resolves", asyn
   const failures = stderrEvents(stderr, "file_write_failed");
   assert.equal(failures.length, 1);
   assert.equal(failures[0].message, "final flush failed");
+});
+
+test("close() waits for a rotated-out stream that is still flushing", async (t) => {
+  silenceStderr(t);
+  const { streams, open } = createFakeStreamFactory();
+  let clock = Date.parse("2026-10-28T23:59:59Z");
+  const file = createRequestLogFile({ dir: tempDir(t), host: "h", now: () => clock, openStream: open });
+
+  file.write({ n: 1 });
+  clock = Date.parse("2026-10-29T00:00:01Z");
+  file.write({ n: 2 });
+  const [oldStream, newStream] = streams;
+
+  let resolved = false;
+  const closing = file.close().then(() => {
+    resolved = true;
+  });
+  newStream.flush();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(resolved, false, "shutdown must not finish while the old day's entries are still queued");
+
+  oldStream.flush();
+  await closing;
+  assert.equal(oldStream.closed, true);
+  assert.equal(newStream.closed, true);
 });

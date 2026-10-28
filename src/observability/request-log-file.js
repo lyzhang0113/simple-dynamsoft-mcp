@@ -35,8 +35,11 @@ function utcDay(ms) {
 //   failed, including streams already rotated out or closing) and never thrown.
 //   A failing old stream never disables its replacement.
 // - If the volume stalls, entries are dropped once maxBufferedBytes are queued
-//   rather than growing memory without bound. Dropping and resuming are each
-//   reported once per stall, with the number of dropped entries.
+//   across all streams not yet closed (the current day's and any rotated-out
+//   stream still flushing), so memory stays bounded. Dropping is reported once
+//   per stall, and resuming (with the dropped count) on the next write that
+//   fits. A single entry larger than the cap is dropped and reported with its
+//   size. A cap of 0 queues nothing.
 function createRequestLogFile({
   dir,
   retentionDays = DEFAULT_RETENTION_DAYS,
@@ -51,6 +54,17 @@ function createRequestLogFile({
   let failedDay = "";
   let stream = null;
   let droppedEntries = 0;
+  // Streams that may still hold queued bytes: the current one plus rotated-out
+  // or closing ones, until they emit "close".
+  const liveStreams = new Set();
+
+  function queuedBytes() {
+    let total = 0;
+    for (const live of liveStreams) {
+      if (!live.destroyed) total += live.writableLength || 0;
+    }
+    return total;
+  }
   let cleanup = Promise.resolve();
 
   function reportFailure(day, error) {
@@ -104,9 +118,8 @@ function createRequestLogFile({
       reportFailure(day, error);
       if (stream === next) disableDay(day);
     });
-    next.on("drain", () => {
-      if (stream === next) resumeAfterBackpressure();
-    });
+    liveStreams.add(next);
+    next.once("close", () => liveStreams.delete(next));
     stream = next;
     cleanup = removeExpired(day);
   }
@@ -117,13 +130,23 @@ function createRequestLogFile({
     try {
       if (!stream || day !== currentDay) open(day);
       const line = `${serializeLogEntry(entry)}\n`;
-      const buffered = stream.writableLength;
-      if (buffered > 0 && buffered + Buffer.byteLength(line) > maxBufferedBytes) {
+      const lineBytes = Buffer.byteLength(line);
+      if (lineBytes > maxBufferedBytes) {
+        logEvent("request-log", "file_entry_too_large", {
+          dir,
+          day,
+          entry_bytes: lineBytes,
+          limit_bytes: maxBufferedBytes
+        }, { level: "warn" });
+        return;
+      }
+      const queued = queuedBytes();
+      if (queued + lineBytes > maxBufferedBytes) {
         if (!droppedEntries) {
           logEvent("request-log", "file_backpressure_dropping", {
             dir,
             day,
-            buffered_bytes: buffered,
+            buffered_bytes: queued,
             limit_bytes: maxBufferedBytes
           }, { level: "warn" });
         }
@@ -139,16 +162,17 @@ function createRequestLogFile({
     }
   }
 
-  // Resolves once the stream is closed, including after an error (which is
-  // reported by the stream's error handler).
+  // Ends the current stream and resolves once every stream that may still hold
+  // queued entries (including rotated-out ones still flushing) has closed, so
+  // shutdown does not drop prior-day entries. Errors are reported by each
+  // stream's error handler; "close" follows them, so this still resolves.
   function close() {
     const current = stream;
     stream = null;
-    if (!current || current.closed) return Promise.resolve();
-    return new Promise((resolve) => {
-      current.once("close", resolve);
-      current.end();
-    });
+    const pending = [...liveStreams].filter((live) => !live.closed);
+    const closed = pending.map((live) => new Promise((resolve) => live.once("close", resolve)));
+    if (current && !current.closed) current.end();
+    return Promise.all(closed).then(() => undefined);
   }
 
   return {
