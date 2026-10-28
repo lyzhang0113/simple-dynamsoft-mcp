@@ -11,6 +11,8 @@ const LOGGED_METHODS = new Map([
 const DEFAULT_MAX_FIELD_CHARS = 8000;
 const MAX_PENDING_REQUESTS = 1000;
 const MAX_USER_AGENT_CHARS = 256;
+// Cap for caller-controlled scalars (uri, tool name, JSON-RPC id).
+const MAX_SCALAR_CHARS = 1024;
 const CLIENT_IP_MODES = new Set(["hash", "full", "off"]);
 
 // Per-process fallback salt so hashed client IDs are not reversible by brute
@@ -35,9 +37,10 @@ function resolveMaxFieldChars(env = process.env) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_MAX_FIELD_CHARS;
 }
 
+// IP-derived fields are personal data, so they are opt-in.
 function resolveClientIpMode(env = process.env) {
   const mode = String(env.MCP_LOG_CLIENT_IP || "").trim().toLowerCase();
-  return CLIENT_IP_MODES.has(mode) ? mode : "hash";
+  return CLIENT_IP_MODES.has(mode) ? mode : "off";
 }
 
 // Keeps log lines bounded: container runtimes split long stderr lines, which
@@ -54,6 +57,14 @@ function limitForLog(value, maxChars) {
   return { truncated: true, original_chars: text.length, preview: text.slice(0, maxChars) };
 }
 
+// Bounds caller-controlled fields that are expected to be short (uri, tool
+// name, JSON-RPC id, error message) even when the caller sends something else.
+function capScalar(value) {
+  if (typeof value !== "string") return limitForLog(value, MAX_SCALAR_CHARS);
+  if (value.length <= MAX_SCALAR_CHARS) return value;
+  return `${value.slice(0, MAX_SCALAR_CHARS)}...[truncated ${value.length - MAX_SCALAR_CHARS} chars]`;
+}
+
 function normalizeIp(value) {
   let ip = String(value || "").trim();
   if (!ip) return "";
@@ -65,15 +76,19 @@ function normalizeIp(value) {
   return ip;
 }
 
-// Behind a reverse proxy (e.g. Azure Container Apps ingress) the socket peer is
-// the proxy. The proxy appends the peer it saw to X-Forwarded-For, so the
-// right-most entry is the one a client cannot spoof.
-function resolveClientIp(req) {
-  const forwarded = req?.headers?.["x-forwarded-for"];
-  const header = Array.isArray(forwarded) ? forwarded.join(",") : forwarded;
-  if (header) {
-    const parts = String(header).split(",").map((part) => part.trim()).filter(Boolean);
-    if (parts.length > 0) return normalizeIp(parts[parts.length - 1]);
+// X-Forwarded-For is client-controlled unless a proxy in front of the server
+// rewrites it, so it is only honored with MCP_LOG_TRUST_PROXY=true (e.g. Azure
+// Container Apps ingress). The trusted proxy appends the peer it saw, so the
+// right-most entry is the one a client cannot spoof. Otherwise the socket peer
+// is used.
+function resolveClientIp(req, env = process.env) {
+  if (readBoolEnv(env, "MCP_LOG_TRUST_PROXY", false)) {
+    const forwarded = req?.headers?.["x-forwarded-for"];
+    const header = Array.isArray(forwarded) ? forwarded.join(",") : forwarded;
+    if (header) {
+      const parts = String(header).split(",").map((part) => part.trim()).filter(Boolean);
+      if (parts.length > 0) return normalizeIp(parts[parts.length - 1]);
+    }
   }
   return normalizeIp(req?.socket?.remoteAddress);
 }
@@ -88,7 +103,10 @@ function describeClientIp(ip, env = process.env) {
 }
 
 function buildHttpRequestContext(req, env = process.env) {
-  const context = { transport: "http", ...describeClientIp(resolveClientIp(req), env) };
+  const context = { transport: "http" };
+  if (resolveClientIpMode(env) !== "off") {
+    Object.assign(context, describeClientIp(resolveClientIp(req, env), env));
+  }
   const userAgent = req?.headers?.["user-agent"];
   if (userAgent) context.user_agent = String(userAgent).slice(0, MAX_USER_AGENT_CHARS);
   return context;
@@ -130,13 +148,13 @@ function attachRequestLogging(transport, context = {}, { env = process.env, now 
       const rpcError = message.error;
       logEvent("mcp", request.event, {
         ...context,
-        request_id: message.id,
-        tool: isToolCall ? params.name : undefined,
-        uri: isToolCall ? undefined : params.uri,
+        request_id: capScalar(message.id),
+        tool: isToolCall ? capScalar(params.name) : undefined,
+        uri: isToolCall ? undefined : capScalar(params.uri),
         arguments: isToolCall ? limitForLog(params.arguments || {}, maxChars) : undefined,
         duration_ms: now() - request.startedAt,
         is_error: Boolean(rpcError) || message.result?.isError === true,
-        error: rpcError ? { code: rpcError.code, message: rpcError.message } : undefined,
+        error: rpcError ? { code: rpcError.code, message: capScalar(rpcError.message) } : undefined,
         response: rpcError ? undefined : limitForLog(message.result, maxChars)
       }, { level: rpcError ? "warn" : "info" });
     }

@@ -136,12 +136,10 @@ async function assertRequestLogs(getOutput, expectedTransport) {
   assert.ok(resourceLog, "Expected a resource_read log entry");
   assert.match(resourceLog.uri, /^(doc|sample):\/\//);
 
+  assert.equal(searchLog.client_id, undefined, "IP-derived fields are opt-in");
+  assert.equal(searchLog.client_ip, undefined, "IP-derived fields are opt-in");
   if (expectedTransport === "http") {
-    assert.match(searchLog.client_id || "", /^[0-9a-f]{16}$/, "http request logs should carry a hashed client_id by default");
-    assert.equal(searchLog.client_ip, undefined, "raw client IP should not be logged by default");
     assert.ok(searchLog.user_agent, "http request logs should include the user agent");
-  } else {
-    assert.equal(searchLog.client_id, undefined);
   }
 }
 

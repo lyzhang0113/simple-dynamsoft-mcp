@@ -142,36 +142,62 @@ test("MCP_LOG_REQUESTS=false disables request logging", async (t) => {
   assert.deepEqual(readLogs(), []);
 });
 
-test("resolveClientIp uses the right-most X-Forwarded-For entry, else the socket address", () => {
+test("caps caller-controlled uri and request id so one entry stays bounded", async (t) => {
+  const readLogs = captureLogs(t);
+  const transport = createFakeTransport();
+  attachRequestLogging(transport, {}, { env: {} });
+  const longId = "i".repeat(5000);
+  const longUri = `doc://${"u".repeat(50000)}`;
+  transport.onmessage({ jsonrpc: "2.0", id: longId, method: "resources/read", params: { uri: longUri } });
+  await transport.send({ jsonrpc: "2.0", id: longId, error: { code: -32603, message: `Resource not found: ${longUri}` } });
+
+  const [entry] = readLogs();
+  assert.ok(entry.uri.length < 1100);
+  assert.match(entry.uri, /\.\.\.\[truncated \d+ chars\]$/);
+  assert.ok(entry.request_id.length < 1100);
+  assert.ok(entry.error.message.length < 1100);
+});
+
+const PROXY_TRUSTED = { MCP_LOG_TRUST_PROXY: "true" };
+
+test("resolveClientIp ignores X-Forwarded-For unless MCP_LOG_TRUST_PROXY is set", () => {
+  const req = { headers: { "x-forwarded-for": "203.0.113.9" }, socket: { remoteAddress: "198.51.100.4" } };
+  assert.equal(resolveClientIp(req, {}), "198.51.100.4", "a directly exposed server must not trust a client-sent header");
+  assert.equal(resolveClientIp(req, PROXY_TRUSTED), "203.0.113.9");
+});
+
+test("resolveClientIp behind a trusted proxy uses the right-most X-Forwarded-For entry", () => {
   assert.equal(
-    resolveClientIp({ headers: { "x-forwarded-for": "6.6.6.6, 203.0.113.9" }, socket: { remoteAddress: "10.0.0.1" } }),
+    resolveClientIp({ headers: { "x-forwarded-for": "6.6.6.6, 203.0.113.9" }, socket: { remoteAddress: "10.0.0.1" } }, PROXY_TRUSTED),
     "203.0.113.9",
     "the client-supplied left-most value must not win"
   );
-  assert.equal(resolveClientIp({ headers: { "x-forwarded-for": "203.0.113.9:51234" } }), "203.0.113.9");
-  assert.equal(resolveClientIp({ headers: { "x-forwarded-for": "[2001:db8::1]:443" } }), "2001:db8::1");
-  assert.equal(resolveClientIp({ headers: {}, socket: { remoteAddress: "::ffff:127.0.0.1" } }), "127.0.0.1");
-  assert.equal(resolveClientIp({ headers: {}, socket: {} }), "");
+  assert.equal(resolveClientIp({ headers: { "x-forwarded-for": "203.0.113.9:51234" } }, PROXY_TRUSTED), "203.0.113.9");
+  assert.equal(resolveClientIp({ headers: { "x-forwarded-for": "[2001:db8::1]:443" } }, PROXY_TRUSTED), "2001:db8::1");
+  assert.equal(resolveClientIp({ headers: {}, socket: { remoteAddress: "::ffff:127.0.0.1" } }, PROXY_TRUSTED), "127.0.0.1");
+  assert.equal(resolveClientIp({ headers: {}, socket: {} }, PROXY_TRUSTED), "");
 });
 
-test("describeClientIp hashes by default, and supports full and off modes", () => {
-  const salted = { MCP_LOG_IP_SALT: "salt-1" };
+test("describeClientIp is off by default and supports hash and full modes", () => {
+  assert.deepEqual(describeClientIp("203.0.113.9", {}), {});
+
+  const salted = { MCP_LOG_CLIENT_IP: "hash", MCP_LOG_IP_SALT: "salt-1" };
   const hashed = describeClientIp("203.0.113.9", salted);
   assert.match(hashed.client_id, /^[0-9a-f]{16}$/);
   assert.equal(hashed.client_ip, undefined);
   assert.deepEqual(describeClientIp("203.0.113.9", salted), hashed, "same IP and salt give a stable id");
   assert.notEqual(describeClientIp("203.0.113.10", salted).client_id, hashed.client_id);
-  assert.notEqual(describeClientIp("203.0.113.9", { MCP_LOG_IP_SALT: "salt-2" }).client_id, hashed.client_id);
+  assert.notEqual(describeClientIp("203.0.113.9", { ...salted, MCP_LOG_IP_SALT: "salt-2" }).client_id, hashed.client_id);
 
   assert.deepEqual(describeClientIp("203.0.113.9", { MCP_LOG_CLIENT_IP: "full" }), { client_ip: "203.0.113.9" });
-  assert.deepEqual(describeClientIp("203.0.113.9", { MCP_LOG_CLIENT_IP: "off" }), {});
-  assert.deepEqual(describeClientIp("", {}), {});
+  assert.deepEqual(describeClientIp("", { MCP_LOG_CLIENT_IP: "full" }), {});
 });
 
-test("buildHttpRequestContext includes transport, client identity, and user agent", () => {
-  const context = buildHttpRequestContext(
-    { headers: { "user-agent": "copilot-studio/1.0" }, socket: { remoteAddress: "198.51.100.4" } },
-    { MCP_LOG_CLIENT_IP: "full" }
+test("buildHttpRequestContext includes transport and user agent, and client identity only when enabled", () => {
+  const req = { headers: { "user-agent": "copilot-studio/1.0" }, socket: { remoteAddress: "198.51.100.4" } };
+  assert.deepEqual(buildHttpRequestContext(req, {}), { transport: "http", user_agent: "copilot-studio/1.0" });
+  assert.deepEqual(
+    buildHttpRequestContext(req, { MCP_LOG_CLIENT_IP: "full" }),
+    { transport: "http", client_ip: "198.51.100.4", user_agent: "copilot-studio/1.0" }
   );
-  assert.deepEqual(context, { transport: "http", client_ip: "198.51.100.4", user_agent: "copilot-studio/1.0" });
 });

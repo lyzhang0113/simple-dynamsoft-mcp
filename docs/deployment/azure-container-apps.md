@@ -74,17 +74,17 @@ The server writes JSON lines to stderr, which ACA ships to the Log Analytics wor
 
 - `tool` + `arguments` (tool calls) or `uri` (resource reads)
 - `response` (the result sent to the client) or `error` (JSON-RPC errors), plus `is_error` and `duration_ms`
-- `transport`, `user_agent`, and `client_id` (HMAC of the client IP)
+- `transport`, `request_id`, `user_agent`, and (opt-in) a client identity field
 
-`arguments` and `response` are truncated to `MCP_LOG_MAX_FIELD_CHARS` (default 8000 JSON chars) as `{truncated, original_chars, preview}`, keeping each line below the container runtime's 16 KB line split.
+`arguments` and `response` are truncated to `MCP_LOG_MAX_FIELD_CHARS` (default 8000 JSON chars) as `{truncated, original_chars, preview}`; `uri`, `tool`, `request_id`, and error messages are capped at 1024 chars. This keeps each line below the container runtime's 16 KB line split.
 
-Client IP handling (`MCP_LOG_CLIENT_IP`):
+Client IP handling (`MCP_LOG_CLIENT_IP`, personal data, so opt-in):
 
-- `hash` (default): `client_id`, a salted hash. Groups requests per caller without storing the IP. Set `MCP_LOG_IP_SALT` (as an ACA secret) for ids that survive restarts; otherwise a per-process salt is used and ids change on each cold start (`minReplicas=0`).
-- `full`: raw `client_ip`. Personal data; check retention/privacy requirements first.
-- `off`: no IP-derived field.
+- `off` (default): no IP-derived field.
+- `hash`: `client_id`, a salted HMAC. Groups requests per caller without storing the IP. Set `MCP_LOG_IP_SALT` (as an ACA secret) for ids that survive restarts; otherwise a per-process salt is used and ids change on each cold start (`minReplicas=0`).
+- `full`: raw `client_ip`. Check retention/privacy requirements first.
 
-The IP is the right-most `X-Forwarded-For` entry (appended by ACA ingress), falling back to the socket address. Clients that call through a hosted agent (e.g. a chatbot platform) appear as that platform's egress IP, not the end user's.
+On ACA the socket peer is the ingress proxy, so also set `MCP_LOG_TRUST_PROXY=true` to use the right-most `X-Forwarded-For` entry (appended by ACA ingress). Leave it unset when the server is reachable directly, since clients can then forge the header. Clients that call through a hosted agent (e.g. a chatbot platform) appear as that platform's egress IP, not the end user's.
 
 Example query (column is `Log_s` in `ContainerAppConsoleLogs_CL`; `Log` in the resource-specific `ContainerAppConsoleLogs` table):
 
