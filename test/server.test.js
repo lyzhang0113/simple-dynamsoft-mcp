@@ -128,6 +128,7 @@ await test('tools/list returns the minimal tool surface', async () => {
     const expectedTools = [
         'get_index',
         'search',
+        'read_document',
         'list_samples',
         'resolve_version',
         'get_quickstart',

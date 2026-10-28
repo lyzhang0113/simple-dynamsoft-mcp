@@ -176,6 +176,7 @@ async function runCoreAssertions(client, { requestTimeoutMs = 60000 } = {}) {
   const expectedTools = [
     "get_index",
     "search",
+    "read_document",
     "list_samples",
     "resolve_version",
     "get_quickstart",
@@ -238,6 +239,45 @@ async function runCoreAssertions(client, { requestTimeoutMs = 60000 } = {}) {
   assert.ok(resourceUris.includes("doc://product-selection"), "resources/list should expose product-selection guidance");
   const read = await client.readResource({ uri: link.uri }, requestOptions);
   assert.ok(read.contents.length > 0, "resources/read should return non-empty contents");
+
+  // Doc Q&A flow for tool-only clients: search -> read_document -> cite URL.
+  const docSearch = await client.callTool(
+    {
+      name: "search",
+      arguments: { query: "getting started", product: "dwt", type: "doc", limit: 3 }
+    },
+    undefined,
+    requestOptions
+  );
+  assert.equal(docSearch.isError, undefined, "Doc search should not return isError");
+  const docLink = docSearch.content.find((item) => item.type === "resource_link" && item.uri.startsWith("doc://"));
+  assert.ok(docLink, "Doc search should return a doc:// resource_link");
+  assert.match(docSearch.content[0].text, /read_document/, "Search guidance should point doc results to read_document");
+
+  const docRead = await client.callTool(
+    { name: "read_document", arguments: { uri: docLink.uri } },
+    undefined,
+    requestOptions
+  );
+  assert.equal(docRead.isError, undefined, "read_document should succeed for a URI returned by search");
+  assert.equal(docRead.content.length, 1);
+  assert.equal(docRead.content[0].type, "text");
+  const docText = docRead.content[0].text;
+  assert.match(docText, /^# \S/, "read_document should start with the document title");
+  assert.match(docText, /\*\*URL:\*\* https:\/\/www\.dynamsoft\.com\//, "read_document should include the public docs URL");
+  const docBody = docText.split("\n---\n")[1] || "";
+  assert.ok(docBody.trim().length > 0, "read_document should include the article body");
+
+  const docResource = await client.readResource({ uri: docLink.uri }, requestOptions);
+  assert.equal(docResource.contents[0].text, docText, "read_document should match resources/read content");
+
+  const staleRead = await client.callTool(
+    { name: "read_document", arguments: { uri: `${docLink.uri}-stale-uri-check` } },
+    undefined,
+    requestOptions
+  );
+  assert.equal(staleRead.isError, true, "read_document should flag stale URIs as errors");
+  assert.match(staleRead.content[0].text, /Call search/, "stale URI errors should guide back to search");
 }
 
 async function getFreePort() {

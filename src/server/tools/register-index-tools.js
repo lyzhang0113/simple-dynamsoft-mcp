@@ -118,9 +118,9 @@ export function registerIndexTools({
         "- type: 'doc', 'sample', 'index', 'policy', or 'any' (default). Use 'sample' to restrict to sample results.",
         "- limit: 1-10 (default 5). Max number of results.",
         "",
-        "RETURNS: An MCP response whose content array includes a leading text summary item followed by zero or more resource_link items with URIs. Use resources/read to fetch full content of doc:// URIs. Use get_sample_files to fetch full project files for sample:// URIs.",
+        "RETURNS: An MCP response whose content array includes a leading text summary item followed by zero or more resource_link items with URIs. For doc:// URIs, call read_document with the exact returned uri to get the full document text before answering. For sample:// URIs, call get_sample_files with resource_uri to get the full project files.",
         "",
-        "RELATED TOOLS: get_index (discover products first), list_samples (browse all samples), get_sample_files (retrieve full sample project files), resources/read (read a doc resource)."
+        "RELATED TOOLS: get_index (discover products first), list_samples (browse all samples), read_document (read a doc:// result), get_sample_files (retrieve full sample project files)."
       ].join("\n"),
       inputSchema: {
         query: z.string().trim().min(1, "Query is required.").describe("Keywords to search across docs and samples."),
@@ -199,7 +199,7 @@ export function registerIndexTools({
           const content = [
             {
               type: "text",
-              text: `Found ${selected.length} exact match(es) for "${query}". Read the links you need with resources/read.`
+              text: `Found ${selected.length} exact match(es) for "${query}". Call get_sample_files with the exact resource_uri to get the full sample project.`
             }
           ];
 
@@ -325,9 +325,10 @@ export function registerIndexTools({
       // Capture Vision / DCV is the umbrella framework, not a selectable public
       // product — steer the agent to the right offering (issue #150).
       const dcvUmbrella = /\b(capture[\s-]?vision|dcv)\b/i.test(query) && !normalizedProduct;
+      const readGuidance = "For doc:// results, call read_document with the exact uri to get the document text; for sample:// results, call get_sample_files with resource_uri.";
       const leadText = dcvUmbrella
-        ? `"Capture Vision" (DCV) is Dynamsoft's umbrella framework — pick the public product for your task: DBR (barcodes), MRZ (passports/IDs), MDS (document capture), DWT (scanner hardware), DDV (document viewer). Results below span the closest matches.\nFound ${topResults.length} result(s) for "${query}".`
-        : `Found ${topResults.length} result(s) for "${query}". Read the links you need with resources/read.`;
+        ? `"Capture Vision" (DCV) is Dynamsoft's umbrella framework — pick the public product for your task: DBR (barcodes), MRZ (passports/IDs), MDS (document capture), DWT (scanner hardware), DDV (document viewer). Results below span the closest matches.\nFound ${topResults.length} result(s) for "${query}". ${readGuidance}`
+        : `Found ${topResults.length} result(s) for "${query}". ${readGuidance}`;
       const content = [
         {
           type: "text",
@@ -356,7 +357,7 @@ export function registerIndexTools({
 
       const plainLines = topResults.map((entry, index) => {
         const sampleId = entry.type === "sample" ? getSampleIdFromUri(entry.uri) : "";
-        const action = entry.type === "sample" ? "get_sample_files resource_uri" : "resources/read uri";
+        const action = entry.type === "sample" ? "get_sample_files resource_uri" : "read_document uri";
         const sampleNote = sampleId ? ` sample_id=${sampleId}` : "";
         const scoreNote = formatScoreNote(entry);
         return `- ${index + 1}. ${entry.uri}${sampleNote}${scoreNote} (${action})`;

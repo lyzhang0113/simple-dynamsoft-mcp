@@ -296,11 +296,14 @@ mcpServers:
 The server exposes this minimal tool surface:
 
 - `get_index` -- compact product/version/sample index with selection guidance
-- `search` -- semantic search across docs and samples (also accepts exact sample IDs)
+- `search` -- semantic search across docs and samples (also accepts exact sample IDs); returns `doc://` and `sample://` links
+- `read_document` -- read the full text (title, public docs URL, body) of a `doc://` URI returned by `search`
 - `list_samples` -- browse available samples for a product/edition/platform
 - `resolve_version` -- resolve current version for a product/edition/platform
 - `get_quickstart` -- opinionated quickstart: picks a sample by scenario, returns code + install instructions
 - `get_sample_files` -- get full project files for a known sample (discovered via list_samples or search)
+
+Typical doc Q&A flow: `search` -> `read_document` with the exact `doc://` URI -> answer from the returned text and cite its public URL. Clients that support MCP resources can also fetch the same `doc://` / `sample://` URIs with `resources/read`.
 
 ## Advanced Configuration And Operator Docs
 
