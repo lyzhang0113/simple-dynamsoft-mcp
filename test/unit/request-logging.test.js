@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   attachRequestLogging,
@@ -74,12 +77,14 @@ test("stderr gets a summary while the file gets arguments, full response, and co
     component: "mcp",
     event: "tool_call",
     transport: "http",
+    client_id: "abc",
+    user_agent: "agent/1",
     request_id: 7,
     tool: "search",
     duration_ms: 42,
     is_error: false,
     response_chars: JSON.stringify(response.result).length
-  }, "stderr must not carry arguments, response bodies, or caller identity");
+  }, "stderr carries requester info but not arguments or response bodies");
 
   assert.equal(file.entries.length, 1);
   const [detail] = file.entries;
@@ -235,4 +240,31 @@ test("buildHttpRequestContext includes transport and user agent, and client iden
     buildHttpRequestContext(req, { MCP_LOG_CLIENT_IP: "full" }),
     { transport: "http", client_ip: "198.51.100.4", user_agent: "copilot-studio/1.0" }
   );
+});
+
+test("without MCP_LOG_IP_SALT, client ids use a salt persisted once in MCP_REQUEST_LOG_DIR", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "client-id-salt-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const env = { MCP_LOG_CLIENT_IP: "hash", MCP_REQUEST_LOG_DIR: dir };
+
+  const first = describeClientIp("203.0.113.9", env);
+  const salt = readFileSync(join(dir, ".client-id-salt"), "utf8");
+  assert.ok(salt.length >= 32, "a random salt should be written on first use");
+  assert.deepEqual(describeClientIp("203.0.113.9", env), first);
+  assert.deepEqual(
+    describeClientIp("203.0.113.9", { MCP_LOG_CLIENT_IP: "hash", MCP_LOG_IP_SALT: salt }),
+    first,
+    "the id is the HMAC under the persisted salt, so it is stable across restarts"
+  );
+});
+
+test("an existing salt file is reused rather than replaced", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "client-id-salt-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const existing = "f".repeat(64);
+  writeFileSync(join(dir, ".client-id-salt"), existing);
+
+  const id = describeClientIp("198.51.100.4", { MCP_LOG_CLIENT_IP: "hash", MCP_REQUEST_LOG_DIR: dir });
+  assert.equal(readFileSync(join(dir, ".client-id-salt"), "utf8"), existing);
+  assert.deepEqual(id, describeClientIp("198.51.100.4", { MCP_LOG_CLIENT_IP: "hash", MCP_LOG_IP_SALT: existing }));
 });

@@ -124,8 +124,11 @@ async function assertRequestLogs(getOutput, requestLogDir, expectedTransport) {
   assert.equal(searchSummary.transport, expectedTransport);
   assert.equal(typeof searchSummary.duration_ms, "number");
   assert.equal(typeof searchSummary.response_chars, "number");
-  for (const field of ["arguments", "response", "user_agent", "client_id", "client_ip"]) {
-    assert.equal(searchSummary[field], undefined, `stderr summary must not include ${field}`);
+  for (const field of ["arguments", "response", "client_id", "client_ip"]) {
+    assert.equal(searchSummary[field], undefined, `stderr summary must not include ${field} by default`);
+  }
+  if (expectedTransport === "http") {
+    assert.ok(searchSummary.user_agent, "http stderr summaries should identify the requester's user agent");
   }
   const resourceSummary = await waitForLogEvent(getOutput, "mcp", "resource_read");
   assert.ok(resourceSummary, "Expected a resource_read summary on stderr");

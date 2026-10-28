@@ -1,4 +1,6 @@
 import { createHmac, randomBytes } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { createLogEntry, logEvent } from "./logging.js";
 import { getRequestLogFile } from "./request-log-file.js";
 
@@ -18,10 +20,48 @@ const MAX_USER_AGENT_CHARS = 256;
 const MAX_SCALAR_CHARS = 1024;
 const CLIENT_IP_MODES = new Set(["hash", "full", "off"]);
 
-// Per-process fallback salt so hashed client IDs are not reversible by brute
-// forcing the IPv4 space. Set MCP_LOG_IP_SALT for IDs that stay stable across
-// restarts and replicas.
+// Salt for hashed client ids, so they are not reversible by brute forcing the
+// IPv4 space without it. Resolution: MCP_LOG_IP_SALT, else a random salt
+// persisted once in MCP_REQUEST_LOG_DIR (stable across restarts, revisions,
+// and replicas sharing the volume), else a per-process salt.
+const SALT_FILE = ".client-id-salt";
+const MIN_SALT_CHARS = 32;
 const processSalt = randomBytes(32).toString("hex");
+const persistedSalts = new Map();
+const saltWarnings = new Set();
+
+function loadOrCreateSalt(dir) {
+  const path = join(dir, SALT_FILE);
+  mkdirSync(dir, { recursive: true });
+  try {
+    writeFileSync(path, randomBytes(32).toString("hex"), { flag: "wx", mode: 0o600 });
+  } catch (error) {
+    if (error?.code !== "EEXIST") throw error;
+  }
+  const salt = readFileSync(path, "utf8").trim();
+  if (salt.length < MIN_SALT_CHARS) throw new Error(`${path} is empty or too short`);
+  return salt;
+}
+
+function resolveIpSalt(env = process.env) {
+  if (env.MCP_LOG_IP_SALT) return env.MCP_LOG_IP_SALT;
+  const dir = String(env.MCP_REQUEST_LOG_DIR || "").trim();
+  if (!dir) return processSalt;
+  if (persistedSalts.has(dir)) return persistedSalts.get(dir);
+  try {
+    const salt = loadOrCreateSalt(dir);
+    persistedSalts.set(dir, salt);
+    return salt;
+  } catch (error) {
+    // Not cached, so a transient share error is retried on the next request.
+    if (!saltWarnings.has(dir)) {
+      saltWarnings.add(dir);
+      const message = error instanceof Error ? error.message : String(error);
+      logEvent("request-log", "salt_unavailable", { dir, message }, { level: "warn" });
+    }
+    return processSalt;
+  }
+}
 
 function readBoolEnv(env, key, fallback) {
   const value = env[key];
@@ -100,7 +140,7 @@ function describeClientIp(ip, env = process.env) {
   const mode = resolveClientIpMode(env);
   if (mode === "off") return {};
   if (mode === "full") return { client_ip: ip };
-  const salt = env.MCP_LOG_IP_SALT || processSalt;
+  const salt = resolveIpSalt(env);
   return { client_id: createHmac("sha256", salt).update(ip).digest("hex").slice(0, 16) };
 }
 
@@ -164,7 +204,7 @@ function attachRequestLogging(transport, context = {}, {
       const rpcError = message.error;
       const level = rpcError ? "warn" : "info";
       const summary = {
-        transport: context.transport,
+        ...context,
         request_id: capScalar(message.id),
         tool: isToolCall ? capScalar(params.name) : undefined,
         uri: isToolCall ? undefined : capScalar(params.uri),
@@ -176,10 +216,9 @@ function attachRequestLogging(transport, context = {}, {
       logEvent("mcp", request.event, {
         ...summary,
         response_chars: rpcError ? undefined : jsonLength(message.result)
-      }, { level });
+      }, { level, env });
 
       file?.write(createLogEntry("mcp", request.event, {
-        ...context,
         ...summary,
         arguments: isToolCall ? limitForLog(params.arguments || {}, maxChars) : undefined,
         response: rpcError ? undefined : limitForLog(message.result, maxChars)

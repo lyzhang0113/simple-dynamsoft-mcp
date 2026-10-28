@@ -413,6 +413,9 @@ jobs:
               MCP_DATA_DIR="$data_root" \
               MCP_LOG_LEVEL=info \
               MCP_REQUEST_LOG_DIR=/mnt/mcp-cache/request-logs \
+              MCP_LOG_FORMAT=text \
+              MCP_LOG_CLIENT_IP=hash \
+              MCP_LOG_TRUST_PROXY=true \
               MCP_DATA_CACHE_DIR="${cache_root}/data" \
               RAG_CACHE_DIR="${cache_root}/rag/cache" \
               RAG_MODEL_CACHE_DIR="${cache_root}/rag/models" \
