@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -95,4 +96,122 @@ test("an unwritable directory reports one error per day and never throws", async
   const failures = stderr.map((line) => JSON.parse(line)).filter((entry) => entry.event === "file_write_failed");
   assert.equal(failures.length, 1);
   assert.equal(failures[0].level, "error");
+});
+
+// Stand-in for an fs.WriteStream on a volume whose flushes the test controls.
+function createFakeStreamFactory() {
+  const streams = [];
+  const open = (path) => {
+    const stream = new EventEmitter();
+    Object.assign(stream, {
+      path,
+      lines: [],
+      writableLength: 0,
+      closed: false,
+      destroyed: false,
+      write(line) {
+        this.lines.push(line);
+        this.writableLength += Buffer.byteLength(line);
+        return true;
+      },
+      end() {
+        this.emit("finish");
+        this.closed = true;
+        this.emit("close");
+      },
+      destroy() {
+        this.destroyed = true;
+      }
+    });
+    streams.push(stream);
+    return stream;
+  };
+  return { streams, open };
+}
+
+function stderrEvents(lines, event) {
+  return lines.map((line) => JSON.parse(line)).filter((entry) => entry.event === event);
+}
+
+test("a stalled volume drops entries past the buffer cap and reports dropping and resuming once", (t) => {
+  const stderr = silenceStderr(t);
+  const { streams, open } = createFakeStreamFactory();
+  const entry = { event: "tool_call", pad: "x".repeat(30) };
+  const lineBytes = Buffer.byteLength(`${JSON.stringify(entry)}\n`);
+  const file = createRequestLogFile({
+    dir: tempDir(t),
+    host: "h",
+    now: () => Date.parse("2026-10-28T12:00:00Z"),
+    maxBufferedBytes: lineBytes * 2,
+    openStream: open
+  });
+
+  for (let i = 0; i < 5; i += 1) file.write(entry);
+  const [stream] = streams;
+  assert.equal(stream.lines.length, 2, "only entries that fit under the cap are queued");
+  assert.ok(stream.writableLength <= lineBytes * 2);
+
+  const dropping = stderrEvents(stderr, "file_backpressure_dropping");
+  assert.equal(dropping.length, 1, "dropping is reported once per stall");
+  assert.equal(dropping[0].limit_bytes, lineBytes * 2);
+
+  stream.writableLength = 0;
+  stream.emit("drain");
+  const resumed = stderrEvents(stderr, "file_backpressure_resumed");
+  assert.equal(resumed.length, 1);
+  assert.equal(resumed[0].dropped_entries, 3);
+
+  file.write(entry);
+  assert.equal(stream.lines.length, 3, "writes resume after the buffer drains");
+  assert.equal(stderrEvents(stderr, "file_backpressure_resumed").length, 1);
+});
+
+test("an error from a rotated-out stream is reported for its own day without disabling the new stream", (t) => {
+  const stderr = silenceStderr(t);
+  const { streams, open } = createFakeStreamFactory();
+  let clock = Date.parse("2026-10-28T23:59:59Z");
+  const file = createRequestLogFile({ dir: tempDir(t), host: "h", now: () => clock, openStream: open });
+
+  file.write({ n: 1 });
+  clock = Date.parse("2026-10-29T00:00:01Z");
+  file.write({ n: 2 });
+  const [oldStream, newStream] = streams;
+
+  oldStream.emit("error", new Error("flush failed"));
+  oldStream.emit("error", new Error("flush failed again"));
+  let failures = stderrEvents(stderr, "file_write_failed");
+  assert.deepEqual(failures.map((entry) => entry.day), ["2026-10-28"], "reported once, under the old stream's day");
+  assert.equal(newStream.destroyed, false);
+
+  file.write({ n: 3 });
+  assert.equal(newStream.lines.length, 2, "the replacement stream keeps receiving entries");
+
+  newStream.emit("error", new Error("share offline"));
+  failures = stderrEvents(stderr, "file_write_failed");
+  assert.deepEqual(failures.map((entry) => entry.day), ["2026-10-28", "2026-10-29"]);
+  assert.equal(newStream.destroyed, true);
+  file.write({ n: 4 });
+  assert.equal(streams.length, 2, "a failed day is not reopened");
+});
+
+test("close() reports an error from the closing stream and still resolves", async (t) => {
+  const stderr = silenceStderr(t);
+  const { streams, open } = createFakeStreamFactory();
+  const file = createRequestLogFile({
+    dir: tempDir(t),
+    host: "h",
+    now: () => Date.parse("2026-10-28T12:00:00Z"),
+    openStream: open
+  });
+  file.write({ n: 1 });
+  streams[0].end = function failingEnd() {
+    this.emit("error", new Error("final flush failed"));
+    this.closed = true;
+    this.emit("close");
+  };
+
+  await file.close();
+  const failures = stderrEvents(stderr, "file_write_failed");
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0].message, "final flush failed");
 });

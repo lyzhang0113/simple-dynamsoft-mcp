@@ -81,7 +81,10 @@ Deploys set `MCP_LOG_FORMAT=text`, `MCP_LOG_CLIENT_IP=hash`, `MCP_LOG_TRUST_PROX
   View it with `az containerapp logs show --name <app> --resource-group <rg> --follow`.
 - **Detailed file:** the same fields plus `arguments` and the full `response`, as JSON lines in `requests-<YYYY-MM-DD>-<host>.jsonl` (UTC day, one file per replica).
 
-Files older than `MCP_REQUEST_LOG_RETENTION_DAYS` (default 30) are deleted when a new day's file opens. `request-logs/` is not a version directory, so cache cleanup (`cleanup-azure-cache.yml`) leaves it alone. Write failures are reported on the console as `[request-log] file_write_failed` and never fail a request.
+Files older than `MCP_REQUEST_LOG_RETENTION_DAYS` (default 30) are deleted when a new day's file opens. `request-logs/` is not a version directory, so cache cleanup (`cleanup-azure-cache.yml`) leaves it alone. File logging never fails a request:
+
+- Write failures are reported once per day as `[request-log] file_write_failed`, including failures of a previous day's file that is still flushing.
+- If the share stalls, at most 8 MiB of entries are queued in memory; further entries are dropped and reported once as `file_backpressure_dropping`, then `file_backpressure_resumed dropped_entries=<n>` once writes catch up.
 
 Responses are stored whole by default; set `MCP_LOG_MAX_FIELD_CHARS` to cap `arguments`/`response` as `{truncated, original_chars, preview}`. `uri`, `tool`, `request_id`, and error messages are always capped at 1024 chars.
 

@@ -7,6 +7,8 @@ import { logEvent, serializeLogEntry } from "./logging.js";
 const FILE_PATTERN = /^requests-(\d{4}-\d{2}-\d{2})-.+\.jsonl$/;
 const DEFAULT_RETENTION_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
+// Cap on entries queued in memory while the log volume is slow or stalled.
+const DEFAULT_MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 
 function resolveRetentionDays(env = process.env) {
   const raw = env.MCP_REQUEST_LOG_RETENTION_DAYS;
@@ -27,20 +29,48 @@ function utcDay(ms) {
 // <dir>/requests-<YYYY-MM-DD>-<host>.jsonl (UTC day). One file per host keeps
 // replicas sharing a network volume from interleaving writes. Files older than
 // retentionDays are removed when a new day's file is opened (0 keeps all).
-// Write failures are reported once per day on stderr and never thrown.
-function createRequestLogFile({ dir, retentionDays = DEFAULT_RETENTION_DAYS, host = hostname(), now = Date.now }) {
+//
+// Logging must never disrupt requests:
+// - Failures are reported on stderr once per day (for whichever day's stream
+//   failed, including streams already rotated out or closing) and never thrown.
+//   A failing old stream never disables its replacement.
+// - If the volume stalls, entries are dropped once maxBufferedBytes are queued
+//   rather than growing memory without bound. Dropping and resuming are each
+//   reported once per stall, with the number of dropped entries.
+function createRequestLogFile({
+  dir,
+  retentionDays = DEFAULT_RETENTION_DAYS,
+  host = hostname(),
+  now = Date.now,
+  maxBufferedBytes = DEFAULT_MAX_BUFFERED_BYTES,
+  openStream = (path) => createWriteStream(path, { flags: "a" })
+}) {
   const hostPart = sanitizeFilePart(host);
+  const reportedDays = new Set();
   let currentDay = "";
   let failedDay = "";
   let stream = null;
+  let droppedEntries = 0;
   let cleanup = Promise.resolve();
 
-  function fail(error) {
-    failedDay = currentDay;
+  function reportFailure(day, error) {
+    if (reportedDays.has(day)) return;
+    reportedDays.add(day);
     const message = error instanceof Error ? error.message : String(error);
-    logEvent("request-log", "file_write_failed", { dir, day: currentDay, message }, { level: "error" });
-    stream?.destroy();
+    logEvent("request-log", "file_write_failed", { dir, day, message }, { level: "error" });
+  }
+
+  function disableDay(day) {
+    failedDay = day;
+    const failed = stream;
     stream = null;
+    failed?.destroy();
+  }
+
+  function resumeAfterBackpressure() {
+    if (!droppedEntries) return;
+    logEvent("request-log", "file_backpressure_resumed", { dir, dropped_entries: droppedEntries }, { level: "warn" });
+    droppedEntries = 0;
   }
 
   async function removeExpired(today) {
@@ -69,9 +99,13 @@ function createRequestLogFile({ dir, retentionDays = DEFAULT_RETENTION_DAYS, hos
     stream = null;
     currentDay = day;
     mkdirSync(dir, { recursive: true });
-    const next = createWriteStream(join(dir, `requests-${day}-${hostPart}.jsonl`), { flags: "a" });
+    const next = openStream(join(dir, `requests-${day}-${hostPart}.jsonl`));
     next.on("error", (error) => {
-      if (stream === next) fail(error);
+      reportFailure(day, error);
+      if (stream === next) disableDay(day);
+    });
+    next.on("drain", () => {
+      if (stream === next) resumeAfterBackpressure();
     });
     stream = next;
     cleanup = removeExpired(day);
@@ -82,18 +116,39 @@ function createRequestLogFile({ dir, retentionDays = DEFAULT_RETENTION_DAYS, hos
     if (day === failedDay) return;
     try {
       if (!stream || day !== currentDay) open(day);
-      stream.write(`${serializeLogEntry(entry)}\n`);
+      const line = `${serializeLogEntry(entry)}\n`;
+      const buffered = stream.writableLength;
+      if (buffered > 0 && buffered + Buffer.byteLength(line) > maxBufferedBytes) {
+        if (!droppedEntries) {
+          logEvent("request-log", "file_backpressure_dropping", {
+            dir,
+            day,
+            buffered_bytes: buffered,
+            limit_bytes: maxBufferedBytes
+          }, { level: "warn" });
+        }
+        droppedEntries += 1;
+        return;
+      }
+      resumeAfterBackpressure();
+      stream.write(line);
     } catch (error) {
+      reportFailure(day, error);
       currentDay = day;
-      fail(error);
+      disableDay(day);
     }
   }
 
+  // Resolves once the stream is closed, including after an error (which is
+  // reported by the stream's error handler).
   function close() {
     const current = stream;
     stream = null;
-    if (!current) return Promise.resolve();
-    return new Promise((resolve) => current.end(resolve));
+    if (!current || current.closed) return Promise.resolve();
+    return new Promise((resolve) => {
+      current.once("close", resolve);
+      current.end();
+    });
   }
 
   return {
