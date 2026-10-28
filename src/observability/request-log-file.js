@@ -1,5 +1,5 @@
-import { createWriteStream, mkdirSync } from "node:fs";
-import { readdir, unlink } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdir, readdir, unlink } from "node:fs/promises";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { logEvent, serializeLogEntry } from "./logging.js";
@@ -35,36 +35,34 @@ function utcDay(ms) {
 //   failed, including streams already rotated out or closing) and never thrown.
 //   A failing old stream never disables its replacement.
 // - If the volume stalls, entries are dropped once maxBufferedBytes are queued
-//   across all streams not yet closed (the current day's and any rotated-out
-//   stream still flushing), so memory stays bounded. Dropping is reported once
-//   per stall, and resuming (with the dropped count) on the next write that
-//   fits. A single entry larger than the cap is dropped and reported with its
-//   size. A cap of 0 queues nothing.
+//   across every day's file not yet closed (entries waiting for the file to
+//   open plus bytes queued in its stream, including a rotated-out file still
+//   flushing), so memory stays bounded. Dropping is reported once per stall,
+//   and resuming (with the dropped count) on the next write that fits. A
+//   single entry larger than the cap is dropped and reported with its size. A
+//   cap of 0 queues nothing.
+// - No blocking filesystem calls run on the request path: the directory is
+//   created asynchronously, and entries logged meanwhile are queued (within
+//   the cap) and written in order once the file opens.
 function createRequestLogFile({
   dir,
   retentionDays = DEFAULT_RETENTION_DAYS,
   host = hostname(),
   now = Date.now,
   maxBufferedBytes = DEFAULT_MAX_BUFFERED_BYTES,
+  makeDir = (path) => mkdir(path, { recursive: true }),
   openStream = (path) => createWriteStream(path, { flags: "a" })
 }) {
   const hostPart = sanitizeFilePart(host);
   const reportedDays = new Set();
-  let currentDay = "";
+  // One sink per day's file. Entries logged before the directory exists and
+  // the stream is open wait in sink.pending; afterwards they queue in the
+  // stream. A sink stays in `sinks` (and counts against the cap) until its
+  // stream closes or its open fails, including after rotation.
+  const sinks = new Set();
+  let current = null;
   let failedDay = "";
-  let stream = null;
   let droppedEntries = 0;
-  // Streams that may still hold queued bytes: the current one plus rotated-out
-  // or closing ones, until they emit "close".
-  const liveStreams = new Set();
-
-  function queuedBytes() {
-    let total = 0;
-    for (const live of liveStreams) {
-      if (!live.destroyed) total += live.writableLength || 0;
-    }
-    return total;
-  }
   let cleanup = Promise.resolve();
 
   function reportFailure(day, error) {
@@ -74,11 +72,29 @@ function createRequestLogFile({
     logEvent("request-log", "file_write_failed", { dir, day, message }, { level: "error" });
   }
 
+  function sinkBytes(sink) {
+    const streamBytes = sink.stream && !sink.stream.destroyed ? sink.stream.writableLength || 0 : 0;
+    return sink.pendingBytes + streamBytes;
+  }
+
+  function queuedBytes() {
+    let total = 0;
+    for (const sink of sinks) total += sinkBytes(sink);
+    return total;
+  }
+
+  function discardPending(sink) {
+    sink.pending = [];
+    sink.pendingBytes = 0;
+  }
+
   function disableDay(day) {
     failedDay = day;
-    const failed = stream;
-    stream = null;
-    failed?.destroy();
+    const failed = current;
+    current = null;
+    if (!failed) return;
+    discardPending(failed);
+    failed.stream?.destroy();
   }
 
   function resumeAfterBackpressure() {
@@ -108,27 +124,61 @@ function createRequestLogFile({
     }
   }
 
-  function open(day) {
-    stream?.end();
-    stream = null;
-    currentDay = day;
-    mkdirSync(dir, { recursive: true });
-    const next = openStream(join(dir, `requests-${day}-${hostPart}.jsonl`));
-    next.on("error", (error) => {
-      reportFailure(day, error);
-      if (stream === next) disableDay(day);
+  // Directory creation is async so a slow or stalled volume never blocks the
+  // event loop on the request path.
+  function createSink(day) {
+    const sink = { day, stream: null, pending: [], pendingBytes: 0, ended: false };
+    let markDone;
+    sink.done = new Promise((resolve) => {
+      markDone = resolve;
     });
-    liveStreams.add(next);
-    next.once("close", () => liveStreams.delete(next));
-    stream = next;
-    cleanup = removeExpired(day);
+    const finish = () => {
+      sinks.delete(sink);
+      markDone();
+    };
+    sinks.add(sink);
+
+    sink.ready = Promise.resolve()
+      .then(() => makeDir(dir))
+      .then(() => {
+        if (failedDay === day) {
+          finish();
+          return;
+        }
+        const stream = openStream(join(dir, `requests-${day}-${hostPart}.jsonl`));
+        stream.on("error", (error) => {
+          reportFailure(day, error);
+          if (current === sink) disableDay(day);
+        });
+        stream.once("close", finish);
+        sink.stream = stream;
+        for (const line of sink.pending) stream.write(line);
+        discardPending(sink);
+        if (sink.ended) stream.end();
+        cleanup = removeExpired(day);
+      })
+      .catch((error) => {
+        reportFailure(day, error);
+        if (current === sink) disableDay(day);
+        discardPending(sink);
+        if (!sink.stream) finish();
+      });
+    return sink;
+  }
+
+  function endSink(sink) {
+    sink.ended = true;
+    sink.stream?.end();
   }
 
   function write(entry) {
     const day = utcDay(now());
     if (day === failedDay) return;
     try {
-      if (!stream || day !== currentDay) open(day);
+      if (!current || current.day !== day) {
+        if (current) endSink(current);
+        current = createSink(day);
+      }
       const line = `${serializeLogEntry(entry)}\n`;
       const lineBytes = Buffer.byteLength(line);
       if (lineBytes > maxBufferedBytes) {
@@ -154,31 +204,38 @@ function createRequestLogFile({
         return;
       }
       resumeAfterBackpressure();
-      stream.write(line);
+      if (current.stream) {
+        current.stream.write(line);
+      } else {
+        current.pending.push(line);
+        current.pendingBytes += lineBytes;
+      }
     } catch (error) {
       reportFailure(day, error);
-      currentDay = day;
       disableDay(day);
     }
   }
 
-  // Ends the current stream and resolves once every stream that may still hold
-  // queued entries (including rotated-out ones still flushing) has closed, so
-  // shutdown does not drop prior-day entries. Errors are reported by each
-  // stream's error handler; "close" follows them, so this still resolves.
+  // Ends the current day's file and resolves once every sink has finished:
+  // pending opens complete and flush, and rotated-out streams still flushing
+  // close, so shutdown does not drop entries. Errors are reported by each
+  // stream's handler; "close" follows them, so this still resolves.
   function close() {
-    const current = stream;
-    stream = null;
-    const pending = [...liveStreams].filter((live) => !live.closed);
-    const closed = pending.map((live) => new Promise((resolve) => live.once("close", resolve)));
-    if (current && !current.closed) current.end();
-    return Promise.all(closed).then(() => undefined);
+    const last = current;
+    current = null;
+    if (last) endSink(last);
+    return Promise.all([...sinks].map((sink) => sink.done)).then(() => undefined);
+  }
+
+  async function whenCleanupDone() {
+    await Promise.all([...sinks].map((sink) => sink.ready));
+    await cleanup;
   }
 
   return {
     write,
     close,
-    whenCleanupDone: () => cleanup
+    whenCleanupDone
   };
 }
 

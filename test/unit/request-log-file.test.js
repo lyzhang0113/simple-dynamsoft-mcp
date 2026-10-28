@@ -146,19 +146,119 @@ function stderrEvents(lines, event) {
 
 const ENTRY = { event: "tool_call", pad: "x".repeat(30) };
 const ENTRY_BYTES = Buffer.byteLength(`${JSON.stringify(ENTRY)}\n`);
+const NOON = () => Date.parse("2026-10-28T12:00:00Z");
+const readyDir = async () => {};
+const settle = () => new Promise((resolve) => setImmediate(resolve));
 
-test("a stalled volume drops entries past the buffer cap and reports dropping and resuming once", (t) => {
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+test("directory creation never blocks the caller; entries logged meanwhile are written in order once the file opens", async (t) => {
+  silenceStderr(t);
+  const { streams, open } = createFakeStreamFactory();
+  const dirReady = deferred();
+  const file = createRequestLogFile({ dir: "/logs", host: "h", now: NOON, makeDir: () => dirReady.promise, openStream: open });
+
+  file.write({ n: 1 });
+  file.write({ n: 2 });
+  file.write({ n: 3 });
+  await settle();
+  assert.equal(streams.length, 0, "the file is not opened before the directory exists");
+
+  dirReady.resolve();
+  await settle();
+  assert.deepEqual(streams[0].lines.map((line) => JSON.parse(line).n), [1, 2, 3]);
+});
+
+test("entries waiting for the file to open count against the cap", async (t) => {
   const stderr = silenceStderr(t);
   const { streams, open } = createFakeStreamFactory();
+  const dirReady = deferred();
   const file = createRequestLogFile({
-    dir: tempDir(t),
+    dir: "/logs",
     host: "h",
-    now: () => Date.parse("2026-10-28T12:00:00Z"),
+    now: NOON,
     maxBufferedBytes: ENTRY_BYTES * 2,
+    makeDir: () => dirReady.promise,
     openStream: open
   });
 
-  for (let i = 0; i < 5; i += 1) file.write(ENTRY);
+  for (let i = 0; i < 4; i += 1) file.write(ENTRY);
+  assert.equal(stderrEvents(stderr, "file_backpressure_dropping").length, 1);
+
+  dirReady.resolve();
+  await settle();
+  assert.equal(streams[0].lines.length, 2);
+});
+
+test("entries queued before a rotation still go to their own day's file", async (t) => {
+  silenceStderr(t);
+  const { streams, open } = createFakeStreamFactory();
+  const dirReady = deferred();
+  let clock = Date.parse("2026-10-28T23:59:59Z");
+  const file = createRequestLogFile({ dir: "/logs", host: "h", now: () => clock, makeDir: () => dirReady.promise, openStream: open });
+
+  file.write({ n: 1 });
+  clock = Date.parse("2026-10-29T00:00:01Z");
+  file.write({ n: 2 });
+  dirReady.resolve();
+  await settle();
+
+  const byFile = Object.fromEntries(streams.map((stream) => [
+    stream.path.match(/requests-(\d{4}-\d{2}-\d{2})/)[1],
+    stream.lines.map((line) => JSON.parse(line).n)
+  ]));
+  assert.deepEqual(byFile, { "2026-10-28": [1], "2026-10-29": [2] });
+  assert.equal(streams[0].ending, true, "the rotated-out file is ended once its entries are written");
+});
+
+test("a failed directory creation is reported once and that day's entries are dropped", async (t) => {
+  const stderr = silenceStderr(t);
+  const { streams, open } = createFakeStreamFactory();
+  const file = createRequestLogFile({
+    dir: "/logs",
+    host: "h",
+    now: NOON,
+    makeDir: async () => {
+      throw new Error("share unavailable");
+    },
+    openStream: open
+  });
+
+  file.write({ n: 1 });
+  file.write({ n: 2 });
+  await settle();
+  file.write({ n: 3 });
+  await file.close();
+
+  assert.equal(streams.length, 0);
+  const failures = stderrEvents(stderr, "file_write_failed");
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0].message, "share unavailable");
+});
+
+test("a stalled volume drops entries past the buffer cap and reports dropping and resuming once", async (t) => {
+  const stderr = silenceStderr(t);
+  const { streams, open } = createFakeStreamFactory();
+  const file = createRequestLogFile({
+    dir: "/logs",
+    host: "h",
+    now: NOON,
+    maxBufferedBytes: ENTRY_BYTES * 2,
+    makeDir: readyDir,
+    openStream: open
+  });
+
+  file.write(ENTRY);
+  await settle();
+  for (let i = 0; i < 4; i += 1) file.write(ENTRY);
   const [stream] = streams;
   assert.equal(stream.lines.length, 2, "only entries that fit under the cap are queued");
 
@@ -174,23 +274,26 @@ test("a stalled volume drops entries past the buffer cap and reports dropping an
   assert.equal(resumed[0].dropped_entries, 3);
 });
 
-test("the cap covers a stalled rotated-out stream, so rotation does not grant a fresh budget", (t) => {
+test("the cap covers a stalled rotated-out stream, so rotation does not grant a fresh budget", async (t) => {
   const stderr = silenceStderr(t);
   const { streams, open } = createFakeStreamFactory();
   let clock = Date.parse("2026-10-28T23:59:59Z");
   const file = createRequestLogFile({
-    dir: tempDir(t),
+    dir: "/logs",
     host: "h",
     now: () => clock,
     maxBufferedBytes: ENTRY_BYTES * 2,
+    makeDir: readyDir,
     openStream: open
   });
 
   file.write(ENTRY);
   file.write(ENTRY);
+  await settle();
   clock = Date.parse("2026-10-29T00:00:01Z");
   file.write(ENTRY);
   file.write(ENTRY);
+  await settle();
   const [oldStream, newStream] = streams;
   assert.equal(oldStream.closed, false, "the old stream is still flushing");
   assert.equal(newStream.lines.length, 0, "no new entries while the old stream holds the full budget");
@@ -203,33 +306,36 @@ test("the cap covers a stalled rotated-out stream, so rotation does not grant a 
   assert.equal(stderrEvents(stderr, "file_backpressure_resumed")[0].dropped_entries, 2);
 });
 
-test("an entry larger than the cap is dropped and reported even when nothing is queued", (t) => {
+test("an entry larger than the cap is dropped and reported even when nothing is queued", async (t) => {
   const stderr = silenceStderr(t);
   const { streams, open } = createFakeStreamFactory();
   const file = createRequestLogFile({
-    dir: tempDir(t),
+    dir: "/logs",
     host: "h",
-    now: () => Date.parse("2026-10-28T12:00:00Z"),
+    now: NOON,
     maxBufferedBytes: ENTRY_BYTES - 1,
+    makeDir: readyDir,
     openStream: open
   });
 
   file.write(ENTRY);
+  await settle();
   assert.equal(streams[0].lines.length, 0);
   const [tooLarge] = stderrEvents(stderr, "file_entry_too_large");
   assert.equal(tooLarge.entry_bytes, ENTRY_BYTES);
   assert.equal(tooLarge.limit_bytes, ENTRY_BYTES - 1);
 });
 
-test("an error from a rotated-out stream is reported for its own day without disabling the new stream", (t) => {
+test("an error from a rotated-out stream is reported for its own day without disabling the new stream", async (t) => {
   const stderr = silenceStderr(t);
   const { streams, open } = createFakeStreamFactory();
   let clock = Date.parse("2026-10-28T23:59:59Z");
-  const file = createRequestLogFile({ dir: tempDir(t), host: "h", now: () => clock, openStream: open });
+  const file = createRequestLogFile({ dir: "/logs", host: "h", now: () => clock, makeDir: readyDir, openStream: open });
 
   file.write({ n: 1 });
   clock = Date.parse("2026-10-29T00:00:01Z");
   file.write({ n: 2 });
+  await settle();
   const [oldStream, newStream] = streams;
 
   oldStream.emit("error", new Error("flush failed"));
@@ -246,19 +352,16 @@ test("an error from a rotated-out stream is reported for its own day without dis
   assert.deepEqual(failures.map((entry) => entry.day), ["2026-10-28", "2026-10-29"]);
   assert.equal(newStream.destroyed, true);
   file.write({ n: 4 });
+  await settle();
   assert.equal(streams.length, 2, "a failed day is not reopened");
 });
 
 test("close() reports an error from the closing stream and still resolves", async (t) => {
   const stderr = silenceStderr(t);
   const { streams, open } = createFakeStreamFactory();
-  const file = createRequestLogFile({
-    dir: tempDir(t),
-    host: "h",
-    now: () => Date.parse("2026-10-28T12:00:00Z"),
-    openStream: open
-  });
+  const file = createRequestLogFile({ dir: "/logs", host: "h", now: NOON, makeDir: readyDir, openStream: open });
   file.write({ n: 1 });
+  await settle();
   streams[0].end = function failingEnd() {
     this.emit("error", new Error("final flush failed"));
     this.closed = true;
@@ -275,11 +378,12 @@ test("close() waits for a rotated-out stream that is still flushing", async (t) 
   silenceStderr(t);
   const { streams, open } = createFakeStreamFactory();
   let clock = Date.parse("2026-10-28T23:59:59Z");
-  const file = createRequestLogFile({ dir: tempDir(t), host: "h", now: () => clock, openStream: open });
+  const file = createRequestLogFile({ dir: "/logs", host: "h", now: () => clock, makeDir: readyDir, openStream: open });
 
   file.write({ n: 1 });
   clock = Date.parse("2026-10-29T00:00:01Z");
   file.write({ n: 2 });
+  await settle();
   const [oldStream, newStream] = streams;
 
   let resolved = false;
@@ -287,11 +391,33 @@ test("close() waits for a rotated-out stream that is still flushing", async (t) 
     resolved = true;
   });
   newStream.flush();
-  await new Promise((resolve) => setImmediate(resolve));
+  await settle();
   assert.equal(resolved, false, "shutdown must not finish while the old day's entries are still queued");
 
   oldStream.flush();
   await closing;
   assert.equal(oldStream.closed, true);
   assert.equal(newStream.closed, true);
+});
+
+test("close() waits for a file that is still opening and flushes its queued entries", async (t) => {
+  silenceStderr(t);
+  const { streams, open } = createFakeStreamFactory();
+  const dirReady = deferred();
+  const file = createRequestLogFile({ dir: "/logs", host: "h", now: NOON, makeDir: () => dirReady.promise, openStream: open });
+
+  file.write({ n: 1 });
+  let resolved = false;
+  const closing = file.close().then(() => {
+    resolved = true;
+  });
+  await settle();
+  assert.equal(resolved, false);
+
+  dirReady.resolve();
+  await settle();
+  assert.equal(streams[0].lines.length, 1, "queued entries are written before the file is ended");
+  streams[0].flush();
+  await closing;
+  assert.equal(streams[0].closed, true);
 });
