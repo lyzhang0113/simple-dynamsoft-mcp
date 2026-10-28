@@ -102,6 +102,19 @@ function refreshRagIndexes() {
   logRag(`indexes refreshed resources=${resourceIndex.length}`);
 }
 
+function dedupeByPublicUrl(results, limit) {
+  const seen = new Set();
+  const unique = [];
+  for (const entry of results) {
+    const key = entry.url || entry.uri;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(entry);
+    if (limit && unique.length >= limit) break;
+  }
+  return unique;
+}
+
 async function searchResources({ query, product, edition, platform, type, limit }) {
   const startedAt = Date.now();
   const filters = normalizeSearchFilters({ product, edition, platform, type }, {
@@ -133,7 +146,11 @@ async function searchResources({ query, product, edition, platform, type, limit 
   for (const name of providers) {
     try {
       const provider = await providerOrchestrator.loadSearchProvider(name);
-      const results = await provider.search(searchQuery, filters, maxResults);
+      // Shared pages (e.g. Capture Vision core reference) are indexed once per
+      // DBR edition, so an edition-less search can hit the same public page
+      // several times. Over-fetch, then keep the best hit per public URL.
+      const candidates = await provider.search(searchQuery, filters, maxResults ? maxResults * 3 : undefined);
+      const results = dedupeByPublicUrl(candidates, maxResults);
       if (!ragLogState.providerFirstUse.has(name)) {
         ragLogState.providerFirstUse.add(name);
         logRag("provider_selected", {

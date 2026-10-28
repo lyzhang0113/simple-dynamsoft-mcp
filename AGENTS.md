@@ -11,6 +11,8 @@ Use it as the default source for build/test workflows and coding conventions.
 - Test framework: built-in `node:test` + `node:assert/strict`.
 - Key domains: MCP tool registration, resource indexing, RAG providers, data bootstrap/submodule sync.
 - Public MCP surface: `dwt`, `ddv`, `dbr`, `mrz`, `mds`; `dcv` may still appear in internal resource or version wiring, but do not expose it as a public product.
+- Shared Capture Vision docs: DCV pages that DBR docs or DBR sidebars (`_includes/`) link to are indexed under `dbr` (tags `shared`, `capture-vision`; real `capture-vision/docs` URL; `sourceVersion` = DCV version). Selection lives in `src/server/resource-index/shared-docs.js`; a DCV source whose minor/build does not match the DBR edition is skipped with a `shared_docs_version_mismatch` warning.
+- Doc URIs are `doc://{product}/{edition}/{platform}/{version}/{path}`, where `path` is the source file path without `.md`, without the `programming/<lang>/` prefix, and with trailing `/index` dropped (full source path on collision). Shared DCV pages use `dcv/...` or `dcv-core/...` paths.
 
 ## Repository Rules Discovery
 Checked for repository-level editor-agent policy files:
@@ -42,6 +44,8 @@ High-signal test entrypoints from `package.json`:
 - Lexical-provider integration: `npm run test:lexical`
 - Gemini-provider integration: `npm run test:gemini`
 - Regression pack: `npm run test:regression`
+- Retrieval-quality gate (real data, lexical, golden set): `npm run test:retrieval`
+- Retrieval metrics report: `npm run eval:retrieval -- --show` (`--provider=gemini` needs `GEMINI_API_KEY` from a supported region; `--json=<path>` writes the report)
 
 ## Running A Single Test
 Prefer direct `node --test` for single-file and single-test targeting.
@@ -86,6 +90,8 @@ From `.github/workflows/ci.yml`, core jobs are:
 When modifying server behavior, at minimum run:
 1. `npm run test:unit`
 2. `npm run test:lite`
+
+When modifying indexing, ranking, or `test/fixtures/retrieval-golden.json`, also run `npm run eval:retrieval` and compare against the previous numbers; `npm run test:retrieval` enforces floors in the lexical CI job.
 
 When modifying data/version logic, also run:
 1. `npm run data:verify-versions:strict`

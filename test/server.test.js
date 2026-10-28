@@ -648,25 +648,27 @@ await test('search + resources/read works together', async () => {
     assert(readResponse.result.contents.length > 0, 'Should return content');
 });
 
-await test('resources/read tolerates doc URI with decoded slash in slug', async () => {
+await test('resources/read tolerates percent-encoded characters in doc URI path segments', async () => {
     ensureResourceIndexReady();
-    const uriWithEncodedSlash = resourceIndex.find(
-        (entry) => entry.type === 'doc' && entry.uri.startsWith('doc://') && entry.uri.includes('%2F')
+    const canonicalUri = resourceIndex.find(
+        (entry) => entry.type === 'doc' && entry.uri.startsWith('doc://') && entry.uri.split('/').slice(6).join('/').includes('-')
     )?.uri;
-    assert(uriWithEncodedSlash, 'Expected at least one doc URI containing an encoded slash');
+    assert(canonicalUri, 'Expected a doc URI with a hyphenated path segment');
 
-    const malformedUri = decodeURIComponent(uriWithEncodedSlash);
-    assert(malformedUri !== uriWithEncodedSlash, 'Decoded URI should differ from canonical URI');
+    const head = canonicalUri.split('/').slice(0, 6).join('/');
+    const slug = canonicalUri.split('/').slice(6).join('/');
+    const encodedUri = `${head}/${slug.replace(/-/g, '%2D')}`;
+    assert(encodedUri !== canonicalUri, 'Encoded URI should differ from canonical URI');
 
     const readResponse = await sendRequest({
         jsonrpc: '2.0',
         id: 2,
         method: 'resources/read',
-        params: { uri: malformedUri }
+        params: { uri: encodedUri }
     });
 
     assert(readResponse.result, 'Should have read result');
-    assert(readResponse.result.contents.length > 0, 'Should return content for decoded-slash URI');
+    assert(readResponse.result.contents.length > 0, 'Should return content for percent-encoded URI');
 });
 
 await test('resolve_version returns latest for DBR web', async () => {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { resourceIndex, readResourceContent } from "../src/server/resource-index.js";
+import { ensureResourceIndexReady, resourceIndex, readResourceContent } from "../src/server/resource-index.js";
 
 function parsePositiveInt(value, fallback) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -9,6 +9,7 @@ function parsePositiveInt(value, fallback) {
 }
 
 async function main() {
+  ensureResourceIndexReady();
   const concurrency = parsePositiveInt(process.env.DOC_VERIFY_CONCURRENCY, 8);
   const docs = resourceIndex.filter((entry) => entry.type === "doc");
   const total = docs.length;

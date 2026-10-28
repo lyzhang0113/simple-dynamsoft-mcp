@@ -33,6 +33,15 @@ function buildLexicalHaystack(entry) {
   ].join(" \n ");
 }
 
+const MAX_SCOPED_FUSE_INDEXES = 64;
+
+// Fuse matches long natural-language questions only through fragments of the
+// pattern, giving a weak, noisy signal at a cost of seconds on large scopes.
+// On the golden set (scripts/eval-retrieval.mjs), skipping it above this length
+// kept recall, raised MRR, and cut warm p95 from ~2.2s to ~0.2s. BM25 carries
+// long queries.
+const MAX_FUSE_QUERY_CHARS = 64;
+
 const BM25_K1 = 1.2;
 const BM25_B = 0.75;
 
@@ -126,10 +135,25 @@ function createLexicalProvider({
   bm25Weight = 0.7,
   fuseWeight = 0.3
 }) {
-  const fuse = new Fuse(entries, fuseOptions);
   const bm25Index = buildBm25Index(entries);
   const entryByUri = new Map(entries.map((entry) => [entry.uri, entry]));
   const snippetTextByUri = new Map(bm25Index.documents.map((doc) => [doc.entry.uri, doc.snippetText]));
+  // Fuse cost grows with the number of entries scanned, and its hits were
+  // filtered by scope only afterwards. One Fuse index per scope keeps scoped
+  // searches proportional to that scope; the scope set is small and bounded.
+  const fuseByScope = new Map();
+  const getScopedFuse = (filters) => {
+    const key = [filters?.product, filters?.edition, filters?.platform, filters?.type].map((v) => v || "").join("|");
+    let scoped = fuseByScope.get(key);
+    if (!scoped) {
+      scoped = new Fuse(entries.filter((entry) => entryMatchesScope(entry, filters || {})), fuseOptions);
+      if (fuseByScope.size >= MAX_SCOPED_FUSE_INDEXES) {
+        fuseByScope.delete(fuseByScope.keys().next().value);
+      }
+      fuseByScope.set(key, scoped);
+    }
+    return scoped;
+  };
 
   return {
     name: "lexical",
@@ -137,7 +161,7 @@ function createLexicalProvider({
       // Expand with domain synonyms/stems so vocabulary gaps (webcam/camera,
       // datamatrix/data matrix, scanning/scan) do not zero the BM25 component.
       const terms = expandQueryTokens([...new Set(tokenize(query))]);
-      const fuseHits = fuse.search(query);
+      const fuseHits = query.length <= MAX_FUSE_QUERY_CHARS ? getScopedFuse(filters).search(query) : [];
       const fuseScoreByUri = new Map();
 
       for (const hit of fuseHits) {

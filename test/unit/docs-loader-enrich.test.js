@@ -42,3 +42,21 @@ test("#144: glob excludeFiles patterns drop stale/private docs", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("redirect stubs are skipped and {{ site.* }} links resolve to absolute URLs", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(join(dir, "_config.yml"), "dcvb_js_api: /capture-vision/docs/web/programming/javascript/api-reference/\nsite_name: Docs\n");
+    writeFileSync(join(dir, "capture-vision-router.md"), "---\nredirect_to: https://example.com/elsewhere.html\nsitemap: false\n---\n");
+    writeFileSync(join(dir, "guide.md"), "---\ntitle: Guide\n---\nSee [capture]({{ site.dcvb_js_api }}capture-vision-router/single-image-processing.html) and {{ site.unknown_key }}.");
+    const { articles } = loadMarkdownDocs({ rootDir: dir, urlBase: "https://x/" });
+    assert.deepEqual(articles.map((a) => a.path), ["guide.md"], "redirect stub must not be indexed");
+    assert.match(
+      articles[0].content,
+      /\(https:\/\/www\.dynamsoft\.com\/capture-vision\/docs\/web\/programming\/javascript\/api-reference\/capture-vision-router\/single-image-processing\.html\)/
+    );
+    assert.match(articles[0].content, /\{\{ site\.unknown_key \}\}/, "unknown site keys stay untouched");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
