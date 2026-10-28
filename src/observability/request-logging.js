@@ -1,6 +1,4 @@
 import { createHmac, randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { createLogEntry, logEvent } from "./logging.js";
 import { getRequestLogFile } from "./request-log-file.js";
 
@@ -21,46 +19,14 @@ const MAX_SCALAR_CHARS = 1024;
 const CLIENT_IP_MODES = new Set(["hash", "full", "off"]);
 
 // Salt for hashed client ids, so they are not reversible by brute forcing the
-// IPv4 space without it. Resolution: MCP_LOG_IP_SALT, else a random salt
-// persisted once in MCP_REQUEST_LOG_DIR (stable across restarts, revisions,
-// and replicas sharing the volume), else a per-process salt.
-const SALT_FILE = ".client-id-salt";
-const MIN_SALT_CHARS = 32;
+// IPv4 space without it. Use MCP_LOG_IP_SALT (a deployment secret) for ids that
+// are stable across restarts and replicas. Without it, a per-process salt is
+// used: ids only group requests within one process lifetime. The salt is never
+// written next to the logs it de-identifies.
 const processSalt = randomBytes(32).toString("hex");
-const persistedSalts = new Map();
-const saltWarnings = new Set();
-
-function loadOrCreateSalt(dir) {
-  const path = join(dir, SALT_FILE);
-  mkdirSync(dir, { recursive: true });
-  try {
-    writeFileSync(path, randomBytes(32).toString("hex"), { flag: "wx", mode: 0o600 });
-  } catch (error) {
-    if (error?.code !== "EEXIST") throw error;
-  }
-  const salt = readFileSync(path, "utf8").trim();
-  if (salt.length < MIN_SALT_CHARS) throw new Error(`${path} is empty or too short`);
-  return salt;
-}
 
 function resolveIpSalt(env = process.env) {
-  if (env.MCP_LOG_IP_SALT) return env.MCP_LOG_IP_SALT;
-  const dir = String(env.MCP_REQUEST_LOG_DIR || "").trim();
-  if (!dir) return processSalt;
-  if (persistedSalts.has(dir)) return persistedSalts.get(dir);
-  try {
-    const salt = loadOrCreateSalt(dir);
-    persistedSalts.set(dir, salt);
-    return salt;
-  } catch (error) {
-    // Not cached, so a transient share error is retried on the next request.
-    if (!saltWarnings.has(dir)) {
-      saltWarnings.add(dir);
-      const message = error instanceof Error ? error.message : String(error);
-      logEvent("request-log", "salt_unavailable", { dir, message }, { level: "warn" });
-    }
-    return processSalt;
-  }
+  return env.MCP_LOG_IP_SALT || processSalt;
 }
 
 function readBoolEnv(env, key, fallback) {
@@ -194,37 +160,52 @@ function attachRequestLogging(transport, context = {}, {
     previousOnMessage?.(message, extra);
   };
 
+  function record(message, request, durationMs, sendError) {
+    const params = request.params;
+    const isToolCall = request.event === "tool_call";
+    const rpcError = message.error;
+    const level = rpcError || sendError ? "warn" : "info";
+    const summary = {
+      ...context,
+      request_id: capScalar(message.id),
+      tool: isToolCall ? capScalar(params.name) : undefined,
+      uri: isToolCall ? undefined : capScalar(params.uri),
+      duration_ms: durationMs,
+      is_error: Boolean(rpcError) || message.result?.isError === true,
+      error: rpcError ? { code: rpcError.code, message: capScalar(rpcError.message) } : undefined,
+      send_failed: sendError ? true : undefined,
+      send_error: sendError ? capScalar(sendError instanceof Error ? sendError.message : String(sendError)) : undefined
+    };
+
+    logEvent("mcp", request.event, {
+      ...summary,
+      response_chars: rpcError ? undefined : jsonLength(message.result)
+    }, { level, env });
+
+    file?.write(createLogEntry("mcp", request.event, {
+      ...summary,
+      arguments: isToolCall ? limitForLog(params.arguments || {}, maxChars) : undefined,
+      response: rpcError ? undefined : limitForLog(message.result, maxChars)
+    }, level));
+  }
+
+  // Logged after the transport accepts the response, so an entry reflects
+  // delivery; a rejected send is logged with send_failed and rethrown.
+  // duration_ms measures handler time (request received -> response ready).
   const originalSend = transport.send.bind(transport);
-  transport.send = (message, options) => {
-    if (isResponse(message) && pending.has(message.id)) {
-      const request = pending.get(message.id);
-      pending.delete(message.id);
-      const params = request.params;
-      const isToolCall = request.event === "tool_call";
-      const rpcError = message.error;
-      const level = rpcError ? "warn" : "info";
-      const summary = {
-        ...context,
-        request_id: capScalar(message.id),
-        tool: isToolCall ? capScalar(params.name) : undefined,
-        uri: isToolCall ? undefined : capScalar(params.uri),
-        duration_ms: now() - request.startedAt,
-        is_error: Boolean(rpcError) || message.result?.isError === true,
-        error: rpcError ? { code: rpcError.code, message: capScalar(rpcError.message) } : undefined
-      };
-
-      logEvent("mcp", request.event, {
-        ...summary,
-        response_chars: rpcError ? undefined : jsonLength(message.result)
-      }, { level, env });
-
-      file?.write(createLogEntry("mcp", request.event, {
-        ...summary,
-        arguments: isToolCall ? limitForLog(params.arguments || {}, maxChars) : undefined,
-        response: rpcError ? undefined : limitForLog(message.result, maxChars)
-      }, level));
+  transport.send = async (message, options) => {
+    const request = isResponse(message) ? pending.get(message.id) : undefined;
+    if (!request) return originalSend(message, options);
+    pending.delete(message.id);
+    const durationMs = now() - request.startedAt;
+    try {
+      const result = await originalSend(message, options);
+      record(message, request, durationMs, null);
+      return result;
+    } catch (error) {
+      record(message, request, durationMs, error);
+      throw error;
     }
-    return originalSend(message, options);
   };
 
   return transport;

@@ -72,7 +72,7 @@ TLS is provided by Azure on the default ACA domain.
 
 Deploys set `MCP_LOG_FORMAT=text`, `MCP_LOG_CLIENT_IP=hash`, `MCP_LOG_TRUST_PROXY=true`, and `MCP_REQUEST_LOG_DIR=/mnt/mcp-cache/request-logs`. Each `tools/call` and `resources/read` is logged twice:
 
-- **Console (container output):** one line with the tool (or `read <uri>`), `ok`/`error`, duration, response size, and the requester: `client_id` (salted HMAC of the client IP) and `user_agent`. No arguments or response bodies.
+- **Console (container output):** one line with the tool (or `read <uri>`), `ok`/`error`/`undelivered`, duration, response size, and the requester: `client_id` (salted HMAC of the client IP) and `user_agent`. No raw IP, arguments, or response bodies. Lines are written after the response is handed to the transport; a failed send is logged as `undelivered` with `send_error`.
 
   ```text
   2026-10-28T02:52:18.668Z INFO  [mcp] search ok 374ms 1804 chars transport=http client_id=a1b2c3d4e5f60718 user_agent=example-chatbot/1.0 request_id=1
@@ -96,8 +96,12 @@ jq -c 'select(.tool == "search") | {ts, client_id, query: .arguments.query, is_e
 
 Requester identity (`MCP_LOG_CLIENT_IP`; the default outside these deploys is `off`):
 
-- `hash`: `client_id`, a salted HMAC of the client IP. Groups requests per caller without storing the IP. The salt is `MCP_LOG_IP_SALT` if set; otherwise a random salt created once at `request-logs/.client-id-salt` on the share, so ids stay stable across cold starts, revisions, and replicas. Deleting that file starts a new id space. Anyone holding the salt can test candidate IPs against ids, so keep share access restricted.
-- `full`: raw `client_ip`. Personal data; check retention/privacy requirements first.
+- `hash`: `client_id`, a salted HMAC of the client IP. Groups requests per caller without storing the IP. The salt comes from the `MCP_LOG_IP_SALT` GitHub secret: `deploy-aca.yml` stores it as the ACA secret `log-ip-salt` and sets `MCP_LOG_IP_SALT=secretref:log-ip-salt`, so ids stay stable across cold starts, revisions, and replicas. Without that secret the deploy warns and a per-process salt is used (ids change on every restart). The salt is never written to the share, so reading the logs does not reveal it.
+- `full`: raw `client_ip`.
 - `off`: no IP-derived field.
+
+Privacy: `client_id` is pseudonymous (linkable across requests) and `user_agent` is caller-supplied, so console output still counts as personal data under GDPR-style rules. The detailed files additionally hold full arguments and responses, which can include whatever users typed. Restrict who can read container logs and the `mcp-cache` share, and keep `MCP_REQUEST_LOG_RETENTION_DAYS` as short as review needs allow.
+
+To create the salt: `openssl rand -hex 32`, then add it as repository or `azure-production` environment secret `MCP_LOG_IP_SALT`. Rotating it starts a new id space.
 
 On ACA the socket peer is the ingress proxy, so `MCP_LOG_TRUST_PROXY=true` uses the right-most `X-Forwarded-For` entry (appended by ACA ingress). Leave it unset when the server is reachable directly, since clients can then forge the header. Clients that call through a hosted agent (e.g. a chatbot platform) appear as that platform's egress IP, so all of its users share one `client_id`; use `user_agent` to tell platforms apart.

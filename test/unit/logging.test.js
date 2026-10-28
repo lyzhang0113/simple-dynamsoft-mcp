@@ -128,3 +128,15 @@ test("JSON stays the default console format", () => {
   const [line] = captureLines(() => logEvent("transport", "server_start", { mode: "http" }, { env: {} }));
   assert.equal(JSON.parse(line).event, "server_start");
 });
+
+test("text format marks responses that failed to reach the client as undelivered", () => {
+  const [line] = captureLines(() => logEvent("mcp", "tool_call", {
+    tool: "search",
+    duration_ms: 5,
+    is_error: false,
+    response_chars: 10,
+    send_failed: true,
+    send_error: "socket closed"
+  }, { env: { MCP_LOG_FORMAT: "text" }, level: "warn" }));
+  assert.ok(line.endsWith('WARN  [mcp] search undelivered 5ms 10 chars send_error="socket closed"'), line);
+});

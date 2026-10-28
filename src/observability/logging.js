@@ -87,13 +87,13 @@ function formatRequestHead(entry, consumed) {
     parts.push("read", formatTextValue(entry.uri ?? "?"));
     consumed.add("uri");
   }
-  parts.push(entry.is_error ? "error" : "ok");
+  parts.push(entry.send_failed ? "undelivered" : entry.is_error ? "error" : "ok");
   if (entry.error) {
     parts.push(String(entry.error.code), formatTextValue(String(entry.error.message ?? "")));
   }
   if (entry.duration_ms !== undefined) parts.push(`${entry.duration_ms}ms`);
   if (entry.response_chars !== undefined) parts.push(`${entry.response_chars} chars`);
-  for (const key of ["is_error", "error", "duration_ms", "response_chars"]) consumed.add(key);
+  for (const key of ["is_error", "error", "duration_ms", "response_chars", "send_failed"]) consumed.add(key);
   return parts;
 }
 

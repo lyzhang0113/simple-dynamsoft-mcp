@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -242,29 +242,37 @@ test("buildHttpRequestContext includes transport and user agent, and client iden
   );
 });
 
-test("without MCP_LOG_IP_SALT, client ids use a salt persisted once in MCP_REQUEST_LOG_DIR", (t) => {
+test("without MCP_LOG_IP_SALT, hashing writes no salt next to the request logs", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "client-id-salt-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const env = { MCP_LOG_CLIENT_IP: "hash", MCP_REQUEST_LOG_DIR: dir };
 
   const first = describeClientIp("203.0.113.9", env);
-  const salt = readFileSync(join(dir, ".client-id-salt"), "utf8");
-  assert.ok(salt.length >= 32, "a random salt should be written on first use");
-  assert.deepEqual(describeClientIp("203.0.113.9", env), first);
-  assert.deepEqual(
-    describeClientIp("203.0.113.9", { MCP_LOG_CLIENT_IP: "hash", MCP_LOG_IP_SALT: salt }),
-    first,
-    "the id is the HMAC under the persisted salt, so it is stable across restarts"
-  );
+  assert.match(first.client_id, /^[0-9a-f]{16}$/);
+  assert.deepEqual(describeClientIp("203.0.113.9", env), first, "ids are stable within the process");
+  assert.deepEqual(readdirSync(dir), [], "the HMAC key must not be co-located with the logs");
 });
 
-test("an existing salt file is reused rather than replaced", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "client-id-salt-"));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const existing = "f".repeat(64);
-  writeFileSync(join(dir, ".client-id-salt"), existing);
+test("a failed send is logged as undelivered and the error is rethrown", async (t) => {
+  const readLogs = captureLogs(t);
+  const file = createFakeFile();
+  const transport = {
+    onmessage: undefined,
+    async send() {
+      throw new Error("socket closed");
+    }
+  };
+  attachRequestLogging(transport, { transport: "http" }, { env: {}, file });
 
-  const id = describeClientIp("198.51.100.4", { MCP_LOG_CLIENT_IP: "hash", MCP_REQUEST_LOG_DIR: dir });
-  assert.equal(readFileSync(join(dir, ".client-id-salt"), "utf8"), existing);
-  assert.deepEqual(id, describeClientIp("198.51.100.4", { MCP_LOG_CLIENT_IP: "hash", MCP_LOG_IP_SALT: existing }));
+  transport.onmessage({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "search", arguments: { query: "q" } } });
+  await assert.rejects(
+    () => transport.send({ jsonrpc: "2.0", id: 5, result: { content: [] } }),
+    { message: "socket closed" }
+  );
+
+  const [summary] = readLogs();
+  assert.equal(summary.level, "warn");
+  assert.equal(summary.send_failed, true);
+  assert.equal(summary.send_error, "socket closed");
+  assert.equal(file.entries[0].send_failed, true);
 });
