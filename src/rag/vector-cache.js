@@ -20,6 +20,70 @@ function makeCheckpointFileName(provider, model, cacheKey) {
   return `rag-${provider}-${safeModel}-${cacheKey.slice(0, 12)}.checkpoint.json`;
 }
 
+// Cache layout: a JSON header (`<name>.json`: cacheKey, meta, items, vector
+// count/dimensions) plus a sibling `<name>.f32` file holding all vectors as
+// packed little-endian float32. Serializing vectors into JSON overflowed V8's
+// ~512MB max string length once the index grew; neither file here is built as
+// one large string.
+const VECTOR_FORMAT = "float32-le-v1";
+
+function vectorFileFor(headerFile) {
+  return headerFile.replace(/\.json$/i, ".f32");
+}
+
+function writeVectorFiles(headerFile, payload) {
+  const { vectors, ...header } = payload;
+  const list = Array.isArray(vectors) ? vectors : [];
+  const dimensions = list.length > 0 ? list[0].length : 0;
+  const packed = new Float32Array(list.length * dimensions);
+  list.forEach((vector, index) => {
+    if (vector.length !== dimensions) {
+      throw new Error(`Vector ${index} has ${vector.length} dimensions; expected ${dimensions}`);
+    }
+    packed.set(vector, index * dimensions);
+  });
+  // Vectors first: a header always describes a complete vector file, and a
+  // stale header next to a newer vector file fails the size check on load.
+  writeFileSync(vectorFileFor(headerFile), Buffer.from(packed.buffer, packed.byteOffset, packed.byteLength));
+  writeFileSync(headerFile, JSON.stringify({
+    ...header,
+    vectorFormat: VECTOR_FORMAT,
+    vectorCount: list.length,
+    dimensions
+  }));
+}
+
+// Returns the parsed header with `vectors` as Float32Array views over one
+// buffer, or { error } describing why the files cannot be used.
+function readVectorFiles(headerFile) {
+  const header = JSON.parse(readFileSync(headerFile, "utf8"));
+  if (!header || header.vectorFormat !== VECTOR_FORMAT || !Array.isArray(header.items)) {
+    return { error: "invalid_payload" };
+  }
+  const vectorFile = vectorFileFor(headerFile);
+  if (!existsSync(vectorFile)) {
+    return { error: "vectors_missing" };
+  }
+  const count = Number(header.vectorCount) || 0;
+  const dimensions = Number(header.dimensions) || 0;
+  const raw = readFileSync(vectorFile);
+  if (raw.byteLength !== count * dimensions * Float32Array.BYTES_PER_ELEMENT) {
+    return { error: "vectors_size_mismatch" };
+  }
+  // Copy into an aligned buffer; Buffer offsets are not guaranteed 4-byte aligned.
+  const all = new Float32Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
+  const vectors = new Array(count);
+  for (let i = 0; i < count; i += 1) {
+    vectors[i] = all.subarray(i * dimensions, (i + 1) * dimensions);
+  }
+  return { payload: { ...header, vectors } };
+}
+
+function removeVectorFiles(headerFile) {
+  rmSync(headerFile, { force: true });
+  rmSync(vectorFileFor(headerFile), { force: true });
+}
+
 function loadVectorIndexCache(
   cacheFile,
   { cacheKey, signature, provider, model, requireSignature = false } = {}
@@ -28,12 +92,12 @@ function loadVectorIndexCache(
     return { hit: false, reason: "missing", payload: null };
   }
   try {
-    const parsed = JSON.parse(readFileSync(cacheFile, "utf8"));
-    if (!parsed || (cacheKey && parsed.cacheKey !== cacheKey)) {
-      return { hit: false, reason: "cache_key_mismatch", payload: null };
+    const { payload: parsed, error } = readVectorFiles(cacheFile);
+    if (error) {
+      return { hit: false, reason: error, payload: null };
     }
-    if (!Array.isArray(parsed.items) || !Array.isArray(parsed.vectors)) {
-      return { hit: false, reason: "invalid_payload", payload: null };
+    if (cacheKey && parsed.cacheKey !== cacheKey) {
+      return { hit: false, reason: "cache_key_mismatch", payload: null };
     }
     const meta = parsed.meta || {};
     if (provider && meta.provider && meta.provider !== provider) {
@@ -59,23 +123,7 @@ function loadVectorIndexCache(
 
 function saveVectorIndexCache(cacheDir, cacheFile, payload) {
   ensureDirectory(cacheDir);
-  let serialized;
-  try {
-    serialized = JSON.stringify(payload);
-  } catch (error) {
-    // JSON.stringify throws "Invalid string length" once the serialized cache
-    // exceeds V8's ~512MB max string length (reached with a large index of
-    // high-dimensional vectors). Fail with an actionable message instead.
-    if (error instanceof RangeError) {
-      const itemCount = Array.isArray(payload?.items) ? payload.items.length : "unknown";
-      throw new Error(
-        `Vector cache too large to serialize (${itemCount} items) — exceeds the JSON string limit. ` +
-        "Lower RAG_MAX_CHUNKS_PER_DOC or adopt a ceiling-proof cache format."
-      );
-    }
-    throw error;
-  }
-  writeFileSync(cacheFile, serialized);
+  writeVectorFiles(cacheFile, payload);
 }
 
 function loadVectorIndexCheckpoint(checkpointFile, expectedKey, expectedItems) {
@@ -83,12 +131,12 @@ function loadVectorIndexCheckpoint(checkpointFile, expectedKey, expectedItems) {
     return { hit: false, reason: "missing", payload: null };
   }
   try {
-    const parsed = JSON.parse(readFileSync(checkpointFile, "utf8"));
-    if (!parsed || parsed.cacheKey !== expectedKey) {
-      return { hit: false, reason: "cache_key_mismatch", payload: null };
+    const { payload: parsed, error } = readVectorFiles(checkpointFile);
+    if (error) {
+      return { hit: false, reason: error, payload: null };
     }
-    if (!Array.isArray(parsed.items) || !Array.isArray(parsed.vectors)) {
-      return { hit: false, reason: "invalid_payload", payload: null };
+    if (parsed.cacheKey !== expectedKey) {
+      return { hit: false, reason: "cache_key_mismatch", payload: null };
     }
     if (parsed.items.length !== expectedItems.length) {
       return { hit: false, reason: "items_length_mismatch", payload: null };
@@ -109,13 +157,11 @@ function loadVectorIndexCheckpoint(checkpointFile, expectedKey, expectedItems) {
 
 function saveVectorIndexCheckpoint(cacheDir, checkpointFile, payload) {
   ensureDirectory(cacheDir);
-  writeFileSync(checkpointFile, JSON.stringify(payload));
+  writeVectorFiles(checkpointFile, payload);
 }
 
 function clearVectorIndexCheckpoint(checkpointFile) {
-  if (existsSync(checkpointFile)) {
-    rmSync(checkpointFile, { force: true });
-  }
+  removeVectorFiles(checkpointFile);
 }
 
 function listFilesRecursive(rootDir) {
