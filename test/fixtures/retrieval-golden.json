@@ -47,6 +47,16 @@
       }
     },
     {
+      "id": "B-js-file-input-example",
+      "query": "React example read barcodes from an image file selected with an input element",
+      "filters": { "product": "dbr", "platform": "js", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/user-guide/use-in-framework.html": 3,
+        "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/capture-vision-router/single-image-processing.html": 2
+      },
+      "note": "The file-input example sits ~7.4k chars into use-in-framework, past the old 4k lexical window."
+    },
+    {
       "id": "B-js-simplified-settings",
       "query": "getSimplifiedSettings updateSettings barcodeFormatIds QR",
       "filters": { "product": "dbr", "platform": "js", "type": "doc" },

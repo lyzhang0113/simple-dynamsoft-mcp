@@ -78,9 +78,11 @@ function chunkMarkdown(text, chunkSize, chunkOverlap, maxChunks) {
   const sections = [];
   let current = { path: "", lines: [] };
 
+  // Heading-only sections (e.g. index pages whose headings are links) are
+  // kept: their heading path is the only text that makes them findable.
   const flush = () => {
     const body = current.lines.join(" ").replace(/\s+/g, " ").trim();
-    if (body) sections.push({ path: current.path, body });
+    if (body || current.path) sections.push({ path: current.path, body });
   };
 
   let inFence = false;
@@ -116,6 +118,11 @@ function chunkMarkdown(text, chunkSize, chunkOverlap, maxChunks) {
   const chunks = [];
   for (const section of sections) {
     const prefix = section.path ? `${section.path}\n` : "";
+    if (!section.body) {
+      chunks.push(section.path);
+      if (maxChunks && chunks.length >= maxChunks) return chunks;
+      continue;
+    }
     const pieces = chunkText(section.body, chunkSize, chunkOverlap, maxChunks);
     for (const piece of pieces) {
       chunks.push(`${prefix}${piece}`.trim());
@@ -258,7 +265,7 @@ function buildIndexSignature({ pkgVersion, signatureData, ragConfig }) {
     maxChunksPerDoc: ragConfig.maxChunksPerDoc,
     maxTextChars: ragConfig.maxTextChars,
     // Bump when the chunking strategy changes so cached vector indexes rebuild.
-    chunkStrategy: "heading-aware-v1",
+    chunkStrategy: "heading-aware-v2",
     // Bump when doc:// URIs change shape; cached vectors are keyed by URI.
     docUriScheme: "source-path-v1"
   });

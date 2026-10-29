@@ -1,5 +1,5 @@
 import Fuse from "fuse.js";
-import { expandQueryTokens, extractSnippet } from "./search-utils.js";
+import { chunkMarkdown, expandQueryTokens, extractSnippet } from "./search-utils.js";
 
 const DEFAULT_FUSE_OPTIONS = {
   keys: [
@@ -12,25 +12,29 @@ const DEFAULT_FUSE_OPTIONS = {
   includeScore: true
 };
 
-const BODY_INDEX_CHARS = 4000;
+// Section size and overlap for body scoring; match the embedding chunking so
+// lexical and Gemini see the same units, and so a term cut at a chunk boundary
+// still appears whole in the neighbouring chunk.
+const SECTION_CHARS = 1200;
+const SECTION_OVERLAP_CHARS = 200;
 
-// Field-weighted BM25 haystack: title/tags outrank summary; doc/sample body text
-// is indexed at low weight so body-only content is findable; the URI's last slug
+// Field-weighted header: title/tags outrank summary; the URI's last slug
 // segment is kept (it is often the most descriptive token) while scheme/version
 // noise is dropped (issue #147).
-function buildLexicalHaystack(entry) {
+function buildHeaderText(entry) {
   const title = entry.title || "";
   const tags = Array.isArray(entry.tags) ? entry.tags.join(" ") : "";
   const summary = entry.summary || "";
-  const body = entry.embedText ? String(entry.embedText).slice(0, BODY_INDEX_CHARS) : "";
   const uriSlug = String(entry.uri || "").split("/").filter(Boolean).pop() || "";
-  return [
-    title, title, title,
-    tags, tags,
-    summary,
-    uriSlug,
-    body
-  ].join(" \n ");
+  return [title, title, title, tags, tags, summary, uriSlug].join(" \n ");
+}
+
+// The whole body, split on headings (each section keeps its heading path), so
+// content deep in long guides is searchable and a page is ranked by its best
+// matching section instead of by one length-diluted blob.
+function buildBodySections(entry) {
+  if (!entry.embedText) return [];
+  return chunkMarkdown(entry.embedText, SECTION_CHARS, SECTION_OVERLAP_CHARS, 0);
 }
 
 const MAX_SCOPED_FUSE_INDEXES = 64;
@@ -70,61 +74,84 @@ function compareLexicalResults(a, b) {
   return String(a.entry.uri || "").localeCompare(String(b.entry.uri || ""));
 }
 
-function buildBm25Index(entries) {
-  const documents = [];
+function buildBm25Stats(units) {
   const documentFrequency = new Map();
   let totalLength = 0;
-
-  entries.forEach((entry, index) => {
-    const haystack = buildLexicalHaystack(entry);
-
-    const tokens = tokenize(haystack);
-    const termFreq = new Map();
-    tokens.forEach((token) => {
-      termFreq.set(token, (termFreq.get(token) || 0) + 1);
-    });
-
-    const seen = new Set();
-    for (const token of tokens) {
-      if (seen.has(token)) continue;
-      seen.add(token);
+  for (const unit of units) {
+    unit.termFreq = new Map();
+    for (const token of unit.tokens) {
+      unit.termFreq.set(token, (unit.termFreq.get(token) || 0) + 1);
+    }
+    for (const token of unit.termFreq.keys()) {
       documentFrequency.set(token, (documentFrequency.get(token) || 0) + 1);
     }
-
-    totalLength += tokens.length;
-    documents.push({
-      index,
-      entry,
-      length: tokens.length,
-      termFreq,
-      snippetText: entry.embedText || entry.summary || entry.title || ""
-    });
-  });
-
-  const avgLength = documents.length > 0 ? totalLength / documents.length : 0;
+    unit.length = unit.tokens.length;
+    totalLength += unit.length;
+    delete unit.tokens;
+  }
   return {
-    documents,
     documentFrequency,
-    totalDocuments: documents.length,
-    avgLength
+    totalDocuments: units.length,
+    avgLength: units.length > 0 ? totalLength / units.length : 0
   };
 }
 
-function computeBm25Score(indexState, docState, terms) {
+// Two BM25 indexes: one header unit per entry, one unit per body section.
+// A page scores header + best section.
+function buildBm25Index(entries) {
+  const documents = entries.map((entry, index) => ({
+    index,
+    entry,
+    tokens: tokenize(buildHeaderText(entry)),
+    sections: [],
+    fallbackSnippet: entry.summary || entry.title || ""
+  }));
+  const sections = [];
+  for (const doc of documents) {
+    for (const text of buildBodySections(doc.entry)) {
+      const section = { text, tokens: tokenize(text) };
+      doc.sections.push(section);
+      sections.push(section);
+    }
+  }
+  return {
+    documents,
+    headerStats: buildBm25Stats(documents),
+    sectionStats: buildBm25Stats(sections)
+  };
+}
+
+function computeBm25Score(stats, unit, terms) {
   if (terms.length === 0) return 0;
-  if (!docState.length || !indexState.avgLength) return 0;
+  if (!unit.length || !stats.avgLength) return 0;
 
   let score = 0;
   for (const term of terms) {
-    const tf = docState.termFreq.get(term) || 0;
+    const tf = unit.termFreq.get(term) || 0;
     if (!tf) continue;
-    const df = indexState.documentFrequency.get(term) || 0;
-    const idf = Math.log(1 + (indexState.totalDocuments - df + 0.5) / (df + 0.5));
-    const denom = tf + BM25_K1 * (1 - BM25_B + BM25_B * (docState.length / indexState.avgLength));
+    const df = stats.documentFrequency.get(term) || 0;
+    const idf = Math.log(1 + (stats.totalDocuments - df + 0.5) / (df + 0.5));
+    const denom = tf + BM25_K1 * (1 - BM25_B + BM25_B * (unit.length / stats.avgLength));
     score += idf * ((tf * (BM25_K1 + 1)) / denom);
   }
 
   return score;
+}
+
+function scoreDocument(index, doc, terms) {
+  let best = null;
+  let bestScore = 0;
+  for (const section of doc.sections) {
+    const score = computeBm25Score(index.sectionStats, section, terms);
+    if (score > bestScore) {
+      bestScore = score;
+      best = section;
+    }
+  }
+  return {
+    score: computeBm25Score(index.headerStats, doc, terms) + bestScore,
+    snippetText: best ? best.text : doc.fallbackSnippet
+  };
 }
 
 function createLexicalProvider({
@@ -137,7 +164,6 @@ function createLexicalProvider({
 }) {
   const bm25Index = buildBm25Index(entries);
   const entryByUri = new Map(entries.map((entry) => [entry.uri, entry]));
-  const snippetTextByUri = new Map(bm25Index.documents.map((doc) => [doc.entry.uri, doc.snippetText]));
   // Fuse cost grows with the number of entries scanned, and its hits were
   // filtered by scope only afterwards. One Fuse index per scope keeps scoped
   // searches proportional to that scope; the scope set is small and bounded.
@@ -178,9 +204,11 @@ function createLexicalProvider({
       // out-of-scope fuzzy match deflate every in-scope fuse contribution (issue #147).
       let maxFuse = 0;
 
+      const snippetTextByUri = new Map();
       for (const doc of bm25Index.documents) {
         if (!entryMatchesScope(doc.entry, filters)) continue;
-        const score = computeBm25Score(bm25Index, doc, terms);
+        const { score, snippetText } = scoreDocument(bm25Index, doc, terms);
+        snippetTextByUri.set(doc.entry.uri, snippetText);
         if (score > 0) {
           bm25ScoreByUri.set(doc.entry.uri, score);
           if (score > maxBm25) maxBm25 = score;
