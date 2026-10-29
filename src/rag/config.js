@@ -63,10 +63,10 @@ const ragConfig = {
   modelCacheDir: readEnvValue("RAG_MODEL_CACHE_DIR", join(dataRoot, ".rag-cache", "models")),
   chunkSize: readIntEnv("RAG_CHUNK_SIZE", 1200),
   chunkOverlap: readIntEnv("RAG_CHUNK_OVERLAP", 200),
-  // Each extra chunk is another Gemini embedding per doc at every release
-  // prebuild. The vector cache is a header + float32 file (src/rag/vector-cache.js),
-  // so raising this is a cost/recall decision, not a cache-size limit.
-  maxChunksPerDoc: readIntEnv("RAG_MAX_CHUNKS_PER_DOC", 6),
+  // 0 = embed every chunk of every doc (~19.7k chunks vs ~10.3k at the old cap
+  // of 6). Each chunk is one Gemini embedding per release prebuild; the vector
+  // cache is header + float32 (src/rag/vector-cache.js), so there is no size cap.
+  maxChunksPerDoc: readIntEnv("RAG_MAX_CHUNKS_PER_DOC", 0),
   maxTextChars: readIntEnv("RAG_MAX_TEXT_CHARS", 4000),
   minScore: readFloatEnv("RAG_MIN_SCORE", 0.2),
   includeScore: readBoolEnv("RAG_INCLUDE_SCORE", false),

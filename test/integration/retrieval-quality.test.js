@@ -25,9 +25,9 @@ const golden = JSON.parse(readFileSync(join(projectRoot, "test", "fixtures", "re
 ensureResourceIndexReady();
 
 const FLOORS = {
-  recallAtK: 0.4,
-  mrr: 0.33,
-  requiredHitRate: 0.36
+  recallAtK: 0.58,
+  mrr: 0.5,
+  requiredHitRate: 0.55
 };
 
 test("golden-set retrieval quality stays above floors (lexical)", async () => {
