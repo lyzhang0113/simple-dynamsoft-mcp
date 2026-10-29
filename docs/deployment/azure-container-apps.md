@@ -40,7 +40,7 @@ On release, workflow sequence is:
 4. `deploy-aca.yml` configures ACA registry auth using system-assigned identity
 5. Deploy warm-up revision with `minReplicas=1`, `maxReplicas=1`
 6. Wait for warm-up revision to become ready
-7. Set steady-state scale to `minReplicas=0`, `maxReplicas=1`
+7. Set steady-state scale to `minReplicas=1`, `maxReplicas=1` (always one warm replica; no scale-to-zero cold starts)
 8. Route traffic to newest ready revision
 9. Deactivate previous revisions
 10. Remove old cache version directories from Azure Files
