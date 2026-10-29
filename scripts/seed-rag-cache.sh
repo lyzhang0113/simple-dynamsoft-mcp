@@ -12,10 +12,13 @@ cache_dir="${1:?usage: seed-rag-cache.sh <cache-dir>}"
 repo="${GITHUB_REPOSITORY:-yushulx/simple-dynamsoft-mcp}"
 mkdir -p "$cache_dir"
 
-if compgen -G "$cache_dir/rag-gemini-*.f32" > /dev/null; then
-  echo "[seed] $cache_dir already has vectors; not seeding"
+# Only a complete cache (header + vectors) counts; a leftover partial
+# checkpoint from an interrupted run must not block seeding.
+for header in "$cache_dir"/rag-gemini-*.json; do
+  [[ -e "$header" && "$header" != *.checkpoint.json && -f "${header%.json}.f32" ]] || continue
+  echo "[seed] $cache_dir already has a complete cache ($(basename "$header")); not seeding"
   exit 0
-fi
+done
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT

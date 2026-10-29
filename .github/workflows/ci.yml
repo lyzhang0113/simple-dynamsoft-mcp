@@ -156,8 +156,9 @@ jobs:
         run: npm run test:package
 
   # Decides whether the Gemini job (which spends embedding credits) runs: only
-  # when retrieval code, index building, docs/data, or the golden set changed.
-  # Version-bump-only pushes skip it; the release builds that index anyway.
+  # on pull requests, and only when retrieval code, index building, docs/data,
+  # or the golden set changed. Pushes to main skip it (the PR already ran it and
+  # the release builds the index), as do version-bump-only changes.
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -172,10 +173,15 @@ jobs:
         id: diff
         shell: bash
         env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          if [[ -z "${BASE_SHA:-}" || "$BASE_SHA" =~ ^0+$ ]] || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "Not a pull request; skipping the Gemini job."
+            echo "rag=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ -z "${BASE_SHA:-}" ]] || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
             echo "No usable base commit; running the Gemini job."
             echo "rag=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -221,17 +227,9 @@ jobs:
           node-version: 24
           cache: npm
 
-      # Per-commit key: every run saves its (incrementally) updated cache, and
-      # the next run restores the newest one through the prefix.
-      - name: Restore gemini RAG cache
-        if: ${{ env.GEMINI_API_KEY != '' }}
-        uses: actions/cache@v6
-        with:
-          path: .cache/rag-index-gemini
-          key: rag-gemini-v2-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            rag-gemini-v2-${{ runner.os }}-
-
+      # No Actions cache: seeding from the latest release gives every run a
+      # complete index to reuse, so only chunks changed since that release are
+      # embedded, and no ~250 MB cache entry is stored per run.
       - name: Seed RAG cache from the latest release
         if: ${{ env.GEMINI_API_KEY != '' }}
         env:
