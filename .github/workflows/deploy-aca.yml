@@ -63,7 +63,7 @@ jobs:
     environment: azure-production
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Resolve deployment variables
         id: vars
