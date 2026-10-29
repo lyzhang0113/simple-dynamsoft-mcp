@@ -79,3 +79,16 @@ test("lexical provider finds a term that straddles a section chunk boundary", as
   const results = await provider.search("initSettingsFromFile", {}, 5);
   assert.equal(results[0]?.uri, "doc://deep");
 });
+
+test("lexical provider indexes headings that have no body text", async () => {
+  const entries = [
+    {
+      ...makeEntry("doc://deploy", "Deployment", "deployment index"),
+      embedText: "# Deployment\n## [Set up the server](/server.md)\n## [Set up the service](/service.md)\n## Notes\nSee the linked guides."
+    },
+    makeEntry("doc://other", "Other", "unrelated")
+  ];
+  const provider = createLexicalProvider({ entries, entryMatchesScope: () => true, attachScore: (entry) => entry });
+  const results = await provider.search("server", {}, 5);
+  assert.equal(results[0]?.uri, "doc://deploy");
+});
