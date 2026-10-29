@@ -155,7 +155,43 @@ jobs:
       - name: Test (package runtime)
         run: npm run test:package
 
+  # Decides whether the Gemini job (which spends embedding credits) runs: only
+  # when retrieval code, index building, docs/data, or the golden set changed.
+  # Version-bump-only pushes skip it; the release builds that index anyway.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      rag: ${{ steps.diff.outputs.rag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect retrieval-relevant changes
+        id: diff
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${BASE_SHA:-}" || "$BASE_SHA" =~ ^0+$ ]] || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "No usable base commit; running the Gemini job."
+            echo "rag=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          pattern='^(src/rag/|src/server/resource-index|src/server/resource-index/|src/data/repo-map\.js|scripts/prebuild-rag-index\.mjs|scripts/seed-rag-cache\.sh|scripts/eval-retrieval\.mjs|scripts/lib/|test/fixtures/retrieval-golden\.json|test/integration/(helpers\.js|stdio\.test\.js|http\.test\.js)|scripts/run-gemini-tests\.mjs|data/|\.github/workflows/ci\.yml)'
+          changed="$(git diff --name-only "$BASE_SHA" HEAD)"
+          if grep -Eq "$pattern" <<< "$changed"; then
+            echo "rag=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No retrieval-relevant changes; skipping the Gemini job."
+            echo "rag=false" >> "$GITHUB_OUTPUT"
+          fi
+
   test_gemini_provider:
+    needs: changes
+    if: needs.changes.outputs.rag == 'true'
     runs-on: ubuntu-latest
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -185,14 +221,22 @@ jobs:
           node-version: 24
           cache: npm
 
+      # Per-commit key: every run saves its (incrementally) updated cache, and
+      # the next run restores the newest one through the prefix.
       - name: Restore gemini RAG cache
         if: ${{ env.GEMINI_API_KEY != '' }}
         uses: actions/cache@v6
         with:
           path: .cache/rag-index-gemini
-          key: rag-gemini-${{ runner.os }}-${{ hashFiles('package-lock.json', 'data/metadata/data-manifest.json') }}
+          key: rag-gemini-v2-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            rag-gemini-${{ runner.os }}-
+            rag-gemini-v2-${{ runner.os }}-
+
+      - name: Seed RAG cache from the latest release
+        if: ${{ env.GEMINI_API_KEY != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/seed-rag-cache.sh "$RAG_CACHE_DIR"
 
       - name: Install dependencies
         if: ${{ env.GEMINI_API_KEY != '' }}
