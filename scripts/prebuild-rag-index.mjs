@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 
 function toPosixPath(path) {
@@ -33,8 +33,10 @@ if (!existsSync(cacheDir)) {
 }
 
 // Each cache is a JSON header plus a sibling `.f32` vector file (see
-// src/rag/vector-cache.js); both ship in the release archive.
-const cacheFiles = readdirSync(cacheDir, { withFileTypes: true })
+// src/rag/vector-cache.js); both ship in the release archive. A header with no
+// `.f32` is a pre-7.7 all-JSON cache (e.g. restored from an older CI cache):
+// the runtime cannot load it, so it is deleted rather than shipped.
+const allHeaders = readdirSync(cacheDir, { withFileTypes: true })
   .filter((entry) => entry.isFile())
   .map((entry) => join(cacheDir, entry.name))
   .filter((path) => {
@@ -46,15 +48,22 @@ const cacheFiles = readdirSync(cacheDir, { withFileTypes: true })
   })
   .sort();
 
-if (cacheFiles.length === 0) {
-  throw new Error(`No cache JSON files found in ${cacheDir}.`);
+const toVectorFile = (path) => path.replace(/\.json$/i, ".f32");
+const cacheFiles = [];
+for (const path of allHeaders) {
+  if (existsSync(toVectorFile(path))) {
+    cacheFiles.push(path);
+  } else {
+    rmSync(path, { force: true });
+    console.log(`[rag-prebuild] removed legacy cache without vectors: ${basename(path)}`);
+  }
 }
 
-const vectorFiles = cacheFiles.map((path) => path.replace(/\.json$/i, ".f32"));
-const missingVectors = vectorFiles.filter((path) => !existsSync(path));
-if (missingVectors.length > 0) {
-  throw new Error(`Vector files missing for cache headers: ${missingVectors.map((path) => basename(path)).join(", ")}`);
+if (cacheFiles.length === 0) {
+  throw new Error(`No cache files with vectors found in ${cacheDir}.`);
 }
+
+const vectorFiles = cacheFiles.map(toVectorFile);
 
 let indexSignature = "";
 let indexCacheKey = "";
