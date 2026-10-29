@@ -69,15 +69,15 @@ function collectReusableVectors({ cacheDir, provider, model, items, signature })
       });
       continue;
     }
-    const sameContent = currentSignature
-      && signatureWithoutPackageVersion(payload.meta?.signature) === currentSignature
-      && payload.items.length === items.length
-      && payload.vectors.length === items.length
-      && payload.items.every((item, i) => item.id === items[i].id && item.uri === items[i].uri);
-    if (sameContent) {
-      items.forEach((item, i) => {
-        if (!reusable.has(item.hash)) reusable.set(item.hash, payload.vectors[i]);
-      });
+    // Same content signature and the same set of chunk ids/uris means the same
+    // chunk texts; match by id/uri rather than position, because directory
+    // listing order differs between platforms (e.g. sample folders).
+    if (!currentSignature || signatureWithoutPackageVersion(payload.meta?.signature) !== currentSignature) continue;
+    if (payload.items.length !== items.length || payload.vectors.length !== items.length) continue;
+    const vectorByKey = new Map(payload.items.map((item, i) => [`${item.id}\n${item.uri}`, payload.vectors[i]]));
+    if (vectorByKey.size !== items.length || !items.every((item) => vectorByKey.has(`${item.id}\n${item.uri}`))) continue;
+    for (const item of items) {
+      if (!reusable.has(item.hash)) reusable.set(item.hash, vectorByKey.get(`${item.id}\n${item.uri}`));
     }
   }
   return reusable;

@@ -112,3 +112,22 @@ test("pruning keeps only the current cache and removes vector files of the other
     assert.equal(existsSync(old.replace(/\.json$/, ".f32")), false);
   });
 });
+
+test("hash-less caches are adopted by chunk id/uri even when listing order differs", () => {
+  withHelpers((helpers, cacheDir) => {
+    const signature = JSON.stringify({ packageVersion: "7.7.0", docs: 2 });
+    helpers.saveVectorIndexCache(join(cacheDir, "rag-gemini-m-legacy.json"), { ...payload, meta: { ...payload.meta, signature } });
+    // Same chunks, opposite order (e.g. case-sensitive vs case-insensitive directory listing).
+    const items = [{ id: "b#0", uri: "doc://b", hash: "hb" }, { id: "a#0", uri: "doc://a", hash: "ha" }];
+    const reusable = helpers.collectReusableVectors({
+      provider: "gemini", model: "m", items, signature: JSON.stringify({ packageVersion: "7.7.1", docs: 2 })
+    });
+    assert.deepEqual(Array.from(reusable.get("ha")).map((v) => Math.round(v * 10) / 10), [0.6, 0.8, 0]);
+    assert.deepEqual(Array.from(reusable.get("hb")), [0, 0.25, -1.5]);
+
+    const extraItem = helpers.collectReusableVectors({
+      provider: "gemini", model: "m", items: [...items, { id: "c#0", uri: "doc://c", hash: "hc" }], signature
+    });
+    assert.equal(extraItem.size, 0, "a different chunk set is never adopted");
+  });
+});
