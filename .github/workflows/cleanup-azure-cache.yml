@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       current_version:
-        description: "Version directory to keep (will not be deleted). The previous semver-sorted version will also be retained. Leave blank when using target_version."
+        description: "Version directory to keep (must exist on the share). The version before it, every newer version, and the two newest versions are always kept. Leave blank when using target_version."
         required: false
         type: string
         default: ""
@@ -175,11 +175,29 @@ jobs:
               echo "::error::target_version '$target_version' was not found among versioned directories on the share: ${sorted_versions[*]}"
               exit 1
             fi
+            newest="${sorted_versions[$(( ${#sorted_versions[@]} - 1 ))]}"
+            second_newest=""
+            if (( ${#sorted_versions[@]} >= 2 )); then
+              second_newest="${sorted_versions[$(( ${#sorted_versions[@]} - 2 ))]}"
+            fi
+            if [[ "$target_version" == "$newest" || "$target_version" == "$second_newest" ]]; then
+              echo "::error::target_version '$target_version' is one of the two newest versions on the share (${second_newest} ${newest}); refusing to delete a live or rollback cache."
+              exit 1
+            fi
             delete_versions=("$target_version")
             echo "Targeted deletion mode: will delete only '$target_version'."
           else
+            # Always keep the two newest versions on the share: one of them is
+            # serving traffic, the other is the rollback target.
+            count=${#sorted_versions[@]}
+            if (( count >= 1 )); then
+              keep_versions+=("${sorted_versions[$((count - 1))]}")
+            fi
+            if (( count >= 2 )); then
+              keep_versions+=("${sorted_versions[$((count - 2))]}")
+            fi
+
             if [[ -n "$current_version" ]]; then
-              keep_versions+=("$current_version")
               current_index=-1
               for i in "${!sorted_versions[@]}"; do
                 if [[ "${sorted_versions[$i]}" == "$current_version" ]]; then
@@ -187,18 +205,17 @@ jobs:
                   break
                 fi
               done
-              if (( current_index > 0 )); then
-                keep_versions+=("${sorted_versions[$((current_index - 1))]}")
+              if (( current_index < 0 )); then
+                echo "::error::current_version '$current_version' was not found among versioned directories on the share: ${sorted_versions[*]}. Refusing to guess what to keep."
+                exit 1
               fi
-            else
-              # Schedule path: keep the two newest semver-sorted versions.
-              count=${#sorted_versions[@]}
-              if (( count >= 1 )); then
-                keep_versions+=("${sorted_versions[$((count - 1))]}")
-              fi
-              if (( count >= 2 )); then
-                keep_versions+=("${sorted_versions[$((count - 2))]}")
-              fi
+              # Keep current_version, the version before it, and every newer
+              # version: current_version says what must survive, never that
+              # newer caches are stale.
+              start_index=$(( current_index > 0 ? current_index - 1 : 0 ))
+              for (( i = start_index; i < count; i++ )); do
+                keep_versions+=("${sorted_versions[$i]}")
+              done
             fi
 
             # Oldest first, so a run cut short by the deadline still removes
@@ -217,6 +234,9 @@ jobs:
             done
           fi
 
+          if (( ${#keep_versions[@]} > 0 )); then
+            mapfile -t keep_versions < <(printf '%s\n' "${keep_versions[@]}" | sort -uV)
+          fi
           echo "Versioned cache directories on share: ${sorted_versions[*]}"
           echo "Versions to keep: ${keep_versions[*]:-<none>}"
           echo "Versions to delete (${#delete_versions[@]}): ${delete_versions[*]:-<none>}"
