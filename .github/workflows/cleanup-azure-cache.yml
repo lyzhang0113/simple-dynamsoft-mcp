@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       current_version:
-        description: "Version directory to keep (will not be deleted). The previous semver-sorted version will also be retained. Leave blank when using target_version."
+        description: "Optional safety check: the version just deployed. It must exist and be among the 30 newest versions, or nothing is deleted. The 30 newest versions are always kept. Leave blank when using target_version."
         required: false
         type: string
         default: ""
@@ -115,6 +115,8 @@ jobs:
           share="${{ steps.vars.outputs.cache_share }}"
           current_version="${{ steps.vars.outputs.current_version }}"
           target_version="${{ steps.vars.outputs.target_version }}"
+          # Number of most recent versions that are never deleted.
+          KEEP_NEWEST=30
 
           if ! key="$(timeout -k 30s 180s az storage account keys list \
             --account-name "$account" \
@@ -175,11 +177,26 @@ jobs:
               echo "::error::target_version '$target_version' was not found among versioned directories on the share: ${sorted_versions[*]}"
               exit 1
             fi
+            count=${#sorted_versions[@]}
+            protected_start=$(( count > KEEP_NEWEST ? count - KEEP_NEWEST : 0 ))
+            for (( i = protected_start; i < count; i++ )); do
+              if [[ "${sorted_versions[$i]}" == "$target_version" ]]; then
+                echo "::error::target_version '$target_version' is one of the ${KEEP_NEWEST} newest versions on the share; refusing to delete it."
+                exit 1
+              fi
+            done
             delete_versions=("$target_version")
             echo "Targeted deletion mode: will delete only '$target_version'."
           else
+            # Always keep the KEEP_NEWEST newest versions on the share
+            # (live, rollback, and recent history).
+            count=${#sorted_versions[@]}
+            protected_start=$(( count > KEEP_NEWEST ? count - KEEP_NEWEST : 0 ))
+            for (( i = protected_start; i < count; i++ )); do
+              keep_versions+=("${sorted_versions[$i]}")
+            done
+
             if [[ -n "$current_version" ]]; then
-              keep_versions+=("$current_version")
               current_index=-1
               for i in "${!sorted_versions[@]}"; do
                 if [[ "${sorted_versions[$i]}" == "$current_version" ]]; then
@@ -187,17 +204,16 @@ jobs:
                   break
                 fi
               done
-              if (( current_index > 0 )); then
-                keep_versions+=("${sorted_versions[$((current_index - 1))]}")
+              if (( current_index < 0 )); then
+                echo "::error::current_version '$current_version' was not found among versioned directories on the share: ${sorted_versions[*]}. Refusing to guess what to keep."
+                exit 1
               fi
-            else
-              # Schedule path: keep the two newest semver-sorted versions.
-              count=${#sorted_versions[@]}
-              if (( count >= 1 )); then
-                keep_versions+=("${sorted_versions[$((count - 1))]}")
-              fi
-              if (( count >= 2 )); then
-                keep_versions+=("${sorted_versions[$((count - 2))]}")
+              # current_version is only a safety check (deploys pass the
+              # version they just shipped): it must fall inside the kept set,
+              # otherwise the input is stale or wrong and nothing is deleted.
+              if (( current_index < protected_start )); then
+                echo "::error::current_version '$current_version' is not among the ${KEEP_NEWEST} newest versions on the share; the input looks stale. Refusing to delete anything."
+                exit 1
               fi
             fi
 
@@ -217,6 +233,9 @@ jobs:
             done
           fi
 
+          if (( ${#keep_versions[@]} > 0 )); then
+            mapfile -t keep_versions < <(printf '%s\n' "${keep_versions[@]}" | sort -uV)
+          fi
           echo "Versioned cache directories on share: ${sorted_versions[*]}"
           echo "Versions to keep: ${keep_versions[*]:-<none>}"
           echo "Versions to delete (${#delete_versions[@]}): ${delete_versions[*]:-<none>}"
