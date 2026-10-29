@@ -429,7 +429,7 @@ jobs:
             --resource-group "${{ steps.vars.outputs.resource_group }}" \
             --image "${{ steps.image.outputs.image_ref }}" \
             --revision-suffix "$revision_suffix" \
-            --min-replicas 0 \
+            --min-replicas 1 \
             --max-replicas 1 \
             --set-env-vars \
               MCP_DATA_AUTO_DOWNLOAD=false \
