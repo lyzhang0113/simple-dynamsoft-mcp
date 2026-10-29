@@ -12,9 +12,11 @@ const DEFAULT_FUSE_OPTIONS = {
   includeScore: true
 };
 
-// Section size for body scoring; matches the embedding chunk size so lexical
-// and Gemini see the same units.
+// Section size and overlap for body scoring; match the embedding chunking so
+// lexical and Gemini see the same units, and so a term cut at a chunk boundary
+// still appears whole in the neighbouring chunk.
 const SECTION_CHARS = 1200;
+const SECTION_OVERLAP_CHARS = 200;
 
 // Field-weighted header: title/tags outrank summary; the URI's last slug
 // segment is kept (it is often the most descriptive token) while scheme/version
@@ -32,7 +34,7 @@ function buildHeaderText(entry) {
 // matching section instead of by one length-diluted blob.
 function buildBodySections(entry) {
   if (!entry.embedText) return [];
-  return chunkMarkdown(entry.embedText, SECTION_CHARS, 0, 0);
+  return chunkMarkdown(entry.embedText, SECTION_CHARS, SECTION_OVERLAP_CHARS, 0);
 }
 
 const MAX_SCOPED_FUSE_INDEXES = 64;

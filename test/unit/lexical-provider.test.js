@@ -68,3 +68,14 @@ test("lexical provider ordering is deterministic for ties", async () => {
   const results = await provider.search("same", {}, 10);
   assert.deepEqual(results.map((entry) => entry.uri), ["doc://a", "doc://b"]);
 });
+
+test("lexical provider finds a term that straddles a section chunk boundary", async () => {
+  const filler = "lorem ".repeat(199); // 1194 chars, so the next term crosses the 1200-char cut
+  const entries = [
+    { ...makeEntry("doc://deep", "Guide", "general guide"), embedText: `${filler}initSettingsFromFile tail` },
+    makeEntry("doc://other", "Other", "unrelated")
+  ];
+  const provider = createLexicalProvider({ entries, entryMatchesScope: () => true, attachScore: (entry) => entry });
+  const results = await provider.search("initSettingsFromFile", {}, 5);
+  assert.equal(results[0]?.uri, "doc://deep");
+});
