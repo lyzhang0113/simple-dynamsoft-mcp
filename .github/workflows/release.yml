@@ -166,8 +166,9 @@ jobs:
     timeout-minutes: 180
     env:
       RAG_PREWARM: "true"
-      RAG_PREWARM_BLOCK: "true"
-      RAG_REBUILD: "true"
+      # Unchanged chunks reuse vectors from the previous release (seeded
+      # below); only new or edited chunk text is embedded.
+      RAG_REBUILD: "false"
       PREBUILT_GEMINI_CACHE_DIR: ${{ github.workspace }}/release-assets/prebuilt-rag/gemini/cache
       PREBUILT_GEMINI_MODEL_CACHE_DIR: ${{ github.workspace }}/.cache/release-rag-models-gemini
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -199,11 +200,16 @@ jobs:
             exit 1
           fi
 
+      - name: Seed RAG cache from the previous release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/seed-rag-cache.sh "$PREBUILT_GEMINI_CACHE_DIR"
+
       - name: Prebuild gemini RAG index
         env:
           RAG_PROVIDER: gemini
           RAG_FALLBACK: none
-          RAG_REBUILD: "true"
+          RAG_REBUILD: "false"
           RAG_CACHE_DIR: ${{ env.PREBUILT_GEMINI_CACHE_DIR }}
           RAG_MODEL_CACHE_DIR: ${{ env.PREBUILT_GEMINI_MODEL_CACHE_DIR }}
         run: npm run rag:prebuild

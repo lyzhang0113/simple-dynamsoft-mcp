@@ -330,22 +330,25 @@ function createProviderOrchestrator({
         }
 
         const items = utils.buildEmbeddingItems(resourceIndex, ragConfig);
-        const texts = items.map((item) => item.text);
-        const indexedItems = items.map((item) => ({ id: item.id, uri: item.uri }));
-        let normalized = [];
-        let resumeFrom = 0;
-        if (!ragConfig.rebuild) {
-          const checkpointState = vectorCache.loadVectorIndexCheckpoint(checkpointFile, cacheKey, indexedItems);
-          if (checkpointState.hit) {
-            normalized = checkpointState.payload.vectors;
-            resumeFrom = normalized.length;
-            logRag(
-              `checkpoint resume provider=${name} file=${checkpointFile} completed=${resumeFrom}/${texts.length}`
-            );
-          } else if (checkpointState.reason !== "missing") {
-            logRag(`checkpoint ignored provider=${name} file=${checkpointFile} reason=${checkpointState.reason}`);
-          }
-        }
+        // Each chunk is identified by a hash of model + text, so vectors from any
+        // earlier cache, checkpoint, or release can be reused for unchanged text
+        // and only new or edited chunks are embedded.
+        const indexedItems = items.map((item) => ({
+          id: item.id,
+          uri: item.uri,
+          hash: createHash("sha256").update(`${model}\n${item.text}`).digest("hex").slice(0, 32)
+        }));
+        const reusable = ragConfig.rebuild
+          ? new Map()
+          : vectorCache.collectReusableVectors({ provider: name, model, items: indexedItems, signature });
+        const vectors = indexedItems.map((item) => reusable.get(item.hash) || null);
+        const missing = [];
+        vectors.forEach((vector, index) => {
+          if (!vector) missing.push(index);
+        });
+        logRag(
+          `index plan provider=${name} items=${indexedItems.length} reused=${indexedItems.length - missing.length} to_embed=${missing.length}`
+        );
 
         if (name === "gemini" && embedder.resetMetrics) {
           embedder.resetMetrics();
@@ -356,36 +359,36 @@ function createProviderOrchestrator({
         const persistCheckpoint = (force = false) => {
           const now = Date.now();
           if (!force && now - lastCheckpointAt < checkpointIntervalMs) return;
-          const payload = {
+          const done = missing.filter((index) => vectors[index]);
+          vectorCache.saveVectorIndexCheckpoint(checkpointFile, {
             cacheKey,
             meta: cacheMeta,
-            items: indexedItems,
-            vectors: normalized,
-            completed: normalized.length,
-            total: texts.length,
+            items: done.map((index) => indexedItems[index]),
+            vectors: done.map((index) => vectors[index]),
             updatedAt: new Date().toISOString()
-          };
-          vectorCache.saveVectorIndexCheckpoint(checkpointFile, payload);
+          });
           lastCheckpointAt = now;
         };
 
-        if (resumeFrom < texts.length) {
-          logRag(
-            `building index provider=${name} embed_items=${texts.length} remaining=${texts.length - resumeFrom} batch_size=${batchSize}`
-          );
+        if (missing.length > 0) {
+          logRag(`building index provider=${name} embed_items=${missing.length} batch_size=${batchSize}`);
+          let filled = 0;
           try {
             const embeddingResult = await embedTextsWithProgress(
-              texts.slice(resumeFrom),
+              missing.map((index) => items[index].text),
               embedder,
               batchSize,
               {
-                offset: resumeFrom,
-                total: texts.length,
+                offset: 0,
+                total: missing.length,
                 providerName: name,
                 logRag,
                 isRateLimitError: (error) => utils.isRateLimitError(error, isRateLimitGeminiStatus),
-                onChunk: ({ vectors, completed, total }) => {
-                  normalized.push(...vectors.map(utils.normalizeVector));
+                onChunk: ({ vectors: chunk, completed, total }) => {
+                  for (const vector of chunk) {
+                    vectors[missing[filled]] = utils.normalizeVector(vector);
+                    filled += 1;
+                  }
                   persistCheckpoint(completed >= total);
                 }
               }
@@ -409,24 +412,25 @@ function createProviderOrchestrator({
                 `gemini build failed provider=${name} requests=${metrics.requests || 0} retries=${metrics.retries || 0} ` +
                 `retry_delay_ms=${metrics.retryDelayMs || 0} throttle_events=${metrics.throttleEvents || 0} ` +
                 `throttle_delay_ms=${metrics.throttleDelayMs || 0} rate_limit_retries=${metrics.rateLimitRetries || 0} ` +
-                `checkpoint_completed=${normalized.length}/${texts.length} error=${error.message}`
+                `checkpoint_completed=${filled}/${missing.length} error=${error.message}`
               );
             }
             throw error;
           }
-        } else {
-          logRag(`checkpoint already complete provider=${name} completed=${resumeFrom}/${texts.length}`);
         }
 
         const payload = {
           cacheKey,
           meta: cacheMeta,
           items: indexedItems,
-          vectors: normalized
+          vectors
         };
         vectorCache.saveVectorIndexCache(cacheFile, payload);
         vectorCache.clearVectorIndexCheckpoint(checkpointFile);
-        logRag(`cache saved provider=${name} file=${cacheFile} items=${payload.items.length} vectors=${payload.vectors.length}`);
+        vectorCache.pruneOtherCaches({ provider: name, model, keepFile: cacheFile });
+        logRag(
+          `cache saved provider=${name} file=${cacheFile} items=${payload.items.length} embedded=${missing.length}`
+        );
         return {
           items: payload.items,
           vectors: payload.vectors
