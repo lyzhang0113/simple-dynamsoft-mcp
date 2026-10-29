@@ -23,7 +23,8 @@ import {
   registryPath,
   DOC_ROOTS,
   SAMPLE_ROOTS,
-  readManifestRepoCommit
+  readManifestRepoCommit,
+  dataCheckoutsMatchManifest
 } from "./resource-index/paths.js";
 import {
   getCodeFileExtensions,
@@ -589,6 +590,9 @@ function getRagSignatureData() {
     dwtDocCount: dwtDocs.articles.length,
     ddvDocCount: ddvDocs.articles.length,
     versions: LATEST_VERSIONS,
+    // Not part of the signature: whether local data really is the pinned data
+    // the signature names (gates reuse of hash-less legacy vector caches).
+    dataMatchesManifest: dataCheckoutsMatchManifest([...Object.values(DOC_ROOTS), ...Object.values(SAMPLE_ROOTS)]),
     dataSources: {
       dbrWebSamplesHead: readManifestRepoCommit(SAMPLE_ROOTS.dbrWeb),
       dbrMobileSamplesHead: readManifestRepoCommit(SAMPLE_ROOTS.dbrMobile),

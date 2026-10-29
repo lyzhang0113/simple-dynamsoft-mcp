@@ -49,7 +49,7 @@ function signatureWithoutPackageVersion(signature) {
 // before hashes existed are adopted only when their signature matches apart
 // from packageVersion and their items are the same sequence, which means the
 // chunk texts are identical.
-function collectReusableVectors({ cacheDir, provider, model, items, signature }) {
+function collectReusableVectors({ cacheDir, provider, model, items, signature, allowLegacyAdoption = false }) {
   const reusable = new Map();
   const currentSignature = signatureWithoutPackageVersion(signature);
   for (const headerFile of listProviderCacheHeaders(cacheDir, provider, model)) {
@@ -72,6 +72,9 @@ function collectReusableVectors({ cacheDir, provider, model, items, signature })
     // Same content signature and the same set of chunk ids/uris means the same
     // chunk texts; match by id/uri rather than position, because directory
     // listing order differs between platforms (e.g. sample folders).
+    // The signature names pinned data commits, not what is checked out, so
+    // legacy adoption also needs the caller to confirm local data matches them.
+    if (!allowLegacyAdoption) continue;
     if (!currentSignature || signatureWithoutPackageVersion(payload.meta?.signature) !== currentSignature) continue;
     if (payload.items.length !== items.length || payload.vectors.length !== items.length) continue;
     const vectorByKey = new Map(payload.items.map((item, i) => [`${item.id}\n${item.uri}`, payload.vectors[i]]));

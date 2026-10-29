@@ -89,12 +89,12 @@ test("hash-less caches are adopted only when content signature and item sequence
     const items = hashed(payload.items);
 
     const sameContent = helpers.collectReusableVectors({
-      provider: "gemini", model: "m", items, signature: JSON.stringify({ packageVersion: "7.7.1", docs: 2 })
+      provider: "gemini", model: "m", items, allowLegacyAdoption: true, signature: JSON.stringify({ packageVersion: "7.7.1", docs: 2 })
     });
     assert.deepEqual([...sameContent.keys()], ["h0", "h1"]);
 
     const changedContent = helpers.collectReusableVectors({
-      provider: "gemini", model: "m", items, signature: JSON.stringify({ packageVersion: "7.7.1", docs: 3 })
+      provider: "gemini", model: "m", items, allowLegacyAdoption: true, signature: JSON.stringify({ packageVersion: "7.7.1", docs: 3 })
     });
     assert.equal(changedContent.size, 0);
   });
@@ -120,13 +120,17 @@ test("hash-less caches are adopted by chunk id/uri even when listing order diffe
     // Same chunks, opposite order (e.g. case-sensitive vs case-insensitive directory listing).
     const items = [{ id: "b#0", uri: "doc://b", hash: "hb" }, { id: "a#0", uri: "doc://a", hash: "ha" }];
     const reusable = helpers.collectReusableVectors({
+      provider: "gemini", model: "m", items, allowLegacyAdoption: true, signature: JSON.stringify({ packageVersion: "7.7.1", docs: 2 })
+    });
+    const unverifiedData = helpers.collectReusableVectors({
       provider: "gemini", model: "m", items, signature: JSON.stringify({ packageVersion: "7.7.1", docs: 2 })
     });
+    assert.equal(unverifiedData.size, 0, "legacy caches are not adopted unless local data matches the pins");
     assert.deepEqual(Array.from(reusable.get("ha")).map((v) => Math.round(v * 10) / 10), [0.6, 0.8, 0]);
     assert.deepEqual(Array.from(reusable.get("hb")), [0, 0.25, -1.5]);
 
     const extraItem = helpers.collectReusableVectors({
-      provider: "gemini", model: "m", items: [...items, { id: "c#0", uri: "doc://c", hash: "hc" }], signature
+      provider: "gemini", model: "m", items: [...items, { id: "c#0", uri: "doc://c", hash: "hc" }], allowLegacyAdoption: true, signature
     });
     assert.equal(extraItem.size, 0, "a different chunk set is never adopted");
   });

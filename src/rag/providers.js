@@ -418,7 +418,13 @@ function createProviderOrchestrator({
         }));
         const reusable = ragConfig.rebuild
           ? new Map()
-          : vectorCache.collectReusableVectors({ provider: name, model, items: indexedItems, signature });
+          : vectorCache.collectReusableVectors({
+            provider: name,
+            model,
+            items: indexedItems,
+            signature,
+            allowLegacyAdoption: getRagSignatureData().dataMatchesManifest === true
+          });
         const vectors = indexedItems.map((item) => reusable.get(item.hash) || null);
         const missing = [];
         vectors.forEach((vector, index) => {
