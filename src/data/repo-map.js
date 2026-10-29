@@ -3,14 +3,33 @@ import { getHydrationProduct } from "../server/public-offerings.js";
 
 const REPO_MAP = {
   dbr: {
+    // DBR docs index the Capture Vision pages they link to (shared APIs such as
+    // CaptureVisionRouter), so each DBR edition also needs the matching DCV
+    // edition repo plus DCV core.
     docs: {
-      web: ["documentation/barcode-reader-docs-js"],
-      mobile: ["documentation/barcode-reader-docs-mobile"],
-      server: ["documentation/barcode-reader-docs-server"],
+      web: [
+        "documentation/barcode-reader-docs-js",
+        "documentation/capture-vision-docs-js",
+        "documentation/capture-vision-docs"
+      ],
+      mobile: [
+        "documentation/barcode-reader-docs-mobile",
+        "documentation/capture-vision-docs-mobile",
+        "documentation/capture-vision-docs"
+      ],
+      server: [
+        "documentation/barcode-reader-docs-server",
+        "documentation/capture-vision-docs-server",
+        "documentation/capture-vision-docs"
+      ],
       any: [
         "documentation/barcode-reader-docs-js",
         "documentation/barcode-reader-docs-mobile",
-        "documentation/barcode-reader-docs-server"
+        "documentation/barcode-reader-docs-server",
+        "documentation/capture-vision-docs",
+        "documentation/capture-vision-docs-js",
+        "documentation/capture-vision-docs-mobile",
+        "documentation/capture-vision-docs-server"
       ]
     },
     samples: {

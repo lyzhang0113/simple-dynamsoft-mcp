@@ -1,0 +1,189 @@
+{
+  "k": 5,
+  "cases": [
+    {
+      "id": "B-js-qr-upload-customer",
+      "query": "I'm using Dynamsoft Barcode Reader in JavaScript. How can I restrict decoding to QR Codes only and scan barcodes from an uploaded image instead of the camera?",
+      "filters": { "product": "dbr", "platform": "js", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/capture-vision-router/single-image-processing.html": 3,
+        "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/capture-vision-router/settings.html": 2,
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/user-guide/use-in-framework.html": 2,
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/user-guide/index.html": 2,
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/api-reference/enum-barcode-format.html": 1
+      }
+    },
+    {
+      "id": "B-js-agent-search-1",
+      "query": "Dynamsoft Barcode Reader JavaScript restrict to QR code scan from image API decodeFile or decodeImage decode single uploaded image QROnly",
+      "filters": { "product": "dbr", "platform": "js", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/capture-vision-router/single-image-processing.html": 3,
+        "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/capture-vision-router/settings.html": 2,
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/user-guide/use-in-framework.html": 2,
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/user-guide/index.html": 1,
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/api-reference/enum-barcode-format.html": 1,
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/migrate-from-9x/index.html": 1
+      }
+    },
+    {
+      "id": "B-js-uploaded-file",
+      "query": "decode barcode from uploaded image file input",
+      "filters": { "product": "dbr", "platform": "js", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/capture-vision-router/single-image-processing.html": 3,
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/user-guide/use-in-framework.html": 2,
+        "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/capture-vision-router/multiple-image-processing.html": 1
+      }
+    },
+    {
+      "id": "B-js-capture-symbol",
+      "query": "CaptureVisionRouter capture",
+      "filters": { "product": "dbr", "platform": "js", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/capture-vision-router/single-image-processing.html": 3,
+        "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/capture-vision-router/capture-vision-router-module.html": 1,
+        "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/capture-vision-router/multiple-image-processing.html": 1
+      }
+    },
+    {
+      "id": "B-js-simplified-settings",
+      "query": "getSimplifiedSettings updateSettings barcodeFormatIds QR",
+      "filters": { "product": "dbr", "platform": "js", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/capture-vision-router/settings.html": 3,
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/api-reference/interfaces/simplified-barcode-reader-settings.html": 2,
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/api-reference/enum-barcode-format.html": 2,
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/user-guide/index.html": 1
+      }
+    },
+    {
+      "id": "A-json-template-any-platform",
+      "query": "How can I customize Dynamsoft Barcode Reader's scanning settings using a JSON template?",
+      "filters": { "product": "dbr", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/android/user-guide/capabilities/init-customized-template.html": 3,
+        "https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/objectivec-swift/user-guide/capabilities/init-customized-template.html": 3
+      }
+    },
+    {
+      "id": "A-json-template-android",
+      "query": "customize barcode scanning settings with a JSON template",
+      "filters": { "product": "dbr", "platform": "android", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/android/user-guide/capabilities/init-customized-template.html": 3,
+        "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/android/api-reference/capture-vision-router/settings.html": 2
+      }
+    },
+    {
+      "id": "A-initSettingsFromFile-android",
+      "query": "initSettingsFromFile",
+      "filters": { "product": "dbr", "platform": "android", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/android/user-guide/capabilities/init-customized-template.html": 3,
+        "https://www.dynamsoft.com/capture-vision/docs/mobile/programming/android/api-reference/capture-vision-router/settings.html": 3
+      }
+    },
+    {
+      "id": "C-privacy-network",
+      "query": "Are barcode images sent to Dynamsoft during decoding? Distinguish image processing from license validation and other network requests.",
+      "filters": { "product": "dbr", "type": "doc" },
+      "relevant": {},
+      "note": "Coverage gap: no DBR privacy/data-handling page exists in the docs repos."
+    },
+    {
+      "id": "D-js-api-isolation",
+      "query": "Dynamsoft Barcode Reader JavaScript API reference",
+      "filters": { "product": "dbr", "platform": "js", "type": "doc" },
+      "allowedUrlPrefixes": ["https://www.dynamsoft.com/barcode-reader/docs/web/", "https://www.dynamsoft.com/capture-vision/docs/"],
+      "relevant": {
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/api-reference/index.html": 3
+      }
+    },
+    {
+      "id": "R-dbr-js-license",
+      "query": "how to set the license key in JavaScript",
+      "filters": { "product": "dbr", "platform": "js", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/barcode-reader/docs/web/programming/javascript/user-guide/index.html": 3,
+        "https://www.dynamsoft.com/capture-vision/docs/web/programming/javascript/api-reference/license/license-manager.html": 2
+      }
+    },
+    {
+      "id": "R-dbr-android-formats",
+      "query": "enable only specific barcode formats on Android",
+      "filters": { "product": "dbr", "platform": "android", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/android/user-guide/capabilities/barcode-formats.html": 3,
+        "https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/android/user-guide/scanner-barcode-formats.html": 2
+      }
+    },
+    {
+      "id": "R-dbr-ios-license",
+      "query": "initialize license on iOS",
+      "filters": { "product": "dbr", "platform": "ios", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/barcode-reader/docs/mobile/programming/objectivec-swift/user-guide/license-activation.html": 3
+      }
+    },
+    {
+      "id": "R-dbr-python-file",
+      "query": "decode barcodes from an image file in Python",
+      "filters": { "product": "dbr", "platform": "python", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/barcode-reader/docs/server/programming/python/user-guide.html": 3
+      }
+    },
+    {
+      "id": "R-dwt-acquire",
+      "query": "acquire images from a TWAIN scanner and select source",
+      "filters": { "product": "dwt", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/web-twain/docs/general-usage/scanner-image-acquisition.html": 3
+      }
+    },
+    {
+      "id": "R-dwt-upload",
+      "query": "upload scanned documents to server as PDF",
+      "filters": { "product": "dwt", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/web-twain/docs/hello-world/uploading.html": 3,
+        "https://www.dynamsoft.com/web-twain/docs/faq/securely-transfer-to-server.html": 2
+      }
+    },
+    {
+      "id": "R-ddv-annotation",
+      "query": "add annotations to a PDF in the document viewer",
+      "filters": { "product": "ddv", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/document-viewer/docs/features/viewers/annotation.html": 3,
+        "https://www.dynamsoft.com/document-viewer/docs/features/datamanagement/annotmanagement.html": 2
+      }
+    },
+    {
+      "id": "R-mrz-web-passport",
+      "query": "scan passport MRZ in the browser",
+      "filters": { "product": "mrz", "platform": "js", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/mrz-scanner/docs/web/guides/mrz-scanner.html": 3,
+        "https://www.dynamsoft.com/mrz-scanner/docs/web/guides/mrz-scanner-quick-start.html": 2
+      }
+    },
+    {
+      "id": "R-mrz-web-static-image",
+      "query": "read MRZ from a static image file",
+      "filters": { "product": "mrz", "platform": "js", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/mrz-scanner/docs/web/guides/mrz-scanner-static-image.html": 3
+      }
+    },
+    {
+      "id": "R-mds-web-customize",
+      "query": "customize the Mobile Document Scanner UI",
+      "filters": { "product": "mds", "type": "doc" },
+      "relevant": {
+        "https://www.dynamsoft.com/mobile-document-scanner/docs/web/guide/mobile-web-capture-customization.html": 3
+      }
+    }
+  ]
+}

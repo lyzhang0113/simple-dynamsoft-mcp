@@ -34,7 +34,10 @@ export function registerIndexTools({
     const sampleId = entry.type === "sample" ? getSampleIdFromUri(entry.uri) : "";
     const sampleHint = sampleId ? ` | sample_id: ${sampleId}` : "";
     const scoreLabel = formatScoreLabel(entry);
-    let desc = `${entry.type.toUpperCase()} | ${scopeLabel} | ${versionLabel}${scoreLabel} - ${entry.summary}${sampleHint}`;
+    const sharedLabel = entry.type === "doc" && Array.isArray(entry.tags) && entry.tags.includes("shared")
+      ? ` | shared Capture Vision API used by DBR (DCV v${entry.sourceVersion || "n/a"})`
+      : "";
+    let desc = `${entry.type.toUpperCase()} | ${scopeLabel} | ${versionLabel}${sharedLabel}${scoreLabel} - ${entry.summary}${sampleHint}`;
     if (entry.matchedSnippet) {
       const snippet = String(entry.matchedSnippet).replace(/\s+/g, " ").slice(0, 220);
       desc += ` — "${snippet}"`;

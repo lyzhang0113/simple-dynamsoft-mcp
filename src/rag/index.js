@@ -102,7 +102,22 @@ function refreshRagIndexes() {
   logRag(`indexes refreshed resources=${resourceIndex.length}`);
 }
 
-async function searchResources({ query, product, edition, platform, type, limit }) {
+function dedupeByPublicUrl(results, limit) {
+  const seen = new Set();
+  const unique = [];
+  for (const entry of results) {
+    const key = entry.url || entry.uri;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(entry);
+    if (limit && unique.length >= limit) break;
+  }
+  return unique;
+}
+
+// `throwOnError` makes an all-providers failure throw instead of returning [];
+// evaluation uses it so a broken provider cannot pass as zero relevance.
+async function searchResources({ query, product, edition, platform, type, limit, throwOnError = false }) {
   const startedAt = Date.now();
   const filters = normalizeSearchFilters({ product, edition, platform, type }, {
     normalizeProduct,
@@ -133,7 +148,11 @@ async function searchResources({ query, product, edition, platform, type, limit 
   for (const name of providers) {
     try {
       const provider = await providerOrchestrator.loadSearchProvider(name);
-      const results = await provider.search(searchQuery, filters, maxResults);
+      // Shared pages (e.g. Capture Vision core reference) are indexed once per
+      // DBR edition, so an edition-less search can hit the same public page
+      // several times. Over-fetch, then keep the best hit per public URL.
+      const candidates = await provider.search(searchQuery, filters, maxResults ? maxResults * 3 : undefined);
+      const results = dedupeByPublicUrl(candidates, maxResults);
       if (!ragLogState.providerFirstUse.has(name)) {
         ragLogState.providerFirstUse.add(name);
         logRag("provider_selected", {
@@ -191,6 +210,7 @@ async function searchResources({ query, product, edition, platform, type, limit 
       latency_bucket: latencyBucket(elapsedMs),
       error: lastError.message
     }, { level: "error" });
+    if (throwOnError) throw lastError;
   }
   return [];
 }

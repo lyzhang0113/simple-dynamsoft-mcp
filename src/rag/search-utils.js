@@ -248,6 +248,7 @@ function buildIndexSignature({ pkgVersion, signatureData, ragConfig }) {
     dbrWebDocCount: signatureData.dbrWebDocCount,
     dbrMobileDocCount: signatureData.dbrMobileDocCount,
     dbrServerDocCount: signatureData.dbrServerDocCount,
+    dbrSharedDocCount: signatureData.dbrSharedDocCount,
     dwtDocCount: signatureData.dwtDocCount,
     ddvDocCount: signatureData.ddvDocCount,
     versions: signatureData.versions,
@@ -257,7 +258,9 @@ function buildIndexSignature({ pkgVersion, signatureData, ragConfig }) {
     maxChunksPerDoc: ragConfig.maxChunksPerDoc,
     maxTextChars: ragConfig.maxTextChars,
     // Bump when the chunking strategy changes so cached vector indexes rebuild.
-    chunkStrategy: "heading-aware-v1"
+    chunkStrategy: "heading-aware-v1",
+    // Bump when doc:// URIs change shape; cached vectors are keyed by URI.
+    docUriScheme: "source-path-v1"
   });
 }
 

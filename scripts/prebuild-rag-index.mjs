@@ -32,6 +32,8 @@ if (!existsSync(cacheDir)) {
   throw new Error(`RAG cache directory not found after prebuild: ${cacheDir}`);
 }
 
+// Each cache is a JSON header plus a sibling `.f32` vector file (see
+// src/rag/vector-cache.js); both ship in the release archive.
 const cacheFiles = readdirSync(cacheDir, { withFileTypes: true })
   .filter((entry) => entry.isFile())
   .map((entry) => join(cacheDir, entry.name))
@@ -46,6 +48,12 @@ const cacheFiles = readdirSync(cacheDir, { withFileTypes: true })
 
 if (cacheFiles.length === 0) {
   throw new Error(`No cache JSON files found in ${cacheDir}.`);
+}
+
+const vectorFiles = cacheFiles.map((path) => path.replace(/\.json$/i, ".f32"));
+const missingVectors = vectorFiles.filter((path) => !existsSync(path));
+if (missingVectors.length > 0) {
+  throw new Error(`Vector files missing for cache headers: ${missingVectors.map((path) => basename(path)).join(", ")}`);
 }
 
 let indexSignature = "";
@@ -69,7 +77,7 @@ const manifest = {
   indexSignature,
   indexCacheKey,
   cacheDir: toPosixPath(cacheDir),
-  files: cacheFiles.map((path) => {
+  files: [...cacheFiles, ...vectorFiles].sort().map((path) => {
     const stats = statSync(path);
     return {
       name: toPosixPath(path.slice(cacheDir.length + 1)),

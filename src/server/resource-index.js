@@ -17,6 +17,8 @@ import {
 } from "./normalizers.js";
 import { DOCS_CONFIG } from "./resource-index/config.js";
 import { loadMarkdownDocs } from "./resource-index/docs-loader.js";
+import { selectSharedDcvDocs } from "./resource-index/shared-docs.js";
+import { logEvent } from "../observability/logging.js";
 import {
   registryPath,
   DOC_ROOTS,
@@ -149,40 +151,47 @@ let dcvMobileDocs = [];
 let dcvServerDocs = [];
 let dwtDocs = { articles: [] };
 let ddvDocs = { articles: [] };
+let dbrSharedDocs = { web: [], mobile: [], server: [] };
+
+function loadDbrDocs(key, edition, platformResolver) {
+  const loaded = loadMarkdownDocs({
+    rootDir: DOC_ROOTS[key],
+    urlBase: DOCS_CONFIG[key].urlBase,
+    excludeDirs: DOCS_CONFIG[key].excludeDirs,
+    excludeFiles: DOCS_CONFIG[key].excludeFiles
+  });
+  return { articles: withEditionScope(loaded.articles, edition, platformResolver), siteVars: loaded.siteVars };
+}
+
+function selectDbrSharedDocs(key, edition, dbr, dcvEditionDocs) {
+  const dbrVersion = LATEST_VERSIONS.dbr[edition];
+  return selectSharedDcvDocs({
+    dbrArticles: dbr.articles,
+    dbrRoot: DOC_ROOTS[key],
+    siteVars: dbr.siteVars,
+    dbrVersion,
+    sources: [
+      { articles: dcvEditionDocs, version: LATEST_VERSIONS.dcv[edition], editionSpecific: true, slugPrefix: "dcv", defaultPlatform: edition },
+      { articles: dcvCoreDocs, version: LATEST_VERSIONS.dcv.core, editionSpecific: false, slugPrefix: "dcv-core", defaultPlatform: edition }
+    ],
+    onSkip: ({ dcvVersion, slugPrefix }) => logEvent("data", "shared_docs_version_mismatch", {
+      edition,
+      dbr_version: dbrVersion,
+      dcv_version: dcvVersion,
+      source: slugPrefix
+    }, { level: "warn" })
+  });
+}
 
 function loadDocumentationSets() {
-  dbrWebDocs = withEditionScope(
-    loadMarkdownDocs({
-      rootDir: DOC_ROOTS.dbrWeb,
-      urlBase: DOCS_CONFIG.dbrWeb.urlBase,
-      excludeDirs: DOCS_CONFIG.dbrWeb.excludeDirs,
-      excludeFiles: DOCS_CONFIG.dbrWeb.excludeFiles
-    }).articles,
-    "web",
-    () => "web"
-  );
+  const dbrWeb = loadDbrDocs("dbrWeb", "web", () => "web");
+  dbrWebDocs = dbrWeb.articles;
 
-  dbrMobileDocs = withEditionScope(
-    loadMarkdownDocs({
-      rootDir: DOC_ROOTS.dbrMobile,
-      urlBase: DOCS_CONFIG.dbrMobile.urlBase,
-      excludeDirs: DOCS_CONFIG.dbrMobile.excludeDirs,
-      excludeFiles: DOCS_CONFIG.dbrMobile.excludeFiles
-    }).articles,
-    "mobile",
-    inferDbrMobilePlatform
-  );
+  const dbrMobile = loadDbrDocs("dbrMobile", "mobile", inferDbrMobilePlatform);
+  dbrMobileDocs = dbrMobile.articles;
 
-  dbrServerDocs = withEditionScope(
-    loadMarkdownDocs({
-      rootDir: DOC_ROOTS.dbrServer,
-      urlBase: DOCS_CONFIG.dbrServer.urlBase,
-      excludeDirs: DOCS_CONFIG.dbrServer.excludeDirs,
-      excludeFiles: DOCS_CONFIG.dbrServer.excludeFiles
-    }).articles,
-    "server",
-    inferDbrServerPlatform
-  );
+  const dbrServer = loadDbrDocs("dbrServer", "server", inferDbrServerPlatform);
+  dbrServerDocs = dbrServer.articles;
 
   dcvCoreDocs = withEditionScope(
     loadMarkdownDocs({
@@ -252,6 +261,7 @@ function loadDocumentationSets() {
 
   dwtDocs = loadMarkdownDocs({
     rootDir: DOC_ROOTS.dwtArticles,
+    siteRoot: DOC_ROOTS.dwt,
     urlBase: DOCS_CONFIG.dwt.urlBase,
     includeDirNames: DOCS_CONFIG.dwt.includeDirNames
   });
@@ -262,6 +272,12 @@ function loadDocumentationSets() {
     excludeDirs: DOCS_CONFIG.ddv.excludeDirs,
     excludeFiles: DOCS_CONFIG.ddv.excludeFiles
   });
+
+  dbrSharedDocs = {
+    web: selectDbrSharedDocs("dbrWeb", "web", dbrWeb, dcvWebDocs),
+    mobile: selectDbrSharedDocs("dbrMobile", "mobile", dbrMobile, dcvMobileDocs),
+    server: selectDbrSharedDocs("dbrServer", "server", dbrServer, dcvServerDocs)
+  };
 }
 
 const dbrServerSdk = registry.sdks["dbr-server"];
@@ -339,6 +355,7 @@ function buildIndexData() {
     dbrWebDocs,
     dbrMobileDocs,
     dbrServerDocs,
+    dbrSharedDocs,
     dwtDocs,
     ddvDocs,
     discoverDcvWebSamples,
@@ -380,6 +397,7 @@ function buildResourceIndex() {
     dbrWebDocs,
     dbrMobileDocs,
     dbrServerDocs,
+    dbrSharedDocs,
     dwtDocs,
     ddvDocs,
     discoverDcvMobileSamples,
@@ -444,6 +462,8 @@ function editionMatches(normalizedEdition, entryEdition) {
 function platformMatches(normalizedPlatform, entry) {
   if (!normalizedPlatform) return true;
   if (normalizedPlatform === entry.platform) return true;
+  // Shared pages (e.g. Capture Vision core reference) serve several platforms.
+  if (Array.isArray(entry.platforms) && entry.platforms.includes(normalizedPlatform)) return true;
   if (normalizedPlatform === "web") return entry.platform === "web";
   if (isWebFrameworkPlatform(normalizedPlatform)) {
     const aliases = WEB_FRAMEWORK_TAG_ALIASES[normalizedPlatform] || [normalizedPlatform];
@@ -514,13 +534,12 @@ function buildResourceLookupCandidates(uri) {
   const parts = String(rest || "").split("/").filter(Boolean);
   if (parts.length < 5) return candidates;
 
-  const head = parts.slice(0, 4);
-  const slugRaw = parts.slice(4).join("/");
-  const decodedOnce = safeDecodeURIComponent(slugRaw);
-  const decodedTwice = safeDecodeURIComponent(decodedOnce);
-
-  for (const slug of [decodedOnce, decodedTwice]) {
-    const canonical = `${scheme}://${head.join("/")}/${encodeURIComponent(slug)}`;
+  // Doc slugs are source paths; accept them with or without per-segment
+  // percent-encoding (clients differ in how they echo URIs back).
+  const head = parts.slice(0, 4).join("/");
+  const slugSegments = parts.slice(4).map((segment) => safeDecodeURIComponent(segment));
+  for (const slug of [slugSegments.join("/"), slugSegments.map((segment) => encodeURIComponent(segment)).join("/")]) {
+    const canonical = `${scheme}://${head}/${slug}`;
     if (!candidates.includes(canonical)) {
       candidates.push(canonical);
     }
@@ -562,6 +581,7 @@ function getRagSignatureData() {
     dbrWebDocCount: dbrWebDocs.length,
     dbrMobileDocCount: dbrMobileDocs.length,
     dbrServerDocCount: dbrServerDocs.length,
+    dbrSharedDocCount: dbrSharedDocs.web.length + dbrSharedDocs.mobile.length + dbrSharedDocs.server.length,
     dwtDocCount: dwtDocs.articles.length,
     ddvDocCount: ddvDocs.articles.length,
     versions: LATEST_VERSIONS,

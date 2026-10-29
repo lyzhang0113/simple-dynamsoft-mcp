@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { DDV_PREFERRED_ENTRY_FILES } from "./config.js";
+import { shortDocPath } from "./docs-loader.js";
 import { PRODUCT_SELECTION_GUIDANCE, PUBLIC_OFFERING_PRODUCTS } from "../public-offerings.js";
 
 const MRZ_MATCHER = /(?:\bmrz\b|machine[-\s]?readable[-\s]?zone|passport)/i;
@@ -201,6 +202,29 @@ function addPublicResourceToIndex(addResourceToIndex, entry) {
   }
 }
 
+function encodeDocSlug(slug) {
+  return String(slug).split("/").map((segment) => encodeURIComponent(segment)).join("/");
+}
+
+// One doc:// slug per article: its short path, or (on a collision within the
+// same URI prefix + platform, e.g. `user-guide.md` vs `user-guide/index.md`)
+// its full source path. Shared pages keep their `slugPrefix` namespace
+// (`dcv`, `dcv-core`) in both forms.
+function assignDocSlugs(docs, defaultPlatform) {
+  const withPrefix = (article, slug) => (article.slugPrefix ? `${article.slugPrefix}/${slug}` : slug);
+  const keyFor = (article, slug) => `${article.platform || defaultPlatform}/${slug}`;
+  const shortSlugs = docs.map((article) => withPrefix(article, shortDocPath(article.path || article.title)));
+  const counts = new Map();
+  docs.forEach((article, i) => {
+    const key = keyFor(article, shortSlugs[i]);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return docs.map((article, i) => {
+    if (counts.get(keyFor(article, shortSlugs[i])) === 1) return shortSlugs[i];
+    return withPrefix(article, String(article.path || article.title).replace(/\\/g, "/").replace(/\.md$/i, ""));
+  });
+}
+
 function addMarkdownDocResources({
   addResourceToIndex,
   docs,
@@ -214,12 +238,18 @@ function addMarkdownDocResources({
   defaultSummary,
   baseTags
 }) {
+  const slugs = assignDocSlugs(docs, defaultPlatform);
   for (let i = 0; i < docs.length; i++) {
     const article = docs[i];
     if (!article?.title) continue;
-    const slug = `${encodeURIComponent(article.title)}-${i}`;
+    const slug = encodeDocSlug(slugs[i]);
     const platform = article.platform || defaultPlatform;
     const tags = [...baseTags, platform];
+    if (Array.isArray(article.platforms)) {
+      for (const extra of article.platforms) {
+        if (!tags.includes(extra)) tags.push(extra);
+      }
+    }
     if (article.breadcrumb) tags.push(...article.breadcrumb.toLowerCase().split(/\s*>\s*/));
     // Fold frontmatter keywords into tags so domain-vocabulary search hits (#142).
     if (Array.isArray(article.keywords)) {
@@ -239,7 +269,9 @@ function addMarkdownDocResources({
       product,
       edition,
       platform,
+      ...(Array.isArray(article.platforms) ? { platforms: article.platforms } : {}),
       version,
+      ...(article.sourceVersion ? { sourceVersion: article.sourceVersion } : {}),
       majorVersion,
       url: article.url,
       title: product === "mrz" || product === "mds"
@@ -601,6 +633,7 @@ function buildResourceIndex({
   dbrWebDocs,
   dbrMobileDocs,
   dbrServerDocs,
+  dbrSharedDocs,
   dwtDocs,
   ddvDocs,
   discoverDcvMobileSamples,
@@ -967,6 +1000,27 @@ function buildResourceIndex({
     baseTags: ["doc", "dbr", "server"]
   });
 
+  const sharedEditions = [
+    ["web", dbrWebVersion, "Web"],
+    ["mobile", dbrMobileVersion, "Mobile"],
+    ["server", dbrServerVersion, "Server/Desktop"]
+  ];
+  for (const [edition, version, label] of sharedEditions) {
+    addMarkdownDocResources({
+      addResourceToIndex,
+      docs: dbrSharedDocs?.[edition] || [],
+      idPrefix: `dbr-${edition}-shared-doc`,
+      uriPrefix: `doc://dbr/${edition}`,
+      product: "dbr",
+      edition,
+      version,
+      majorVersion: LATEST_MAJOR.dbr,
+      defaultPlatform: edition,
+      defaultSummary: `Shared Capture Vision API used by Dynamsoft Barcode Reader ${label}`,
+      baseTags: ["doc", "dbr", edition, "shared", "capture-vision"]
+    });
+  }
+
   for (const platform of getDbrMobilePlatforms()) {
     const samples = discoverMobileSamples(platform);
     for (const level of ["high-level", "low-level"]) {
@@ -1155,6 +1209,7 @@ function buildResourceIndex({
 }
 
 export {
+  assignDocSlugs,
   buildIndexData,
   buildResourceIndex
 };

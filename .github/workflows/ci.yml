@@ -70,6 +70,9 @@ jobs:
       - name: Test (lexical provider)
         run: npm run test:lexical
 
+      - name: Retrieval quality (golden set, lexical)
+        run: npm run test:retrieval
+
   test_lazy_hydration:
     runs-on: ubuntu-latest
     steps:

@@ -98,9 +98,56 @@ function markdownPathToUrl(baseUrl, relativePath) {
   return `${baseUrl}${normalized}`;
 }
 
-function loadMarkdownDocs({ rootDir, urlBase, includeDirNames = [], excludeDirs = [], excludeFiles = [] }) {
+// Path used in doc:// URIs. The platform is already a URI segment, so the
+// `programming/<lang>/` prefix is dropped, and a directory's index page is
+// addressed by the directory.
+function shortDocPath(relativePath) {
+  const withoutExt = String(relativePath || "").replace(/\\/g, "/").replace(/\.md$/i, "");
+  const withoutPlatform = withoutExt.replace(/^programming\/[^/]+\//, "");
+  const withoutIndex = withoutPlatform.replace(/(^|\/)index$/, "");
+  return withoutIndex || "index";
+}
+
+const SITE_ORIGIN = "https://www.dynamsoft.com";
+
+// Top-level `key: value` pairs from a Jekyll _config.yml. Only path/URL values
+// are kept: they are what docs interpolate as `{{ site.key }}` link prefixes.
+function loadSiteVariables(siteRoot) {
+  const vars = new Map();
+  const configPath = join(siteRoot || "", "_config.yml");
+  if (!siteRoot || !existsSync(configPath)) return vars;
+  for (const line of readFileSync(configPath, "utf8").split(/\r?\n/)) {
+    const match = line.match(/^([A-Za-z0-9_-]+):\s*["']?([^"'#\s]+)["']?\s*(?:#.*)?$/);
+    if (!match) continue;
+    const [, key, value] = match;
+    if (value.startsWith("/")) {
+      vars.set(key, `${SITE_ORIGIN}${value}`);
+    } else if (/^https?:\/\//i.test(value)) {
+      vars.set(key, value);
+    }
+  }
+  return vars;
+}
+
+// Replace `{{ site.key }}` with the absolute URL from _config.yml so links in
+// returned docs (and the shared-doc link map) point at the real public pages.
+// Unknown keys are left untouched.
+function resolveSiteLinks(text, siteVars) {
+  if (!text || !siteVars || siteVars.size === 0) return text;
+  return String(text).replace(/\{\{\s*site\.([A-Za-z0-9_-]+)\s*\}\}/g, (whole, key) => siteVars.get(key) ?? whole);
+}
+
+function loadMarkdownDocs({
+  rootDir,
+  urlBase,
+  siteRoot = rootDir,
+  includeDirNames = [],
+  excludeDirs = [],
+  excludeFiles = []
+}) {
   if (!existsSync(rootDir)) return { articles: [] };
 
+  const siteVars = loadSiteVariables(siteRoot);
   const files = collectMarkdownFiles(rootDir, { includeDirNames, excludeDirs, excludeFiles });
   const articles = [];
 
@@ -108,6 +155,9 @@ function loadMarkdownDocs({ rootDir, urlBase, includeDirNames = [], excludeDirs 
     const relativePath = relative(rootDir, filePath).replace(/\\/g, "/");
     const raw = readFileSync(filePath, "utf8");
     const parsed = parseFrontMatter(raw);
+    // Jekyll redirect stubs have no content of their own; indexing them yields
+    // empty hits whose URL only redirects elsewhere.
+    if (parsed.meta.redirect_to) continue;
     const title = parsed.meta.title || getHeadingTitle(parsed.body) || formatSegmentLabel(relativePath.replace(/\.md$/i, "").split("/").pop());
     if (!title) continue;
     const breadcrumb = parsed.meta.breadcrumbText || buildBreadcrumbFromPath(relativePath) || title;
@@ -121,7 +171,7 @@ function loadMarkdownDocs({ rootDir, urlBase, includeDirNames = [], excludeDirs 
     articles.push({
       title,
       url: markdownPathToUrl(urlBase, relativePath),
-      content: parsed.body.trim(),
+      content: resolveSiteLinks(parsed.body.trim(), siteVars),
       breadcrumb,
       description,
       keywords,
@@ -129,9 +179,12 @@ function loadMarkdownDocs({ rootDir, urlBase, includeDirNames = [], excludeDirs 
     });
   }
 
-  return { articles };
+  return { articles, siteVars };
 }
 
 export {
-  loadMarkdownDocs
+  loadMarkdownDocs,
+  loadSiteVariables,
+  resolveSiteLinks,
+  shortDocPath
 };
