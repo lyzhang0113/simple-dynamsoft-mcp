@@ -3,6 +3,7 @@ import { join, basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import * as tar from "tar";
+import { isVectorProvider } from "./embedding-providers.js";
 
 function ensureDirectory(path) {
   if (!existsSync(path)) {
@@ -254,22 +255,14 @@ function listDownloadedCacheCandidatesByProvider(extractRoot, expectedCacheFileN
   return unique;
 }
 
-function resolvePrebuiltIndexUrlCandidates(provider, ragConfig, legacyPrebuiltIndexUrl) {
+// The release asset for the active provider (`prebuiltIndexUrlFor`), unless
+// RAG_PREBUILT_INDEX_URL or, for Gemini, RAG_PREBUILT_INDEX_URL_GEMINI overrides it.
+function resolvePrebuiltIndexUrl(provider, ragConfig, prebuiltIndexUrlFor) {
   const override = String(ragConfig.prebuiltIndexUrl || "").trim();
-  if (override) return [override];
-
-  const candidates = [];
-  if (provider === "gemini") {
-    candidates.push(String(ragConfig.prebuiltIndexUrlGemini || "").trim());
-  }
-  candidates.push(legacyPrebuiltIndexUrl);
-
-  const deduped = [];
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    if (!deduped.includes(candidate)) deduped.push(candidate);
-  }
-  return deduped;
+  if (override) return override;
+  const geminiOverride = String(ragConfig.prebuiltIndexUrlGemini || "").trim();
+  if (provider === "gemini" && geminiOverride) return geminiOverride;
+  return prebuiltIndexUrlFor ? String(prebuiltIndexUrlFor(provider) || "").trim() : "";
 }
 
 async function downloadPrebuiltArchive(url, outputPath, timeoutMs) {
@@ -303,18 +296,19 @@ async function downloadPrebuiltArchive(url, outputPath, timeoutMs) {
   }
 }
 
-function createVectorCacheHelpers({ ragConfig, pkgVersion, legacyPrebuiltIndexUrl, logRag }) {
+function createVectorCacheHelpers({ ragConfig, pkgVersion, prebuiltIndexUrlFor, logRag }) {
   const prebuiltDownloadAttempts = new Map();
 
   async function maybeDownloadPrebuiltVectorIndex({ provider, model, cacheKey, signature, cacheFile }) {
-    if (provider !== "gemini") {
+    if (!isVectorProvider(provider)) {
       return { downloaded: false, reason: "provider_not_supported" };
     }
     if (!ragConfig.prebuiltIndexAutoDownload) {
       return { downloaded: false, reason: "auto_download_disabled" };
     }
 
-    const sourceUrls = resolvePrebuiltIndexUrlCandidates(provider, ragConfig, legacyPrebuiltIndexUrl);
+    const sourceUrl = resolvePrebuiltIndexUrl(provider, ragConfig, prebuiltIndexUrlFor);
+    const sourceUrls = sourceUrl ? [sourceUrl] : [];
     if (sourceUrls.length === 0) {
       return { downloaded: false, reason: "url_not_set" };
     }

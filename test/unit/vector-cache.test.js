@@ -11,7 +11,7 @@ function withHelpers(fn) {
     const helpers = createVectorCacheHelpers({
       ragConfig: { cacheDir, prebuiltIndexAutoDownload: false },
       pkgVersion: "0.0.0",
-      legacyPrebuiltIndexUrl: "",
+      prebuiltIndexUrlFor: () => "",
       logRag: () => {}
     });
     return fn(helpers, cacheDir);
