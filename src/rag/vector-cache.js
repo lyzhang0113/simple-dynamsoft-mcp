@@ -391,10 +391,12 @@ function createVectorCacheHelpers({ ragConfig, pkgVersion, legacyPrebuiltIndexUr
               continue;
             }
 
-            // Install unchanged (own cacheKey and signature). The build then
-            // reuses only vectors whose chunk-text hash matches the current corpus.
+            // Install unchanged (own cacheKey and signature) under a separate
+            // name, so a local cache with the same name (and vectors for local
+            // edits) is not overwritten. The build reuses only vectors whose
+            // chunk-text hash matches, then prunes this extra copy.
             ensureDirectory(ragConfig.cacheDir);
-            const installedFile = join(ragConfig.cacheDir, basename(sourceCacheFile));
+            const installedFile = join(ragConfig.cacheDir, basename(sourceCacheFile).replace(/\.json$/i, "-prebuilt.json"));
             copyFileSync(sourceCacheFile, installedFile);
             copyFileSync(vectorFileFor(sourceCacheFile), vectorFileFor(installedFile));
             logRag(

@@ -166,3 +166,32 @@ test("missing chunks are taken from the release prebuilt index before any embedd
     rmSync(localDir, { recursive: true, force: true });
   }
 });
+
+test("a downloaded release index never overwrites vectors already embedded locally", async () => {
+  const stub = await startStubEmbedder();
+  const releaseDir = mkdtempSync(join(tmpdir(), "release-build-"));
+  const localDir = mkdtempSync(join(tmpdir(), "local-cache-"));
+  const entries = (aBody, bBody) => [
+    { id: "a", uri: "doc://a", type: "doc", product: "dbr", title: "Alpha", summary: "first", tags: [], embedText: `# Alpha\n${aBody}` },
+    { id: "b", uri: "doc://b", type: "doc", product: "dbr", title: "Beta", summary: "second", tags: [], embedText: `# Beta\n${bBody}` }
+  ];
+  const download = { prebuiltIndexAutoDownload: true };
+  try {
+    // Release index for the original text (same version, so same cache filename).
+    await buildIndex({ entries: entries("a1", "b1"), pkgVersion: "1.0.0", cacheDir: join(releaseDir, "gemini", "cache"), baseUrl: stub.url });
+    const archive = join(releaseDir, "prebuilt.tar.gz");
+    await tar.c({ gzip: true, file: archive, cwd: releaseDir }, ["gemini"]);
+    download.prebuiltIndexUrlGemini = archive;
+
+    // Local build embeds an edit to A.
+    await buildIndex({ entries: entries("a2", "b1"), pkgVersion: "1.0.0", cacheDir: localDir, baseUrl: stub.url, overrides: download });
+    // Next build edits only B: A's local vector must survive the download.
+    const before = stub.stats.texts;
+    await buildIndex({ entries: entries("a2", "b2"), pkgVersion: "1.0.0", cacheDir: localDir, baseUrl: stub.url, overrides: download });
+    assert.equal(stub.stats.texts - before, 1 + 1, "only B and the query are embedded");
+  } finally {
+    await stub.close();
+    rmSync(releaseDir, { recursive: true, force: true });
+    rmSync(localDir, { recursive: true, force: true });
+  }
+});
