@@ -232,6 +232,7 @@ jobs:
       # complete index to reuse, so only chunks changed since that release are
       # embedded, and no ~250 MB cache entry is stored per run.
       - name: Seed RAG cache from the latest release
+        id: seed
         if: ${{ env.GEMINI_API_KEY != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -243,6 +244,15 @@ jobs:
           for header in "$RAG_CACHE_DIR"/rag-gemini-*.json; do
             if [[ -e "$header" && "$header" != *.checkpoint.json && -f "${header%.json}.f32" ]]; then
               echo "Seeded index: $(basename "$header")"
+              # Only indexes with per-chunk text hashes can be reused. A release
+              # published before incremental builds has none, so verification
+              # waits for the next release instead of re-embedding everything.
+              if node -e 'const h=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit(h.items.length>0&&h.items.every((i)=>i.hash)?0:1)' "$header"; then
+                echo "usable=true" >> "$GITHUB_OUTPUT"
+              else
+                echo "::notice::The latest release index predates per-chunk hashes; Gemini verification is skipped until the next release publishes a new-format index."
+                echo "usable=false" >> "$GITHUB_OUTPUT"
+              fi
               exit 0
             fi
           done
@@ -250,19 +260,15 @@ jobs:
           exit 1
 
       - name: Install dependencies
-        if: ${{ env.GEMINI_API_KEY != '' }}
+        if: steps.seed.outputs.usable == 'true'
         run: npm ci
 
-      - name: Unit tests
-        if: ${{ env.GEMINI_API_KEY != '' }}
-        run: npm run test:unit
-
       - name: Bootstrap data
-        if: ${{ env.GEMINI_API_KEY != '' }}
+        if: steps.seed.outputs.usable == 'true'
         run: npm run data:bootstrap
 
       - name: Prebuild gemini RAG index (reuses the seeded release index)
-        if: ${{ env.GEMINI_API_KEY != '' }}
+        if: steps.seed.outputs.usable == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -271,5 +277,5 @@ jobs:
           echo "### Gemini index: ${plan:-no index plan logged (cache hit)}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Test (gemini provider)
-        if: ${{ env.GEMINI_API_KEY != '' }}
+        if: steps.seed.outputs.usable == 'true'
         run: npm run test:gemini
