@@ -275,12 +275,6 @@ function createProviderOrchestrator({
     const cacheKey = createHash("sha256").update(JSON.stringify(cacheMeta)).digest("hex");
     const cacheFile = join(ragConfig.cacheDir, vectorCache.makeCacheFileName(name, model, cacheKey));
     const checkpointFile = join(ragConfig.cacheDir, vectorCache.makeCheckpointFileName(name, model, cacheKey));
-    const expectedCacheState = {
-      cacheKey,
-      signature,
-      provider: name,
-      model
-    };
     logRag(
       `provider=${name} cache_file=${cacheFile} rebuild=${ragConfig.rebuild} cache_key=${cacheKey.slice(0, 12)}`
     );
@@ -289,40 +283,18 @@ function createProviderOrchestrator({
     const loadIndex = async () => {
       if (indexPromise) return indexPromise;
       indexPromise = (async () => {
+        // Every load goes through chunk-hash validation: a cache file is
+        // trusted only for chunks whose text hash still matches, never because
+        // its signature or filename matches.
         if (!ragConfig.rebuild) {
-          let cacheState = vectorCache.loadVectorIndexCache(cacheFile, expectedCacheState);
-          if (cacheState.hit) {
-            const cached = cacheState.payload;
-            logRag(
-              `cache hit provider=${name} file=${cacheFile} items=${cached.items.length} vectors=${cached.vectors.length}`
-            );
-            return {
-              items: cached.items,
-              vectors: cached.vectors
-            };
-          }
-          logRag(`cache miss provider=${name} file=${cacheFile} reason=${cacheState.reason}`);
-
-          const downloadResult = await vectorCache.maybeDownloadPrebuiltVectorIndex({
-            provider: name,
-            model,
-            cacheKey,
-            signature,
-            cacheFile
-          });
-          if (downloadResult.downloaded) {
-            cacheState = vectorCache.loadVectorIndexCache(cacheFile, expectedCacheState);
-            if (cacheState.hit) {
-              const cached = cacheState.payload;
-              logRag(
-                `cache hit provider=${name} file=${cacheFile} source=prebuilt_download items=${cached.items.length} vectors=${cached.vectors.length}`
-              );
-              return {
-                items: cached.items,
-                vectors: cached.vectors
-              };
-            }
-            logRag(`cache miss provider=${name} file=${cacheFile} source=prebuilt_download reason=${cacheState.reason}`);
+          if (!vectorCache.hasCompleteCache({ provider: name, model })) {
+            await vectorCache.maybeDownloadPrebuiltVectorIndex({
+              provider: name,
+              model,
+              cacheKey,
+              signature,
+              cacheFile
+            });
           }
         } else {
           logRag(`cache bypass provider=${name} file=${cacheFile} reason=rebuild_true`);
@@ -338,9 +310,10 @@ function createProviderOrchestrator({
           uri: item.uri,
           hash: createHash("sha256").update(`${model}\n${item.text}`).digest("hex").slice(0, 32)
         }));
+        const checkpointHashes = new Set();
         const reusable = ragConfig.rebuild
           ? new Map()
-          : vectorCache.collectReusableVectors({ provider: name, model, items: indexedItems, signature });
+          : vectorCache.collectReusableVectors({ provider: name, model, items: indexedItems, signature, checkpointHashes });
         const vectors = indexedItems.map((item) => reusable.get(item.hash) || null);
         const missing = [];
         vectors.forEach((vector, index) => {
@@ -350,16 +323,30 @@ function createProviderOrchestrator({
           `index plan provider=${name} items=${indexedItems.length} reused=${indexedItems.length - missing.length} to_embed=${missing.length}`
         );
 
+        if (missing.length === 0 && vectorCache.cacheHeaderMatches({ cacheFile, provider: name, model, items: indexedItems })) {
+          vectorCache.clearVectorIndexCheckpoint(checkpointFile);
+          vectorCache.pruneOtherCaches({ provider: name, model, keepFile: cacheFile });
+          logRag(`cache hit provider=${name} file=${cacheFile} items=${indexedItems.length}`);
+          return { items: indexedItems, vectors };
+        }
+
         if (name === "gemini" && embedder.resetMetrics) {
           embedder.resetMetrics();
         }
 
+        // The checkpoint keeps every vector this build had to produce: newly
+        // embedded ones plus those recovered from an earlier checkpoint, so a
+        // second interruption does not lose the first attempt's progress.
+        const missingSet = new Set(missing);
+        const checkpointIndices = indexedItems
+          .map((item, index) => index)
+          .filter((index) => missingSet.has(index) || checkpointHashes.has(indexedItems[index].hash));
         const checkpointIntervalMs = 5000;
         let lastCheckpointAt = 0;
         const persistCheckpoint = (force = false) => {
           const now = Date.now();
           if (!force && now - lastCheckpointAt < checkpointIntervalMs) return;
-          const done = missing.filter((index) => vectors[index]);
+          const done = checkpointIndices.filter((index) => vectors[index]);
           vectorCache.saveVectorIndexCheckpoint(checkpointFile, {
             cacheKey,
             meta: cacheMeta,

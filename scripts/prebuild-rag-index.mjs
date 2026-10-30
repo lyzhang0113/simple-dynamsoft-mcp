@@ -25,7 +25,7 @@ ensureEnvDefaults();
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const { prewarmRagIndex, ragConfig } = await import("../src/rag/index.js");
 
-await prewarmRagIndex();
+await prewarmRagIndex({ throwOnError: true });
 
 const cacheDir = resolve(ragConfig.cacheDir);
 if (!existsSync(cacheDir)) {
@@ -61,6 +61,14 @@ for (const path of allHeaders) {
 
 if (cacheFiles.length === 0) {
   throw new Error(`No cache files with vectors found in ${cacheDir}.`);
+}
+
+// A successful build prunes every other cache for its provider/model, so exactly
+// one complete cache must remain; more means a stale seeded index survived and
+// could be shipped under this version.
+const providerCaches = cacheFiles.filter((path) => basename(path).startsWith(`rag-${ragConfig.provider}-`));
+if (providerCaches.length !== 1) {
+  throw new Error(`Expected exactly one ${ragConfig.provider} cache after the build, found ${providerCaches.length}: ${providerCaches.map((path) => basename(path)).join(", ")}`);
 }
 
 const vectorFiles = cacheFiles.map(toVectorFile);

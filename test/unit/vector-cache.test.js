@@ -112,3 +112,15 @@ test("pruning keeps only the current cache and removes vector files of the other
     assert.equal(existsSync(old.replace(/\.json$/, ".f32")), false);
   });
 });
+
+test("pruning never deletes another model's cache that shares the filename prefix", () => {
+  withHelpers((helpers, cacheDir) => {
+    const keep = join(cacheDir, "rag-gemini-m-new.json");
+    const otherModel = join(cacheDir, "rag-gemini-m-other-x.json");
+    helpers.saveVectorIndexCache(keep, payload);
+    helpers.saveVectorIndexCache(otherModel, { ...payload, meta: { ...payload.meta, model: "m-other" } });
+    helpers.pruneOtherCaches({ provider: "gemini", model: "m", keepFile: keep });
+    assert.equal(existsSync(otherModel), true);
+    assert.equal(existsSync(otherModel.replace(/\.json$/, ".f32")), true);
+  });
+});

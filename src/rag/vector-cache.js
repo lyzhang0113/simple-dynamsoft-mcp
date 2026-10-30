@@ -23,12 +23,53 @@ function makeCheckpointFileName(provider, model, cacheKey) {
   return `${cacheFilePrefix(provider, model)}${cacheKey.slice(0, 12)}.checkpoint.json`;
 }
 
+// Header metadata only (no vectors). Returns null when unreadable.
+function readHeader(headerFile) {
+  try {
+    return JSON.parse(readFileSync(headerFile, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function headerBelongsTo(header, provider, model) {
+  return header?.meta?.provider === provider && header?.meta?.model === model;
+}
+
+// Cache and checkpoint headers whose stored provider and model match exactly.
+// The filename prefix only narrows the search: sanitized/truncated model names
+// can share a prefix (`m` vs `m-other`).
 function listProviderCacheHeaders(cacheDir, provider, model) {
   if (!existsSync(cacheDir)) return [];
   const prefix = cacheFilePrefix(provider, model);
   return readdirSync(cacheDir)
     .filter((name) => name.startsWith(prefix) && name.endsWith(".json"))
-    .map((name) => join(cacheDir, name));
+    .map((name) => join(cacheDir, name))
+    .filter((path) => headerBelongsTo(readHeader(path), provider, model));
+}
+
+function isCheckpointHeader(path) {
+  return path.endsWith(".checkpoint.json");
+}
+
+function hasCompleteCache({ cacheDir, provider, model }) {
+  return listProviderCacheHeaders(cacheDir, provider, model)
+    .some((path) => !isCheckpointHeader(path) && existsSync(vectorFileFor(path)));
+}
+
+// True when `cacheFile` already holds exactly these items (same order and
+// chunk hashes) with a correctly sized vector file, so a build that embeds
+// nothing does not need to rewrite it.
+function cacheHeaderMatches({ cacheFile, provider, model, items }) {
+  const header = readHeader(cacheFile);
+  if (!header || !headerBelongsTo(header, provider, model) || header.vectorFormat !== VECTOR_FORMAT) return false;
+  if (!Array.isArray(header.items) || header.items.length !== items.length || header.vectorCount !== items.length) return false;
+  if (!header.items.every((item, i) => item.hash && item.hash === items[i].hash && item.id === items[i].id && item.uri === items[i].uri)) {
+    return false;
+  }
+  const vectorFile = vectorFileFor(cacheFile);
+  return existsSync(vectorFile)
+    && statSync(vectorFile).size === header.vectorCount * header.dimensions * Float32Array.BYTES_PER_ELEMENT;
 }
 
 function signatureWithoutPackageVersion(signature) {
@@ -48,7 +89,9 @@ function signatureWithoutPackageVersion(signature) {
 // before hashes existed are adopted only when their signature matches apart
 // from packageVersion and their items are the same sequence, which means the
 // chunk texts are identical.
-function collectReusableVectors({ cacheDir, provider, model, items, signature }) {
+// `checkpointHashes` (optional Set) receives the hashes found in checkpoints,
+// so a resumed build can carry them into its own checkpoint.
+function collectReusableVectors({ cacheDir, provider, model, items, signature, checkpointHashes }) {
   const reusable = new Map();
   const currentSignature = signatureWithoutPackageVersion(signature);
   for (const headerFile of listProviderCacheHeaders(cacheDir, provider, model)) {
@@ -60,11 +103,13 @@ function collectReusableVectors({ cacheDir, provider, model, items, signature })
     } catch {
       continue;
     }
-    if (payload.meta?.model && payload.meta.model !== model) continue;
     const hashed = payload.items.length > 0 && payload.items.every((item) => item.hash);
     if (hashed) {
+      const fromCheckpoint = isCheckpointHeader(headerFile);
       payload.items.forEach((item, i) => {
-        if (payload.vectors[i] && !reusable.has(item.hash)) reusable.set(item.hash, payload.vectors[i]);
+        if (!payload.vectors[i]) return;
+        if (fromCheckpoint) checkpointHashes?.add(item.hash);
+        if (!reusable.has(item.hash)) reusable.set(item.hash, payload.vectors[i]);
       });
       continue;
     }
@@ -375,21 +420,17 @@ function createVectorCacheHelpers({ ragConfig, pkgVersion, legacyPrebuiltIndexUr
               continue;
             }
 
-            const migratedPayload = {
-              ...candidateCache.payload,
-              cacheKey,
-              meta: {
-                ...(candidateCache.payload.meta || {}),
-                provider,
-                model,
-                signature
-              }
-            };
-            saveVectorIndexCache(ragConfig.cacheDir, cacheFile, migratedPayload);
+            // Install unchanged (own cacheKey and signature). The build then
+            // reuses only vectors whose chunk hash, or for a hash-less legacy
+            // index whose content check, matches the current corpus.
+            ensureDirectory(ragConfig.cacheDir);
+            const installedFile = join(ragConfig.cacheDir, basename(sourceCacheFile));
+            copyFileSync(sourceCacheFile, installedFile);
+            copyFileSync(vectorFileFor(sourceCacheFile), vectorFileFor(installedFile));
             logRag(
-              `prebuilt index installed provider=${provider} cache_file=${cacheFile} source=${basename(sourceCacheFile)} mode=version_only_compat version=${cachePackageVersion}`
+              `prebuilt index installed provider=${provider} cache_file=${installedFile} version=${cachePackageVersion}`
             );
-            return { downloaded: true, reason: "installed_version_only_compat" };
+            return { downloaded: true, reason: "installed" };
           }
 
           throw new Error(
@@ -417,6 +458,8 @@ function createVectorCacheHelpers({ ragConfig, pkgVersion, legacyPrebuiltIndexUr
     saveVectorIndexCheckpoint: (checkpointFile, payload) => saveVectorIndexCheckpoint(ragConfig.cacheDir, checkpointFile, payload),
     clearVectorIndexCheckpoint,
     collectReusableVectors: (options) => collectReusableVectors({ cacheDir: ragConfig.cacheDir, ...options }),
+    hasCompleteCache: (options) => hasCompleteCache({ cacheDir: ragConfig.cacheDir, ...options }),
+    cacheHeaderMatches,
     pruneOtherCaches: (options) => pruneOtherCaches({ cacheDir: ragConfig.cacheDir, ...options }),
     maybeDownloadPrebuiltVectorIndex
   };
