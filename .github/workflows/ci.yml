@@ -158,49 +158,13 @@ jobs:
       - name: Test (package runtime)
         run: npm run test:package
 
-  # Decides whether the Gemini job (which spends embedding credits) runs: only
-  # on pull requests, and only when retrieval code, index building, docs/data,
-  # or the golden set changed. Pushes to main skip it (the PR already ran it and
-  # the release builds the index), as do version-bump-only changes.
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      rag: ${{ steps.diff.outputs.rag }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Detect retrieval-relevant changes
-        id: diff
-        shell: bash
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
-            echo "Not a pull request; skipping the Gemini job."
-            echo "rag=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [[ -z "${BASE_SHA:-}" ]] || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-            echo "No usable base commit; running the Gemini job."
-            echo "rag=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          pattern='^(src/rag/|src/server/resource-index|src/server/resource-index/|src/data/repo-map\.js|scripts/prebuild-rag-index\.mjs|scripts/seed-rag-cache\.sh|scripts/eval-retrieval\.mjs|scripts/lib/|test/fixtures/retrieval-golden\.json|test/integration/(helpers\.js|stdio\.test\.js|http\.test\.js)|scripts/run-gemini-tests\.mjs|data/|\.github/workflows/ci\.yml)'
-          changed="$(git diff --name-only "$BASE_SHA" HEAD)"
-          if grep -Eq "$pattern" <<< "$changed"; then
-            echo "rag=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "No retrieval-relevant changes; skipping the Gemini job."
-            echo "rag=false" >> "$GITHUB_OUTPUT"
-          fi
-
+  # Gemini verification runs on every pull request (never on pushes to main;
+  # the release builds the shipped index). The cache is seeded from the latest
+  # release, so a PR that does not change indexed docs or chunking reuses that
+  # prebuilt index and embeds only the test queries; a docs change embeds only
+  # the chunks whose text changed.
   test_gemini_provider:
-    needs: changes
-    if: needs.changes.outputs.rag == 'true'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -251,9 +215,14 @@ jobs:
         if: ${{ env.GEMINI_API_KEY != '' }}
         run: npm run data:bootstrap
 
-      - name: Prebuild gemini RAG index
+      - name: Prebuild gemini RAG index (reuses the seeded release index)
         if: ${{ env.GEMINI_API_KEY != '' }}
-        run: npm run rag:prebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run rag:prebuild 2>&1 | tee "$RUNNER_TEMP/prebuild.log"
+          plan="$(grep -ao 'index plan[^"]*' "$RUNNER_TEMP/prebuild.log" | tail -n 1 || true)"
+          echo "### Gemini index: ${plan:-no index plan logged (cache hit)}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Test (gemini provider)
         if: ${{ env.GEMINI_API_KEY != '' }}
