@@ -176,6 +176,9 @@ jobs:
       GEMINI_EMBED_BATCH_SIZE: 16
       RAG_CACHE_DIR: ${{ github.workspace }}/.cache/rag-index-gemini
       RUN_GEMINI_PROVIDER_TESTS: "true"
+      # Hard stop before any embedding call if a build would embed more than
+      # this many chunks (a full index is ~21.5k). Releases have no cap.
+      RAG_MAX_EMBED_CHUNKS: "3000"
     steps:
       - name: Skip when GEMINI_API_KEY is missing
         if: ${{ env.GEMINI_API_KEY == '' }}
@@ -201,7 +204,19 @@ jobs:
         if: ${{ env.GEMINI_API_KEY != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash scripts/seed-rag-cache.sh "$RAG_CACHE_DIR"
+        run: |
+          set -euo pipefail
+          bash scripts/seed-rag-cache.sh "$RAG_CACHE_DIR"
+          # The seed script treats a missing asset as non-fatal; here it is
+          # fatal, since an unseeded build would re-embed the whole index.
+          for header in "$RAG_CACHE_DIR"/rag-gemini-*.json; do
+            if [[ -e "$header" && "$header" != *.checkpoint.json && -f "${header%.json}.f32" ]]; then
+              echo "Seeded index: $(basename "$header")"
+              exit 0
+            fi
+          done
+          echo "::error::No complete release index was seeded into $RAG_CACHE_DIR; refusing to build an index from scratch in CI."
+          exit 1
 
       - name: Install dependencies
         if: ${{ env.GEMINI_API_KEY != '' }}

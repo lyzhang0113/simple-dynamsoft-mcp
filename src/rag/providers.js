@@ -326,6 +326,13 @@ function createProviderOrchestrator({
         logRag(
           `index plan provider=${name} items=${indexedItems.length} reused=${indexedItems.length - missing.length} to_embed=${missing.length}`
         );
+        if (ragConfig.maxEmbedChunks > 0 && missing.length > ragConfig.maxEmbedChunks) {
+          throw new Error(
+            `Refusing to embed ${missing.length} chunks (RAG_MAX_EMBED_CHUNKS=${ragConfig.maxEmbedChunks}); ` +
+            `only ${indexedItems.length - missing.length}/${indexedItems.length} could be reused. ` +
+            "Check that the cache was seeded from a matching release index."
+          );
+        }
 
         if (missing.length === 0 && vectorCache.cacheHeaderMatches({ cacheFile, provider: name, model, items: indexedItems })) {
           vectorCache.clearVectorIndexCheckpoint(checkpointFile);
