@@ -158,13 +158,42 @@ jobs:
       - name: Test (package runtime)
         run: npm run test:package
 
-  # Gemini verification runs on every pull request (never on pushes to main;
-  # the release builds the shipped index). The cache is seeded from the latest
-  # release, so a PR that does not change indexed docs or chunking reuses that
-  # prebuilt index and embeds only the test queries; a docs change embeds only
-  # the chunks whose text changed.
-  test_gemini_provider:
+  # Index builds happen only in the release workflow. This job decides whether
+  # a PR changes indexed content: if not, the Gemini job verifies search against
+  # the seeded release index (embedding only test queries); if so, Gemini
+  # verification is skipped and the index is built at the next release.
+  corpus:
     if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes to indexed content
+        id: diff
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # Paths that change chunk text or which chunks exist. Keep in sync
+          # with the indexing code; RAG_MAX_EMBED_CHUNKS below is a backstop.
+          pattern='^(data/|src/server/resource-index|src/rag/search-utils\.js|src/rag/config\.js)'
+          changed="$(git diff --name-only "$BASE_SHA" HEAD)"
+          if grep -Eq "$pattern" <<< "$changed"; then
+            echo "Indexed content changes; Gemini verification skipped (index is built at release)."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  test_gemini_provider:
+    needs: corpus
+    if: needs.corpus.outputs.changed == 'false'
     runs-on: ubuntu-latest
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -176,9 +205,9 @@ jobs:
       GEMINI_EMBED_BATCH_SIZE: 16
       RAG_CACHE_DIR: ${{ github.workspace }}/.cache/rag-index-gemini
       RUN_GEMINI_PROVIDER_TESTS: "true"
-      # Hard stop before any embedding call if a build would embed more than
-      # this many chunks (a full index is ~21.5k). Releases have no cap.
-      RAG_MAX_EMBED_CHUNKS: "3000"
+      # Backstop if the path list above misses something: fail before any
+      # embedding call rather than embed more than a handful of chunks.
+      RAG_MAX_EMBED_CHUNKS: "50"
     steps:
       - name: Skip when GEMINI_API_KEY is missing
         if: ${{ env.GEMINI_API_KEY == '' }}
