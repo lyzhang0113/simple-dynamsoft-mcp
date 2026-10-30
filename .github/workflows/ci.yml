@@ -167,6 +167,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.diff.outputs.changed }}
+      release_tag: ${{ steps.diff.outputs.release_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -178,14 +179,21 @@ jobs:
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # The Gemini job seeds from this exact release, so indexed content is
+          # compared both with the PR base and with that release: a docs change
+          # merged since the last release also means the seed no longer matches.
+          release_tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
+          git fetch --quiet --no-recurse-submodules origin "refs/tags/${release_tag}:refs/tags/${release_tag}"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
           # Paths that change chunk text or which chunks exist. Keep in sync
           # with the indexing code; RAG_MAX_EMBED_CHUNKS below is a backstop.
           pattern='^(data/|src/server/resource-index|src/rag/search-utils\.js|src/rag/config\.js)'
-          changed="$(git diff --name-only "$BASE_SHA" HEAD)"
+          changed="$(git diff --name-only "$BASE_SHA" HEAD; git diff --name-only "$release_tag" HEAD)"
           if grep -Eq "$pattern" <<< "$changed"; then
-            echo "Indexed content changes; Gemini verification skipped (index is built at release)."
+            echo "Indexed content differs from the PR base or from release $release_tag; Gemini verification skipped (index is built at release)."
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -231,14 +239,15 @@ jobs:
       # No Actions cache: seeding from the latest release gives every run a
       # complete index to reuse, so only chunks changed since that release are
       # embedded, and no ~250 MB cache entry is stored per run.
-      - name: Seed RAG cache from the latest release
+      - name: Seed RAG cache from the release the gate compared against
         id: seed
         if: ${{ env.GEMINI_API_KEY != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.corpus.outputs.release_tag }}
         run: |
           set -euo pipefail
-          bash scripts/seed-rag-cache.sh "$RAG_CACHE_DIR"
+          bash scripts/seed-rag-cache.sh "$RAG_CACHE_DIR" "$RELEASE_TAG"
           # The seed script treats a missing asset as non-fatal; here it is
           # fatal, since an unseeded build would re-embed the whole index.
           for header in "$RAG_CACHE_DIR"/rag-gemini-*.json; do
