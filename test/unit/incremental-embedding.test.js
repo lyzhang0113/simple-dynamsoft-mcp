@@ -7,6 +7,7 @@ import http from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as tar from "tar";
 import { createProviderOrchestrator } from "../../src/rag/providers.js";
 import { createVectorCacheHelpers } from "../../src/rag/vector-cache.js";
 import * as searchUtils from "../../src/rag/search-utils.js";
@@ -137,5 +138,31 @@ test("a build interrupted twice keeps the progress of both attempts", async () =
   } finally {
     await stub.close();
     rmSync(cacheDir, { recursive: true, force: true });
+  }
+});
+
+test("missing chunks are taken from the release prebuilt index before any embedding call", async () => {
+  const stub = await startStubEmbedder();
+  const releaseDir = mkdtempSync(join(tmpdir(), "release-build-"));
+  const localDir = mkdtempSync(join(tmpdir(), "local-cache-"));
+  try {
+    // Release: full index for both docs, packaged like a release asset.
+    await buildIndex({ entries: makeEntries(), pkgVersion: "1.0.0", cacheDir: join(releaseDir, "gemini", "cache"), baseUrl: stub.url });
+    const archive = join(releaseDir, "prebuilt.tar.gz");
+    await tar.c({ gzip: true, file: archive, cwd: releaseDir }, ["gemini"]);
+
+    // Local: a complete cache for the same model that covers only the first doc.
+    await buildIndex({ entries: makeEntries().slice(0, 1), pkgVersion: "1.0.0", cacheDir: localDir, baseUrl: stub.url });
+
+    const before = stub.stats.texts;
+    await buildIndex({
+      entries: makeEntries(), pkgVersion: "1.0.0", cacheDir: localDir, baseUrl: stub.url,
+      overrides: { prebuiltIndexAutoDownload: true, prebuiltIndexUrlGemini: archive }
+    });
+    assert.equal(stub.stats.texts - before, 1, "only the search query is embedded; the second doc comes from the prebuilt index");
+  } finally {
+    await stub.close();
+    rmSync(releaseDir, { recursive: true, force: true });
+    rmSync(localDir, { recursive: true, force: true });
   }
 });
