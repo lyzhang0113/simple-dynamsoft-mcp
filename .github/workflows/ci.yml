@@ -191,8 +191,11 @@ jobs:
           # Paths that change chunk text or which chunks exist. Keep in sync
           # with the indexing code; RAG_MAX_EMBED_CHUNKS below is a backstop.
           pattern='^(data/|src/server/resource-index|src/rag/search-utils\.js|src/rag/config\.js)'
-          changed="$(git diff --name-only "$BASE_SHA" HEAD; git diff --name-only "$release_tag" HEAD)"
-          if grep -Eq "$pattern" <<< "$changed"; then
+          # Separate assignments: under set -e a failure of either diff stops
+          # the job (a command substitution reports only its last command).
+          changed_since_base="$(git diff --name-only "$BASE_SHA" HEAD)"
+          changed_since_release="$(git diff --name-only "$release_tag" HEAD)"
+          if grep -Eq "$pattern" <<< "${changed_since_base}"$'\n'"${changed_since_release}"; then
             echo "Indexed content differs from the PR base or from release $release_tag; Gemini verification skipped (index is built at release)."
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
