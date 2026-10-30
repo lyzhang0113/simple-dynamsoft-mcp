@@ -84,7 +84,11 @@ import {
 } from "./resource-index/builders.js";
 
 const registry = JSON.parse(readFileSync(registryPath, "utf8"));
-const registrySha256 = createHash("sha256").update(readFileSync(registryPath)).digest("hex");
+// Hash LF-normalized text so Windows (CRLF) and Linux checkouts of the same
+// registry produce the same RAG index signature.
+const registrySha256 = createHash("sha256")
+  .update(readFileSync(registryPath, "utf8").replace(/\r\n/g, "\n"))
+  .digest("hex");
 
 function inferDbrMobilePlatform(articlePath) {
   const normalized = String(articlePath || "").replace(/\\/g, "/").toLowerCase();

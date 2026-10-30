@@ -13,7 +13,7 @@ Use it as the default source for build/test workflows and coding conventions.
 - Public MCP surface: `dwt`, `ddv`, `dbr`, `mrz`, `mds`; `dcv` may still appear in internal resource or version wiring, but do not expose it as a public product.
 - Shared Capture Vision docs: DCV pages that DBR docs or DBR sidebars (`_includes/`) link to are indexed under `dbr` (tags `shared`, `capture-vision`; real `capture-vision/docs` URL; `sourceVersion` = DCV version). Selection lives in `src/server/resource-index/shared-docs.js`; a DCV source whose minor/build does not match the DBR edition is skipped with a `shared_docs_version_mismatch` warning.
 - Doc URIs are `doc://{product}/{edition}/{platform}/{version}/{path}`, where `path` is the source file path without `.md`, without the `programming/<lang>/` prefix, and with trailing `/index` dropped (full source path on collision). Shared DCV pages use `dcv/...` or `dcv-core/...` paths.
-- Gemini index builds are incremental: every cached chunk carries a hash of model + text, and a build reuses vectors from any cache, checkpoint, or seeded previous release in `RAG_CACHE_DIR`, embedding only new or changed chunks (`RAG_REBUILD=true` forces a full re-embed). `scripts/seed-rag-cache.sh` seeds from the latest release; release and CI use it. CI's `test_gemini_provider` runs only on pull requests that change retrieval code, index building, `data/`, or the golden set; it uses no Actions cache and seeds from the latest release instead.
+- Gemini index builds are incremental: every cached chunk carries a hash of model + text, and a build reuses vectors from any cache, checkpoint, or seeded previous release in `RAG_CACHE_DIR`, embedding only new or changed chunks (`RAG_REBUILD=true` forces a full re-embed). `scripts/seed-rag-cache.sh` seeds from the latest release; release and CI use it. Index builds happen only in the release workflow. In CI, `test_gemini_provider` runs only on pull requests that do not change indexed content (`data/`, resource-index code, `src/rag/search-utils.js`, `src/rag/config.js`); it seeds the latest release index (failing if none is seeded) and embeds only test queries, with `RAG_MAX_EMBED_CHUNKS=50` as a backstop. PRs that change indexed content skip Gemini verification.
 
 ## Repository Rules Discovery
 Checked for repository-level editor-agent policy files:
@@ -86,7 +86,7 @@ From `.github/workflows/ci.yml`, core jobs are:
 - `test_lazy_hydration`
 - `test_package_runtime_windows`
 - `test_package_runtime_macos`
-- `test_gemini_provider` (conditional on `GEMINI_API_KEY`)
+- `test_gemini_provider` (pull requests only; skipped without `GEMINI_API_KEY`)
 
 When modifying server behavior, at minimum run:
 1. `npm run test:unit`

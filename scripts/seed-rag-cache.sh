@@ -2,13 +2,16 @@
 # Seed a RAG cache directory with the vectors from the latest published
 # release, so the next build embeds only chunks whose text changed.
 #
-#   scripts/seed-rag-cache.sh <cache-dir>
+#   scripts/seed-rag-cache.sh <cache-dir> [release-tag]
+#
+# release-tag: seed from that release instead of the latest one.
 #
 # Needs `gh` with GH_TOKEN. Skips (exit 0) when the directory already holds a
 # vector file or no release asset exists; a seed is an optimization only.
 set -euo pipefail
 
-cache_dir="${1:?usage: seed-rag-cache.sh <cache-dir>}"
+cache_dir="${1:?usage: seed-rag-cache.sh <cache-dir> [release-tag]}"
+release_tag="${2:-}"
 repo="${GITHUB_REPOSITORY:-yushulx/simple-dynamsoft-mcp}"
 mkdir -p "$cache_dir"
 
@@ -23,7 +26,7 @@ done
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-if ! gh release download --repo "$repo" --pattern 'prebuilt-rag-index-gemini-*.tar.gz' --dir "$work" 2>"$work/err.log"; then
+if ! gh release download ${release_tag:+"$release_tag"} --repo "$repo" --pattern 'prebuilt-rag-index-gemini-*.tar.gz' --dir "$work" 2>"$work/err.log"; then
   echo "[seed] no previous release index available: $(tr '\n' ' ' < "$work/err.log")"
   exit 0
 fi

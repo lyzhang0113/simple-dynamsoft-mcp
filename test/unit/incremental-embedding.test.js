@@ -195,3 +195,18 @@ test("a downloaded release index never overwrites vectors already embedded local
     rmSync(localDir, { recursive: true, force: true });
   }
 });
+
+test("a build that would embed more than RAG_MAX_EMBED_CHUNKS fails before any embedding call", async () => {
+  const stub = await startStubEmbedder();
+  const cacheDir = mkdtempSync(join(tmpdir(), "embed-cap-"));
+  try {
+    await assert.rejects(
+      buildIndex({ entries: makeEntries(), pkgVersion: "1.0.0", cacheDir, baseUrl: stub.url, overrides: { maxEmbedChunks: 1 } }),
+      /Refusing to embed 2 chunks/
+    );
+    assert.equal(stub.stats.texts, 0);
+  } finally {
+    await stub.close();
+    rmSync(cacheDir, { recursive: true, force: true });
+  }
+});

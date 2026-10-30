@@ -71,6 +71,9 @@ const ragConfig = {
   minScore: readFloatEnv("RAG_MIN_SCORE", 0.2),
   includeScore: readBoolEnv("RAG_INCLUDE_SCORE", false),
   rebuild: readBoolEnv("RAG_REBUILD", false),
+  // Upper bound on chunks one build may embed (0 = no limit). CI sets it so a
+  // missing seed or an unexpected change cannot trigger a full paid re-embed.
+  maxEmbedChunks: readIntEnv("RAG_MAX_EMBED_CHUNKS", 0),
   prewarm: readBoolEnv("RAG_PREWARM", defaultPrewarm),
   prewarmBlock: readBoolEnv("RAG_PREWARM_BLOCK", false),
   prebuiltIndexAutoDownload: readBoolEnv("RAG_PREBUILT_INDEX_AUTO_DOWNLOAD", true),
