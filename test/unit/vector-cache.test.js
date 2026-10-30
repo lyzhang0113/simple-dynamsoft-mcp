@@ -82,21 +82,13 @@ test("vectors are reused by chunk hash from caches and partial checkpoints", () 
   });
 });
 
-test("hash-less caches are adopted only when content signature and item sequence match", () => {
+test("hash-less caches are never reused, even with the same chunk ids/uris", () => {
   withHelpers((helpers, cacheDir) => {
-    const legacySignature = JSON.stringify({ packageVersion: "7.7.0", docs: 2 });
-    helpers.saveVectorIndexCache(join(cacheDir, "rag-gemini-m-legacy.json"), { ...payload, meta: { ...payload.meta, signature: legacySignature } });
-    const items = hashed(payload.items);
-
-    const sameContent = helpers.collectReusableVectors({
-      provider: "gemini", model: "m", items, signature: JSON.stringify({ packageVersion: "7.7.1", docs: 2 })
-    });
-    assert.deepEqual([...sameContent.keys()], ["h0", "h1"]);
-
-    const changedContent = helpers.collectReusableVectors({
-      provider: "gemini", model: "m", items, signature: JSON.stringify({ packageVersion: "7.7.1", docs: 3 })
-    });
-    assert.equal(changedContent.size, 0);
+    // An old-format cache: same chunk ids/uris as the current corpus, but no
+    // text hashes, so nothing proves its vectors match the current text.
+    helpers.saveVectorIndexCache(join(cacheDir, "rag-gemini-m-legacy.json"), payload);
+    const reusable = helpers.collectReusableVectors({ provider: "gemini", model: "m" });
+    assert.equal(reusable.size, 0);
   });
 });
 

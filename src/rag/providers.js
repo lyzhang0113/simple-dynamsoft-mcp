@@ -303,7 +303,7 @@ function createProviderOrchestrator({
         const checkpointHashes = new Set();
         const collect = () => (ragConfig.rebuild
           ? new Map()
-          : vectorCache.collectReusableVectors({ provider: name, model, items: indexedItems, signature, checkpointHashes }));
+          : vectorCache.collectReusableVectors({ provider: name, model, checkpointHashes }));
         let reusable = collect();
         // Local caches do not cover every chunk (e.g. an older release's index
         // after an upgrade): try this release's prebuilt index before paying to

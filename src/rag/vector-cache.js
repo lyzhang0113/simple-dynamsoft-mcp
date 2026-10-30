@@ -67,28 +67,17 @@ function cacheHeaderMatches({ cacheFile, provider, model, items }) {
     && statSync(vectorFile).size === header.vectorCount * header.dimensions * Float32Array.BYTES_PER_ELEMENT;
 }
 
-function signatureWithoutPackageVersion(signature) {
-  try {
-    const parsed = JSON.parse(signature || "");
-    delete parsed.packageVersion;
-    return JSON.stringify(parsed);
-  } catch {
-    return "";
-  }
-}
 
 // Vectors already computed for identical chunk text, keyed by item `hash`
 // (see providers.js). Sources are every cache and checkpoint for the same
-// provider/model in cacheDir: a previous version's cache, a CI-restored cache,
-// an extracted previous release, or a partial checkpoint. Caches written
-// before hashes existed are adopted only when their signature matches apart
-// from packageVersion and their items are the same sequence, which means the
-// chunk texts are identical.
+// provider/model in cacheDir: a previous version's cache, an extracted
+// previous release, or a partial checkpoint. Only caches whose items carry
+// chunk-text hashes are used; older hash-less caches cannot prove their text
+// is unchanged, so they are ignored.
 // `checkpointHashes` (optional Set) receives the hashes found in checkpoints,
 // so a resumed build can carry them into its own checkpoint.
-function collectReusableVectors({ cacheDir, provider, model, items, signature, checkpointHashes }) {
+function collectReusableVectors({ cacheDir, provider, model, checkpointHashes }) {
   const reusable = new Map();
-  const currentSignature = signatureWithoutPackageVersion(signature);
   for (const headerFile of listProviderCacheHeaders(cacheDir, provider, model)) {
     let payload;
     try {
@@ -98,26 +87,13 @@ function collectReusableVectors({ cacheDir, provider, model, items, signature, c
     } catch {
       continue;
     }
-    const hashed = payload.items.length > 0 && payload.items.every((item) => item.hash);
-    if (hashed) {
-      const fromCheckpoint = isCheckpointHeader(headerFile);
-      payload.items.forEach((item, i) => {
-        if (!payload.vectors[i]) return;
-        if (fromCheckpoint) checkpointHashes?.add(item.hash);
-        if (!reusable.has(item.hash)) reusable.set(item.hash, payload.vectors[i]);
-      });
-      continue;
-    }
-    const sameContent = currentSignature
-      && signatureWithoutPackageVersion(payload.meta?.signature) === currentSignature
-      && payload.items.length === items.length
-      && payload.vectors.length === items.length
-      && payload.items.every((item, i) => item.id === items[i].id && item.uri === items[i].uri);
-    if (sameContent) {
-      items.forEach((item, i) => {
-        if (!reusable.has(item.hash)) reusable.set(item.hash, payload.vectors[i]);
-      });
-    }
+    if (!payload.items.every((item) => item.hash)) continue;
+    const fromCheckpoint = isCheckpointHeader(headerFile);
+    payload.items.forEach((item, i) => {
+      if (!payload.vectors[i]) return;
+      if (fromCheckpoint) checkpointHashes?.add(item.hash);
+      if (!reusable.has(item.hash)) reusable.set(item.hash, payload.vectors[i]);
+    });
   }
   return reusable;
 }
@@ -416,8 +392,7 @@ function createVectorCacheHelpers({ ragConfig, pkgVersion, legacyPrebuiltIndexUr
             }
 
             // Install unchanged (own cacheKey and signature). The build then
-            // reuses only vectors whose chunk hash, or for a hash-less legacy
-            // index whose content check, matches the current corpus.
+            // reuses only vectors whose chunk-text hash matches the current corpus.
             ensureDirectory(ragConfig.cacheDir);
             const installedFile = join(ragConfig.cacheDir, basename(sourceCacheFile));
             copyFileSync(sourceCacheFile, installedFile);
