@@ -286,17 +286,7 @@ function createProviderOrchestrator({
         // Every load goes through chunk-hash validation: a cache file is
         // trusted only for chunks whose text hash still matches, never because
         // its signature or filename matches.
-        if (!ragConfig.rebuild) {
-          if (!vectorCache.hasCompleteCache({ provider: name, model })) {
-            await vectorCache.maybeDownloadPrebuiltVectorIndex({
-              provider: name,
-              model,
-              cacheKey,
-              signature,
-              cacheFile
-            });
-          }
-        } else {
+        if (ragConfig.rebuild) {
           logRag(`cache bypass provider=${name} file=${cacheFile} reason=rebuild_true`);
           vectorCache.clearVectorIndexCheckpoint(checkpointFile);
         }
@@ -311,9 +301,23 @@ function createProviderOrchestrator({
           hash: createHash("sha256").update(`${model}\n${item.text}`).digest("hex").slice(0, 32)
         }));
         const checkpointHashes = new Set();
-        const reusable = ragConfig.rebuild
+        const collect = () => (ragConfig.rebuild
           ? new Map()
-          : vectorCache.collectReusableVectors({ provider: name, model, items: indexedItems, signature, checkpointHashes });
+          : vectorCache.collectReusableVectors({ provider: name, model, items: indexedItems, signature, checkpointHashes }));
+        let reusable = collect();
+        // Local caches do not cover every chunk (e.g. an older release's index
+        // after an upgrade): try this release's prebuilt index before paying to
+        // embed, then re-collect.
+        if (!ragConfig.rebuild && indexedItems.some((item) => !reusable.has(item.hash))) {
+          const download = await vectorCache.maybeDownloadPrebuiltVectorIndex({
+            provider: name,
+            model,
+            cacheKey,
+            signature,
+            cacheFile
+          });
+          if (download.downloaded) reusable = collect();
+        }
         const vectors = indexedItems.map((item) => reusable.get(item.hash) || null);
         const missing = [];
         vectors.forEach((vector, index) => {

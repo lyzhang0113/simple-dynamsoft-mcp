@@ -52,11 +52,6 @@ function isCheckpointHeader(path) {
   return path.endsWith(".checkpoint.json");
 }
 
-function hasCompleteCache({ cacheDir, provider, model }) {
-  return listProviderCacheHeaders(cacheDir, provider, model)
-    .some((path) => !isCheckpointHeader(path) && existsSync(vectorFileFor(path)));
-}
-
 // True when `cacheFile` already holds exactly these items (same order and
 // chunk hashes) with a correctly sized vector file, so a build that embeds
 // nothing does not need to rewrite it.
@@ -458,7 +453,6 @@ function createVectorCacheHelpers({ ragConfig, pkgVersion, legacyPrebuiltIndexUr
     saveVectorIndexCheckpoint: (checkpointFile, payload) => saveVectorIndexCheckpoint(ragConfig.cacheDir, checkpointFile, payload),
     clearVectorIndexCheckpoint,
     collectReusableVectors: (options) => collectReusableVectors({ cacheDir: ragConfig.cacheDir, ...options }),
-    hasCompleteCache: (options) => hasCompleteCache({ cacheDir: ragConfig.cacheDir, ...options }),
     cacheHeaderMatches,
     pruneOtherCaches: (options) => pruneOtherCaches({ cacheDir: ragConfig.cacheDir, ...options }),
     maybeDownloadPrebuiltVectorIndex

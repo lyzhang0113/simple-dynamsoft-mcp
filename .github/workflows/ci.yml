@@ -30,6 +30,9 @@ jobs:
       - name: Verify data source wiring
         run: npm run data:verify-versions:strict
 
+      - name: Unit tests
+        run: npm run test:unit
+
       - name: Test (lite + package runtime)
         run: npm run test:lite
 
