@@ -215,7 +215,9 @@ async function searchResources({ query, product, edition, platform, type, limit,
   return [];
 }
 
-async function prewarmRagIndex() {
+// `throwOnError` rethrows build failures; the prebuild script uses it so a
+// failed build cannot publish whatever older index is in the cache dir.
+async function prewarmRagIndex({ throwOnError = false } = {}) {
   if (!ragConfig.prewarm) return;
   logRagConfigOnce(ragConfig);
   const providers = providerOrchestrator.resolveProviderChain();
@@ -245,6 +247,7 @@ async function prewarmRagIndex() {
       provider: primary,
       error: error.message
     }, { level: "error" });
+    if (throwOnError) throw error;
   }
 }
 

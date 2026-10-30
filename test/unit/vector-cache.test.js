@@ -54,18 +54,65 @@ test("cache with a truncated or missing vector file is rejected", () => {
   });
 });
 
-test("checkpoint resumes partial vectors and clearing removes both files", () => {
+const hashed = (items) => items.map((item, i) => ({ ...item, hash: `h${i}` }));
+
+test("vectors are reused by chunk hash from caches and partial checkpoints", () => {
   withHelpers((helpers, cacheDir) => {
-    const checkpointFile = join(cacheDir, "rag-gemini-m-key.checkpoint.json");
-    helpers.saveVectorIndexCheckpoint(checkpointFile, { ...payload, vectors: payload.vectors.slice(0, 1) });
+    // Previous cache: hashes h0, h1. Partial checkpoint: only h2 embedded so far.
+    helpers.saveVectorIndexCache(join(cacheDir, "rag-gemini-m-old.json"), { ...payload, items: hashed(payload.items) });
+    helpers.saveVectorIndexCheckpoint(join(cacheDir, "rag-gemini-m-new.checkpoint.json"), {
+      cacheKey: "key-2",
+      meta: payload.meta,
+      items: [{ id: "c#0", uri: "doc://c", hash: "h2" }],
+      vectors: [[1, 0, 0]]
+    });
+    // A different model's cache must not be reused.
+    helpers.saveVectorIndexCache(join(cacheDir, "rag-gemini-other-x.json"), {
+      ...payload, meta: { ...payload.meta, model: "other" }, items: [{ id: "z", uri: "doc://z", hash: "h9" }], vectors: [[0, 0, 1]]
+    });
 
-    const resumed = helpers.loadVectorIndexCheckpoint(checkpointFile, "key-1", payload.items);
-    assert.equal(resumed.hit, true);
-    assert.equal(resumed.payload.vectors.length, 1);
-    assert.equal(helpers.loadVectorIndexCheckpoint(checkpointFile, "key-1", payload.items.slice(1)).reason, "items_length_mismatch");
+    const reusable = helpers.collectReusableVectors({
+      provider: "gemini",
+      model: "m",
+      items: [{ id: "a#0", uri: "doc://a", hash: "h0" }, { id: "x", uri: "doc://x", hash: "h9" }],
+      signature: "{}"
+    });
+    assert.deepEqual([...reusable.keys()].sort(), ["h0", "h1", "h2"]);
+    assert.deepEqual(Array.from(reusable.get("h2")), [1, 0, 0]);
+  });
+});
 
-    helpers.clearVectorIndexCheckpoint(checkpointFile);
-    assert.equal(existsSync(checkpointFile), false);
-    assert.equal(existsSync(checkpointFile.replace(/\.json$/, ".f32")), false);
+test("hash-less caches are never reused, even with the same chunk ids/uris", () => {
+  withHelpers((helpers, cacheDir) => {
+    // An old-format cache: same chunk ids/uris as the current corpus, but no
+    // text hashes, so nothing proves its vectors match the current text.
+    helpers.saveVectorIndexCache(join(cacheDir, "rag-gemini-m-legacy.json"), payload);
+    const reusable = helpers.collectReusableVectors({ provider: "gemini", model: "m" });
+    assert.equal(reusable.size, 0);
+  });
+});
+
+test("pruning keeps only the current cache and removes vector files of the others", () => {
+  withHelpers((helpers, cacheDir) => {
+    const keep = join(cacheDir, "rag-gemini-m-new.json");
+    const old = join(cacheDir, "rag-gemini-m-old.json");
+    helpers.saveVectorIndexCache(keep, payload);
+    helpers.saveVectorIndexCache(old, payload);
+    helpers.pruneOtherCaches({ provider: "gemini", model: "m", keepFile: keep });
+    assert.equal(existsSync(keep), true);
+    assert.equal(existsSync(old), false);
+    assert.equal(existsSync(old.replace(/\.json$/, ".f32")), false);
+  });
+});
+
+test("pruning never deletes another model's cache that shares the filename prefix", () => {
+  withHelpers((helpers, cacheDir) => {
+    const keep = join(cacheDir, "rag-gemini-m-new.json");
+    const otherModel = join(cacheDir, "rag-gemini-m-other-x.json");
+    helpers.saveVectorIndexCache(keep, payload);
+    helpers.saveVectorIndexCache(otherModel, { ...payload, meta: { ...payload.meta, model: "m-other" } });
+    helpers.pruneOtherCaches({ provider: "gemini", model: "m", keepFile: keep });
+    assert.equal(existsSync(otherModel), true);
+    assert.equal(existsSync(otherModel.replace(/\.json$/, ".f32")), true);
   });
 });

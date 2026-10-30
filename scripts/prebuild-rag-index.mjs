@@ -25,7 +25,7 @@ ensureEnvDefaults();
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const { prewarmRagIndex, ragConfig } = await import("../src/rag/index.js");
 
-await prewarmRagIndex();
+await prewarmRagIndex({ throwOnError: true });
 
 const cacheDir = resolve(ragConfig.cacheDir);
 if (!existsSync(cacheDir)) {
@@ -49,18 +49,45 @@ const allHeaders = readdirSync(cacheDir, { withFileTypes: true })
   .sort();
 
 const toVectorFile = (path) => path.replace(/\.json$/i, ".f32");
+const readMeta = (path) => {
+  try {
+    return JSON.parse(readFileSync(path, "utf8")).meta || {};
+  } catch {
+    return {};
+  }
+};
+// The model the build just used; only its cache is shipped.
+const activeModel = ragConfig.provider === "gemini" ? ragConfig.geminiModel : "";
+
 const cacheFiles = [];
 for (const path of allHeaders) {
-  if (existsSync(toVectorFile(path))) {
-    cacheFiles.push(path);
-  } else {
+  if (!existsSync(toVectorFile(path))) {
     rmSync(path, { force: true });
     console.log(`[rag-prebuild] removed legacy cache without vectors: ${basename(path)}`);
+    continue;
   }
+  const meta = readMeta(path);
+  if (meta.provider === ragConfig.provider && meta.model !== activeModel) {
+    // A seeded index for a previous model (e.g. after a model change). The
+    // build succeeded with the active model, so it is obsolete; never ship it.
+    rmSync(path, { force: true });
+    rmSync(toVectorFile(path), { force: true });
+    console.log(`[rag-prebuild] removed cache for previous model ${meta.model}: ${basename(path)}`);
+    continue;
+  }
+  cacheFiles.push(path);
 }
 
 if (cacheFiles.length === 0) {
   throw new Error(`No cache files with vectors found in ${cacheDir}.`);
+}
+
+// A successful build prunes every other cache for its provider/model, so exactly
+// one complete cache for the active model must remain; more means a stale
+// seeded index survived and could be shipped under this version.
+const providerCaches = cacheFiles.filter((path) => readMeta(path).provider === ragConfig.provider);
+if (providerCaches.length !== 1) {
+  throw new Error(`Expected exactly one ${ragConfig.provider} cache for ${activeModel} after the build, found ${providerCaches.length}: ${providerCaches.map((path) => basename(path)).join(", ")}`);
 }
 
 const vectorFiles = cacheFiles.map(toVectorFile);
