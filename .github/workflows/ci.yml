@@ -208,6 +208,8 @@ jobs:
       # Backstop if the path list above misses something: fail before any
       # embedding call rather than embed more than a handful of chunks.
       RAG_MAX_EMBED_CHUNKS: "50"
+      # The index comes only from the seed step; no runtime download in CI.
+      RAG_PREBUILT_INDEX_AUTO_DOWNLOAD: "false"
     steps:
       - name: Skip when GEMINI_API_KEY is missing
         if: ${{ env.GEMINI_API_KEY == '' }}
